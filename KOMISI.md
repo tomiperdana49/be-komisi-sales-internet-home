@@ -163,6 +163,8 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 - `New Achievement (15 + selisih) s.d. (16 + selisih)` : **Rp 500.000**
 - Selain itu : Tidak ada Bonus Kelebihan Service.
 - Untuk sales dengan target default (12), selisih = 0, jadi tier tetap 15/17/20 seperti sebelumnya.
+- **Berlaku untuk semua status kepegawaian, termasuk Probation** — skema ini tidak digerbang status, semua tetap bisa dapat Bonus Kelebihan Service.
+- **Pergeseran tier (selisih) hanya berlaku untuk status Permanent.** Untuk Probation/Contract, tier **selalu tetap 15/17/20 (flat)** berapapun target yang diatur untuk mereka — target pada status non-Permanent hanya dipakai untuk menggerbang rate recurring & performance penalty (Permanent-only, lihat 2.A & 1.2), bukan untuk menggeser tier bonus.
 
 **D. Bonus Konsistensi (Diberikan manual oleh admin, di luar New Achievement)**
 

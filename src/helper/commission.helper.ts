@@ -323,12 +323,20 @@ export function calculateAchievement(
 
 /**
  * Bonus Kelebihan Service — extra monthly cash bonus, paid on top of
- * commission. Tiers are relative to the employee's own target (base 12):
- * each tier shifts by the same amount the target differs from 12, e.g.
- * target 13 moves the first tier from 15 to 16, target 11 moves it to 14.
+ * commission. For Permanent staff, tiers are relative to the employee's
+ * own target (base 12): each tier shifts by the same amount the target
+ * differs from 12, e.g. target 13 moves the first tier from 15 to 16,
+ * target 11 moves it to 14.
+ *
+ * Non-Permanent staff (Probation/Contract) always use the flat 15/17/20
+ * base tiers, regardless of whatever target is configured for them —
+ * target on those statuses only ever exists to gate the recurring rate /
+ * performance penalty (Permanent-only rules, see KOMISI.md 2.A & 1.2),
+ * not to shift the bonus tier.
  */
-export function calculateBonus(activityCount: number, target: number): number {
-  const shift = target - DEFAULT_SALES_TARGET;
+export function calculateBonus(activityCount: number, target: number, status: string | null | undefined): number {
+  const effectiveTarget = status === "Permanent" ? target : DEFAULT_SALES_TARGET;
+  const shift = effectiveTarget - DEFAULT_SALES_TARGET;
   const tier1 = 15 + shift;
   const tier2 = 17 + shift;
   const tier3 = 20 + shift;
