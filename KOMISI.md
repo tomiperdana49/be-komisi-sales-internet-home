@@ -54,8 +54,8 @@ Rate recurring **tidak dibedakan per kategori layanan**: berlaku sama untuk Home
 - **Home100, HomeSTD100**: 1 bln (28.57%), 6 bln (5.95%), 12 bln (4.76%)
 - **HomeADV200, HomeADV**: 1 bln (27.78%), 6 bln (5.56%), 12 bln (4.63%)
 - **HomePrem300, HOME300**: 1 bln (31.25%), 6 bln (6.25%), 12 bln (5.21%)
-- **LITE100**: 1 bln (28%), 6 bln (5.95%), 12 bln (4.76%)
-- **LITE200**: 1 bln (27%), 6 bln (5.56%), 12 bln (4.63%)
+- **LITE100**: 1 bln (27%), 6 bln (5.56%), 12 bln (4.63%)
+- **LITE200**: 1 bln (28%), 6 bln (5.95%), 12 bln (4.76%)
 
 > **⚠️ Beberapa produk punya dua ServiceId alias** dengan `ServiceType` identik di billing. **Keduanya wajib ada** di tabel rate, kalau tidak penjualan atas alias yang terlewat diam-diam dapat komisi 0%:
 >
