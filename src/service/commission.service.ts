@@ -830,15 +830,6 @@ export class CommissionService {
     return this.snapshotRepository.updateApproval(aiInvoice, isApproved);
   }
 
-  /** Admin edit of a referral fee/type on one invoice row. */
-  updateInvoiceReferral(
-    aiInvoice: number,
-    referralFee: number,
-    referralType: string | null,
-  ): Promise<void> {
-    return this.snapshotRepository.updateReferral(aiInvoice, referralFee, referralType);
-  }
-
   /** Full raw invoice row for the admin adjustment form — every field, not just the summary list's subset. */
   async getInvoiceDetail(aiInvoice: number): Promise<SnapshotDetailItem> {
     const row = await this.snapshotRepository.findByAiInvoice(aiInvoice);

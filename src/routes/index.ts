@@ -45,9 +45,6 @@ router.get("/summary/invoice", authMiddleware, adminMiddleware, (c) => container
 router.post("/summary/invoice/:ai/approve", authMiddleware, adminMiddleware, (c) =>
   container.summaryController.approveInvoice(c),
 );
-router.put("/summary/invoice/:ai", authMiddleware, adminMiddleware, (c) =>
-  container.summaryController.updateInvoiceReferral(c),
-);
 router.get("/summary/invoice/:ai", authMiddleware, adminMiddleware, (c) =>
   container.summaryController.invoiceDetail(c),
 );

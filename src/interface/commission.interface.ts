@@ -40,8 +40,6 @@ export interface ISnapshotReadRepository {
   findRecurringByManager(managerId: string, period: string): Promise<CommissionSnapshotRow[]>;
   /** Admin approval for a late-paid invoice, waiving its late-payment penalty (KOMISI.md 1). */
   updateApproval(aiInvoice: number, isApproved: boolean): Promise<void>;
-  /** Admin edit of a referral fee/type on one invoice row. */
-  updateReferral(aiInvoice: number, referralFee: number, referralType: string | null): Promise<void>;
   /** Raw row for one invoice, for building the adjustment form's current values and the audit log's "before" snapshot. */
   findByAiInvoice(aiInvoice: number): Promise<CommissionSnapshotRow | null>;
   /**

@@ -68,17 +68,6 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
     ]);
   }
 
-  async updateReferral(
-    aiInvoice: number,
-    referralFee: number,
-    referralType: string | null,
-  ): Promise<void> {
-    await this.db.query(
-      `UPDATE snapshots SET referral_fee = ?, referral_type = ? WHERE ai_invoice = ?`,
-      [referralFee, referralType, aiInvoice],
-    );
-  }
-
   async findByAiInvoice(aiInvoice: number): Promise<CommissionSnapshotRow | null> {
     const rows = await this.db.query<CommissionSnapshotRow[]>(
       `SELECT * FROM snapshots WHERE ai_invoice = ? LIMIT 1`,

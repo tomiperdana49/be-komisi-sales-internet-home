@@ -43,17 +43,6 @@ export class SummaryController {
     return c.json(successResponse("Invoice approval updated successfully"));
   }
 
-  async updateInvoiceReferral(c: Context) {
-    const aiInvoice = Number.parseInt(c.req.param("ai")!, 10);
-    const body = await c.req.json();
-    await this.commissionService.updateInvoiceReferral(
-      aiInvoice,
-      Number(body.referralFee) || 0,
-      body.referralType ?? null,
-    );
-    return c.json(successResponse("Invoice referral updated successfully"));
-  }
-
   /** Full raw invoice row for the admin adjustment form — every field, not just the summary list's subset. */
   async invoiceDetail(c: Context) {
     const aiInvoice = Number.parseInt(c.req.param("ai")!, 10);
