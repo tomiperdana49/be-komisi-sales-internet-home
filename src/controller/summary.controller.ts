@@ -172,12 +172,17 @@ export class SummaryController {
     return c.json(successResponse("Consistency bonus retrieved successfully", data));
   }
 
-  /** Admin grant (or edit-note re-grant) of Bonus Konsistensi (fixed Rp 1.000.000) for one Account Manager in a period. */
+  /** Admin grant (or edit re-grant) of Bonus Konsistensi for one Account Manager in a period — amount is admin-entered. */
   async grantConsistencyBonus(c: Context) {
     const employeeId = c.req.param("id")!;
     const period = resolvePeriodFromQuery(c);
     const body = await c.req.json();
     const user = c.get("user");
+
+    const amount = Number(body.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException("Parameter amount is required");
+    }
 
     const note = typeof body.note === "string" ? body.note.trim() : "";
     if (!note) {
@@ -195,7 +200,7 @@ export class SummaryController {
         : null;
     const testimonialLink = typeof body.testimonialLink === "string" && body.testimonialLink.trim() ? body.testimonialLink.trim() : null;
 
-    await this.consistencyBonusService.grant(employeeId, period, note, months, serviceCount, testimonialLink, user.sub);
+    await this.consistencyBonusService.grant(employeeId, period, amount, note, months, serviceCount, testimonialLink, user.sub);
     return c.json(successResponse("Consistency bonus granted successfully"));
   }
 

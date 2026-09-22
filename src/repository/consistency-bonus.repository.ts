@@ -19,6 +19,7 @@ export class ConsistencyBonusRepository implements IConsistencyBonusRepository {
   async upsert(
     employeeId: string,
     period: string,
+    amount: number,
     note: string,
     months: string | null,
     serviceCount: number | null,
@@ -26,11 +27,11 @@ export class ConsistencyBonusRepository implements IConsistencyBonusRepository {
     grantedBy: string,
   ): Promise<void> {
     await this.db.query(
-      `INSERT INTO consistency_bonus (employee_id, period, note, months, service_count, testimonial_link, granted_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE note = VALUES(note), months = VALUES(months),
+      `INSERT INTO consistency_bonus (employee_id, period, amount, note, months, service_count, testimonial_link, granted_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE amount = VALUES(amount), note = VALUES(note), months = VALUES(months),
          service_count = VALUES(service_count), testimonial_link = VALUES(testimonial_link), granted_by = VALUES(granted_by)`,
-      [employeeId, period, note, months, serviceCount, testimonialLink, grantedBy],
+      [employeeId, period, amount, note, months, serviceCount, testimonialLink, grantedBy],
     );
   }
 

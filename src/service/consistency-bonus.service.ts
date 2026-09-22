@@ -29,6 +29,7 @@ export class ConsistencyBonusService implements IConsistencyBonusService {
   grant(
     employeeId: string,
     period: string,
+    amount: number,
     note: string,
     months: string | null,
     serviceCount: number | null,
@@ -38,6 +39,7 @@ export class ConsistencyBonusService implements IConsistencyBonusService {
     return this.consistencyBonusRepository.upsert(
       employeeId,
       period,
+      amount,
       note,
       months,
       serviceCount,

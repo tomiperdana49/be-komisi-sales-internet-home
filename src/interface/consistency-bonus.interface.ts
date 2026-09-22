@@ -1,6 +1,3 @@
-/** Fixed grant amount — Bonus Konsistensi is always exactly Rp 1.000.000 per employee per period. */
-export const CONSISTENCY_BONUS_AMOUNT = 1_000_000;
-
 export type ConsistencyBonusRow = {
   employee_id: string;
   period: string;
@@ -19,6 +16,7 @@ export interface IConsistencyBonusRepository {
   upsert(
     employeeId: string,
     period: string,
+    amount: number,
     note: string,
     months: string | null,
     serviceCount: number | null,
@@ -38,6 +36,7 @@ export interface IConsistencyBonusService {
   grant(
     employeeId: string,
     period: string,
+    amount: number,
     note: string,
     months: string | null,
     serviceCount: number | null,

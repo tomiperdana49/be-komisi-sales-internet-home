@@ -174,8 +174,8 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 
 **E. Bonus Konsistensi (Diberikan manual oleh admin, di luar New Achievement)**
 
-- Nominal **tetap Rp 1.000.000** per pemberian — tidak bisa diisi bebas.
-- Diberikan **per periode (bulan)**: admin memilih sales, menulis catatan (note wajib), jumlah service (wajib, diisi manual), bulan-bulan pencapaian & link testimoni (opsional, sekadar catatan pendukung), lalu memberikan lewat halaman admin *Summary > Bonus Konsistensi*. Untuk bulan berikutnya harus diberikan ulang kalau masih mau lanjut — tidak otomatis berulang.
+- Nominal **diisi manual oleh admin** saat memberikan grant (bebas, bukan angka tetap).
+- Diberikan **per periode (bulan)**: admin memilih sales, mengisi nominal (wajib), menulis catatan (note wajib), jumlah service (wajib, diisi manual), bulan-bulan pencapaian & link testimoni (opsional, sekadar catatan pendukung), lalu memberikan lewat halaman admin *Summary > Bonus Konsistensi*. Untuk bulan berikutnya harus diberikan ulang kalau masih mau lanjut — tidak otomatis berulang.
 - **Terpisah dari Bonus Bulanan & Bonus Kelebihan Service** (5.C/5.D) — semuanya ditambahkan ke Total Komisi, tapi dihitung dan ditampilkan sebagai angka-angka berbeda (`bonusBulanan` vs `bonusKelebihanService` vs `consistencyBonus`).
 - `Total Komisi = Base Commission Total + Bonus Bulanan + Bonus Kelebihan Service + Bonus Konsistensi` (ditambah komisi overriding untuk Manager, lihat Bagian 6.C/6.D).
 - Implementasi: tabel `consistency_bonus` (employee_id + period, unique), `ConsistencyBonusService` di `commission.service.ts`.
