@@ -106,8 +106,9 @@ export type SalesCommissionResult = {
   activityCount: number;
   achievementStatus: string;
   motivation: string;
-  bonus: number;
-  /** Admin-granted Bonus Konsistensi for this period, 0 if never granted (separate from the auto-calculated `bonus` above). */
+  bonusBulanan: number;
+  bonusKelebihanService: number;
+  /** Admin-granted Bonus Konsistensi for this period, 0 if never granted (separate from the auto-calculated bonuses above). */
   consistencyBonus: number;
   total: CommissionStats;
   breakdown: CommissionBreakdown;
@@ -138,7 +139,8 @@ export type ManagerTeamMember = {
   recurringCommission: number;
   otherSubscription: number;
   otherCommission: number;
-  bonus: number;
+  bonusBulanan: number;
+  bonusKelebihanService: number;
   consistencyBonus: number;
   totalCommission: number;
   /**
@@ -216,7 +218,7 @@ export type ManagerCommissionResult = {
    * team member's own invoice list. Valued at override.recurringCommissionRate.
    */
   croRecurring: CommissionLineItem[];
-  /** personal.total.commission + personal.bonus + override.newCommission + override.recurringCommission. */
+  /** personal.total.commission + personal.bonusBulanan + personal.bonusKelebihanService + override.newCommission + override.recurringCommission. */
   totalCommission: number;
   members: ManagerTeamMember[];
 };
@@ -236,7 +238,8 @@ export type SalesSummaryItem = {
   recurringCommission: number;
   otherSubscription: number;
   otherCommission: number;
-  bonus: number;
+  bonusBulanan: number;
+  bonusKelebihanService: number;
   consistencyBonus: number;
   totalCommission: number;
 };

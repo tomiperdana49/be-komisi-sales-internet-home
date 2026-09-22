@@ -1,7 +1,8 @@
 import {
   applyLateMonthPenalty,
   calculateAchievement,
-  calculateBonus,
+  calculateExcessServiceBonus,
+  calculateMonthlyBonus,
   calculateCommission,
   calculateManagerPerformance,
   calculateNusaSelectaActivity,
@@ -356,9 +357,10 @@ export class CommissionService {
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription,
         otherCommission,
-        bonus: r.bonus,
+        bonusBulanan: r.bonusBulanan,
+        bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
-        totalCommission: r.total.commission + r.bonus + r.consistencyBonus,
+        totalCommission: r.total.commission + r.bonusBulanan + r.bonusKelebihanService + r.consistencyBonus,
         managerNewCommission: r.breakdown.new.commission * (newCommissionRate / 100),
         managerRecurringCommission: r.breakdown.recurring.subscription * (recurringCommissionRate / 100),
         newService: serviceGroups.map((name) => ({
@@ -398,7 +400,8 @@ export class CommissionService {
       croRecurring,
       totalCommission:
         personal.total.commission +
-        personal.bonus +
+        personal.bonusBulanan +
+        personal.bonusKelebihanService +
         personal.consistencyBonus +
         overrideNewCommission +
         overrideRecurringCommission,
@@ -607,7 +610,8 @@ export class CommissionService {
       activityCount,
       achievementStatus,
       motivation,
-      bonus: calculateBonus(activityCount, target, status),
+      bonusBulanan: calculateMonthlyBonus(activityCount, target, status),
+      bonusKelebihanService: calculateExcessServiceBonus(activityCount, target, status),
       consistencyBonus,
       total,
       breakdown,
@@ -751,9 +755,10 @@ export class CommissionService {
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription: r.breakdown.alat.subscription + r.breakdown.setup.subscription,
         otherCommission: r.breakdown.alat.commission + r.breakdown.setup.commission,
-        bonus: r.bonus,
+        bonusBulanan: r.bonusBulanan,
+        bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
-        totalCommission: r.total.commission + r.bonus + r.consistencyBonus,
+        totalCommission: r.total.commission + r.bonusBulanan + r.bonusKelebihanService + r.consistencyBonus,
       };
     });
   }

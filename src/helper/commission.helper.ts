@@ -322,11 +322,11 @@ export function calculateAchievement(
 }
 
 /**
- * Bonus Kelebihan Service — extra monthly cash bonus, paid on top of
- * commission. For Permanent staff, tiers are relative to the employee's
- * own target (base 12): each tier shifts by the same amount the target
- * differs from 12, e.g. target 13 moves the first tier from 15 to 16,
- * target 11 moves it to 14.
+ * Shared tier math for Bonus Bulanan / Bonus Kelebihan Service. For
+ * Permanent staff, tiers are relative to the employee's own target (base
+ * 12): each tier shifts by the same amount the target differs from 12,
+ * e.g. target 13 moves the first tier from 15 to 16, target 11 moves it
+ * to 14.
  *
  * Non-Permanent staff (Probation/Contract) always use the flat 15/17/20
  * base tiers, regardless of whatever target is configured for them —
@@ -334,18 +334,37 @@ export function calculateAchievement(
  * performance penalty (Permanent-only rules, see KOMISI.md 2.A & 1.2),
  * not to shift the bonus tier.
  */
-export function calculateBonus(activityCount: number, target: number, status: string | null | undefined): number {
+function getBonusTiers(target: number, status: string | null | undefined) {
   const effectiveTarget = status === "Permanent" ? target : DEFAULT_SALES_TARGET;
   const shift = effectiveTarget - DEFAULT_SALES_TARGET;
-  const tier1 = 15 + shift;
-  const tier2 = 17 + shift;
-  const tier3 = 20 + shift;
+  return { tier1: 15 + shift, tier2: 17 + shift, tier3: 20 + shift };
+}
 
-  if (activityCount > tier3) return 1_500_000 + (activityCount - tier3) * 150_000;
+/**
+ * Bonus Bulanan — flat monthly cash bonus for reaching a New Achievement
+ * tier, paid on top of commission. Only covers tier1..tier3 (inclusive);
+ * exceeding tier3 is Bonus Kelebihan Service instead (see below), not an
+ * extra Bonus Bulanan on top of it.
+ */
+export function calculateMonthlyBonus(activityCount: number, target: number, status: string | null | undefined): number {
+  const { tier1, tier2, tier3 } = getBonusTiers(target, status);
+
+  if (activityCount > tier3) return 0; // exceeding tier3 is Bonus Kelebihan Service instead
   if (activityCount === tier3) return 1_500_000;
   if (activityCount >= tier2) return 1_000_000;
   if (activityCount >= tier1) return 500_000;
   return 0;
+}
+
+/**
+ * Bonus Kelebihan Service — paid instead of Bonus Bulanan once New
+ * Achievement exceeds tier3: the top Bonus Bulanan amount plus Rp 150.000
+ * for every unit above tier3.
+ */
+export function calculateExcessServiceBonus(activityCount: number, target: number, status: string | null | undefined): number {
+  const { tier3 } = getBonusTiers(target, status);
+  if (activityCount <= tier3) return 0;
+  return 1_500_000 + (activityCount - tier3) * 150_000;
 }
 
 /** Threshold percentage a manager's team must reach, keyed by TOTAL team size. */

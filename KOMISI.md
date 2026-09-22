@@ -137,7 +137,7 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 
 ---
 
-### 5. Level Prestasi (Achievement) & Skema Bonus Kelebihan Service Sales
+### 5. Level Prestasi (Achievement) & Skema Bonus Sales
 
 **A. Status Pegawai Permanent**
 
@@ -153,25 +153,31 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 - `3 - 4 aktivitas` : **Average**
 - `< 3 aktivitas` : **Below Average**
 
-**C. Skema Bonus Kelebihan Service (Dibayarkan dari total New Achievement bulanan)**
+> **⚠️ Tier di bawah ini (5.C dan 5.D) mengikuti Target Aktivitas sales tersebut** (bukan angka tetap seperti badge Achievement di atas). Basisnya target default **12**: tier bergeser sebesar selisih target sales itu terhadap 12. Contoh: target diatur ke 13 (selisih +1) → tier pertama naik dari 15 jadi 16. Target diatur ke 11 (selisih -1) → tier pertama turun jadi 14.
+> **Pergeseran tier (selisih) hanya berlaku untuk status Permanent.** Untuk Probation/Contract, tier **selalu tetap 15/17/20 (flat)** berapapun target yang diatur untuk mereka — target pada status non-Permanent hanya dipakai untuk menggerbang rate recurring & performance penalty (Permanent-only, lihat 2.A & 1.2), bukan untuk menggeser tier bonus.
+> Implementasi: `getBonusTiers(target, status)` di `commission.helper.ts`, dipakai bareng oleh `calculateMonthlyBonus` (5.C) dan `calculateExcessServiceBonus` (5.D).
 
-> **⚠️ Tier Bonus Kelebihan Service mengikuti Target Aktivitas sales tersebut** (bukan angka tetap seperti badge Achievement di atas). Basisnya target default **12**: tier bergeser sebesar selisih target sales itu terhadap 12. Contoh: target diatur ke 13 (selisih +1) → tier pertama naik dari 15 jadi 16. Target diatur ke 11 (selisih -1) → tier pertama turun jadi 14. Implementasi: `calculateBonus(activityCount, target)` di `commission.helper.ts`.
+**C. Bonus Bulanan (Dibayarkan dari total New Achievement bulanan, saat mencapai satu tier)**
 
-- `New Achievement > (20 + selisih)` : **Rp 1.500.000** + _(Setiap kelipatan di atas `20 + selisih` dinilai ekstra Rp 150.000)_
 - `New Achievement = (20 + selisih)` : **Rp 1.500.000**
 - `New Achievement (17 + selisih) s.d. (19 + selisih)` : **Rp 1.000.000**
 - `New Achievement (15 + selisih) s.d. (16 + selisih)` : **Rp 500.000**
-- Selain itu : Tidak ada Bonus Kelebihan Service.
+- Selain itu (termasuk saat melebihi `20 + selisih`, lihat 5.D) : Tidak ada Bonus Bulanan.
 - Untuk sales dengan target default (12), selisih = 0, jadi tier tetap 15/17/20 seperti sebelumnya.
-- **Berlaku untuk semua status kepegawaian, termasuk Probation** — skema ini tidak digerbang status, semua tetap bisa dapat Bonus Kelebihan Service.
-- **Pergeseran tier (selisih) hanya berlaku untuk status Permanent.** Untuk Probation/Contract, tier **selalu tetap 15/17/20 (flat)** berapapun target yang diatur untuk mereka — target pada status non-Permanent hanya dipakai untuk menggerbang rate recurring & performance penalty (Permanent-only, lihat 2.A & 1.2), bukan untuk menggeser tier bonus.
+- **Berlaku untuk semua status kepegawaian, termasuk Probation.**
 
-**D. Bonus Konsistensi (Diberikan manual oleh admin, di luar New Achievement)**
+**D. Bonus Kelebihan Service (Dibayarkan sebagai ganti Bonus Bulanan, saat melebihi tier tertinggi)**
+
+- `New Achievement > (20 + selisih)` : **Rp 1.500.000** + _(Setiap kelipatan di atas `20 + selisih` dinilai ekstra Rp 150.000)_
+- Selain itu : Tidak ada Bonus Kelebihan Service — **Bonus Bulanan (5.C) yang berlaku**, bukan keduanya sekaligus.
+- **Berlaku untuk semua status kepegawaian, termasuk Probation.**
+
+**E. Bonus Konsistensi (Diberikan manual oleh admin, di luar New Achievement)**
 
 - Nominal **tetap Rp 1.000.000** per pemberian — tidak bisa diisi bebas.
 - Diberikan **per periode (bulan)**: admin memilih sales, menulis catatan (note wajib), jumlah service (wajib, diisi manual), bulan-bulan pencapaian & link testimoni (opsional, sekadar catatan pendukung), lalu memberikan lewat halaman admin *Summary > Bonus Konsistensi*. Untuk bulan berikutnya harus diberikan ulang kalau masih mau lanjut — tidak otomatis berulang.
-- **Terpisah dari Bonus Kelebihan Service** (Bagian 5.C) — keduanya sama-sama ditambahkan ke Total Komisi, tapi dihitung dan ditampilkan sebagai dua angka berbeda (`bonus` vs `consistencyBonus`).
-- `Total Komisi = Base Commission Total + Bonus Kelebihan Service + Bonus Konsistensi` (ditambah komisi overriding untuk Manager, lihat Bagian 6.C/6.D).
+- **Terpisah dari Bonus Bulanan & Bonus Kelebihan Service** (5.C/5.D) — semuanya ditambahkan ke Total Komisi, tapi dihitung dan ditampilkan sebagai angka-angka berbeda (`bonusBulanan` vs `bonusKelebihanService` vs `consistencyBonus`).
+- `Total Komisi = Base Commission Total + Bonus Bulanan + Bonus Kelebihan Service + Bonus Konsistensi` (ditambah komisi overriding untuk Manager, lihat Bagian 6.C/6.D).
 - Implementasi: tabel `consistency_bonus` (employee_id + period, unique), `ConsistencyBonusService` di `commission.service.ts`.
 
 ---
