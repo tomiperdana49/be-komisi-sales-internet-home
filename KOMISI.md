@@ -161,17 +161,17 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 
 **C. Bonus Bulanan (Dibayarkan dari total New Achievement bulanan, saat mencapai satu tier)**
 
-- `New Achievement = (20 + selisih)` : **Rp 1.500.000**
+- `New Achievement >= (20 + selisih)` : **Rp 1.500.000** (tetap dibayarkan penuh meskipun melampaui tier tertinggi)
 - `New Achievement (17 + selisih) s.d. (19 + selisih)` : **Rp 1.000.000**
 - `New Achievement (15 + selisih) s.d. (16 + selisih)` : **Rp 500.000**
-- Selain itu (termasuk saat melebihi `20 + selisih`, lihat 5.D) : Tidak ada Bonus Bulanan.
+- Selain itu (`< 15 + selisih`) : Tidak ada Bonus Bulanan (Rp 0).
 - Untuk sales dengan target default (12), selisih = 0, jadi tier tetap 15/17/20 seperti sebelumnya.
 - **Berlaku untuk semua status kepegawaian, termasuk Probation.**
 
-**D. Bonus Kelebihan Service (Dibayarkan sebagai ganti Bonus Bulanan, saat melebihi tier tertinggi)**
+**D. Bonus Kelebihan Service (Dibayarkan sebagai bonus tambahan di atas Bonus Bulanan, saat melebihi tier tertinggi)**
 
-- `New Achievement > (20 + selisih)` : **Rp 1.500.000** + _(Setiap kelipatan di atas `20 + selisih` dinilai ekstra Rp 150.000)_
-- Selain itu : Tidak ada Bonus Kelebihan Service — **Bonus Bulanan (5.C) yang berlaku**, bukan keduanya sekaligus.
+- `New Achievement > (20 + selisih)` : `(New Achievement − (20 + selisih)) x Rp 150.000` _(dihitung murni kelebihannya di atas tier tertinggi, dibayarkan berdampingan dengan Bonus Bulanan Rp 1.500.000)_
+- Selain itu (`<= 20 + selisih`) : Tidak ada Bonus Kelebihan Service (Rp 0).
 - **Berlaku untuk semua status kepegawaian, termasuk Probation.**
 
 **E. Bonus Konsistensi (Diberikan manual oleh admin, di luar New Achievement)**

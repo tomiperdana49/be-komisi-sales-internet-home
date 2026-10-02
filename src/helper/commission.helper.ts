@@ -342,29 +342,26 @@ function getBonusTiers(target: number, status: string | null | undefined) {
 
 /**
  * Bonus Bulanan — flat monthly cash bonus for reaching a New Achievement
- * tier, paid on top of commission. Only covers tier1..tier3 (inclusive);
- * exceeding tier3 is Bonus Kelebihan Service instead (see below), not an
- * extra Bonus Bulanan on top of it.
+ * tier, paid on top of commission. Reaching or exceeding tier3 caps at
+ * Rp 1.500.000.
  */
 export function calculateMonthlyBonus(activityCount: number, target: number, status: string | null | undefined): number {
   const { tier1, tier2, tier3 } = getBonusTiers(target, status);
 
-  if (activityCount > tier3) return 0; // exceeding tier3 is Bonus Kelebihan Service instead
-  if (activityCount === tier3) return 1_500_000;
+  if (activityCount >= tier3) return 1_500_000;
   if (activityCount >= tier2) return 1_000_000;
   if (activityCount >= tier1) return 500_000;
   return 0;
 }
 
 /**
- * Bonus Kelebihan Service — paid instead of Bonus Bulanan once New
- * Achievement exceeds tier3: the top Bonus Bulanan amount plus Rp 150.000
- * for every unit above tier3.
+ * Bonus Kelebihan Service — paid on top of Bonus Bulanan once New
+ * Achievement exceeds tier3: Rp 150.000 for every unit above tier3.
  */
 export function calculateExcessServiceBonus(activityCount: number, target: number, status: string | null | undefined): number {
   const { tier3 } = getBonusTiers(target, status);
   if (activityCount <= tier3) return 0;
-  return 1_500_000 + (activityCount - tier3) * 150_000;
+  return (activityCount - tier3) * 150_000;
 }
 
 /** Threshold percentage a manager's team must reach, keyed by TOTAL team size. */
