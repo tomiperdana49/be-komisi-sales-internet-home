@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { BadRequestException, NotFoundException, UnauthorizedException } from "../exception/http.exception";
 import { successResponse } from "../helper/api-response.helper";
+import { authConfig } from "../config/auth.config";
 import type { IAuthService } from "../interface/auth.interface";
 import type { IEmployeeService } from "../interface/employee.interface";
 
@@ -26,8 +27,15 @@ export class AuthController {
     return c.json(successResponse("Login successful", { ...tokens, user: employee }));
   }
 
-  /** Dev-only bypass: skips password verification, only checks the employee exists. */
+  /**
+   * Dev-only bypass: skips password verification, only checks the employee
+   * exists. Disabled unless ALLOW_DEV_LOGIN=true — anywhere else it would let
+   * anyone sign in as any employee, admins included.
+   */
   async devLogin(c: Context) {
+    if (!authConfig.allowDevLogin) {
+      throw new NotFoundException("Not found");
+    }
     const body = await c.req.json();
     const employee = await this.employeeService.findByEmployeeId(body.employeeId);
     if (!employee) {
