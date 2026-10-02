@@ -1,3 +1,4 @@
+import { validateImages } from "../helper/image-upload.helper";
 import type {
   FeedbackInput,
   FeedbackItem,
@@ -14,7 +15,9 @@ export class FeedbackService implements IFeedbackService {
     data: FeedbackInput,
     imageFiles: File[],
   ): Promise<string[]> {
-    const imageUrls = await this.feedbackRepository.saveImages(employeeId, imageFiles);
+    // Rejects the whole submission before anything is written to disk.
+    const images = await validateImages(imageFiles);
+    const imageUrls = await this.feedbackRepository.saveImages(employeeId, images);
 
     this.feedbackRepository.notify({
       employeeId: String(employeeId),

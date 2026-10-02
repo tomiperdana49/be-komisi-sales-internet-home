@@ -1,3 +1,4 @@
+import type { ImageExtension } from "../helper/image-upload.helper";
 export type FeedbackInput = {
   message: string;
   type: string;
@@ -17,7 +18,7 @@ export type FeedbackItem = {
 
 export interface IFeedbackRepository {
   /** Saves uploaded images under uploads/feedback and returns their public URLs. */
-  saveImages(employeeId: string, imageFiles: File[]): Promise<string[]>;
+  saveImages(employeeId: string, images: { file: File; ext: ImageExtension }[]): Promise<string[]>;
   /** Best-effort notification to the external feedback service — never throws. */
   notify(item: FeedbackItem): void;
   findAll(): Promise<FeedbackItem[]>;
