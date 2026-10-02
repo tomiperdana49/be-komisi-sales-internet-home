@@ -70,6 +70,39 @@ export class EmployeeRepository implements IEmployeeRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Tolerates a database that hasn't run the tokens_valid_after migration yet:
+   * reads return null (nothing revoked) instead of failing every request.
+   */
+  async getTokensValidAfter(employeeId: string): Promise<number | null> {
+    try {
+      const rows = await this.db.query<{ tokens_valid_after: number | string | null }[]>(
+        `SELECT tokens_valid_after FROM employee WHERE employee_id = ? LIMIT 1`,
+        [employeeId],
+      );
+      const value = rows[0]?.tokens_valid_after;
+      return value === null || value === undefined ? null : Number(value);
+    } catch (error: any) {
+      if (error?.code === "ER_BAD_FIELD_ERROR") return null;
+      throw error;
+    }
+  }
+
+  async setTokensValidAfter(employeeId: string, epochMs: number): Promise<void> {
+    try {
+      await this.db.query(`UPDATE employee SET tokens_valid_after = ? WHERE employee_id = ?`, [
+        epochMs,
+        employeeId,
+      ]);
+    } catch (error: any) {
+      if (error?.code === "ER_BAD_FIELD_ERROR") {
+        console.warn("employee.tokens_valid_after missing — run the migration in table.sql; logout can't revoke tokens");
+        return;
+      }
+      throw error;
+    }
+  }
+
   findByEmployeeIds(employeeIds: string[]): Promise<EmployeeDetail[]> {
     if (employeeIds.length === 0) return Promise.resolve([]);
     return this.db.query<EmployeeDetail[]>(

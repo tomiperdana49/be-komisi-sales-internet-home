@@ -18,6 +18,9 @@ export type AccessTokenPayload = {
   svp: number | null;
   email: string;
   role: string;
+  iat: number;
+  /** Issued-at in milliseconds — compared with the employee's tokens_valid_after (ms). */
+  iatMs: number;
   exp: number;
 };
 
@@ -25,6 +28,8 @@ export type RefreshTokenPayload = {
   typ: "refresh";
   sub: string;
   email: string;
+  iat: number;
+  iatMs: number;
   exp: number;
 };
 

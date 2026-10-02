@@ -67,6 +67,10 @@ export interface IEmployeeRepository {
   findAll(): Promise<EmployeeRow[]>;
   upsertEmployee(data: EmployeeUpsertInput): Promise<void>;
   findByEmployeeId(employeeId: string): Promise<EmployeeDetail | null>;
+  /** Epoch milliseconds before which this employee's tokens are void (null = none revoked). */
+  getTokensValidAfter(employeeId: string): Promise<number | null>;
+  /** Voids every token issued to this employee before `epochMs` (logout). */
+  setTokensValidAfter(employeeId: string, epochMs: number): Promise<void>;
   /** Bulk lookup — one query instead of N concurrent single-row ones (those can desync the mysql pool under load). */
   findByEmployeeIds(employeeIds: string[]): Promise<EmployeeDetail[]>;
   findByEmail(email: string): Promise<EmployeeDetail | null>;
@@ -156,6 +160,10 @@ export interface IEmployeeService {
   ): Promise<StatusPeriodRow[]>;
   getSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]>;
   findByEmployeeId(employeeId: string): Promise<EmployeeDetail | null>;
+  /** Epoch milliseconds before which this employee's tokens are void (null = none revoked). */
+  getTokensValidAfter(employeeId: string): Promise<number | null>;
+  /** Voids every token issued to this employee before `epochMs` (logout). */
+  setTokensValidAfter(employeeId: string, epochMs: number): Promise<void>;
   findByEmployeeIds(employeeIds: string[]): Promise<EmployeeDetail[]>;
   findByEmail(email: string): Promise<EmployeeDetail | null>;
   getHierarchy(

@@ -56,7 +56,9 @@ CREATE TABLE employee (
     manager_id INT NULL,
     has_dashboard BOOLEAN NOT NULL DEFAULT false,
     is_active BOOLEAN NOT NULL DEFAULT true,
-    is_admin BOOLEAN NOT NULL DEFAULT false
+    is_admin BOOLEAN NOT NULL DEFAULT false,
+    -- Epoch milliseconds; any token issued before this is rejected (set on logout).
+    tokens_valid_after BIGINT NULL
 );
 
 CREATE TABLE status_period (
@@ -121,3 +123,6 @@ CREATE TABLE commission_rule_set (
 
 -- Migration for existing databases (snapshots.is_renewal):
 -- ALTER TABLE snapshots ADD COLUMN is_renewal BOOLEAN NOT NULL DEFAULT FALSE AFTER type;
+
+-- Migration for existing databases (logout revokes tokens):
+-- ALTER TABLE employee ADD COLUMN tokens_valid_after BIGINT NULL;

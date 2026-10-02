@@ -41,3 +41,13 @@ export class NotFoundException extends HttpException {
     super(404, message, details);
   }
 }
+
+export class TooManyRequestsException extends HttpException {
+  constructor(
+    message = "Too many requests",
+    /** Seconds the client should wait; sent as the Retry-After header. */
+    public readonly retryAfterSeconds?: number,
+  ) {
+    super(429, message);
+  }
+}

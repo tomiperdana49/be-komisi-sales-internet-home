@@ -107,6 +107,14 @@ export class EmployeeService implements IEmployeeService {
     return this.employeeRepository.findByEmployeeId(employeeId);
   }
 
+  getTokensValidAfter(employeeId: string): Promise<number | null> {
+    return this.employeeRepository.getTokensValidAfter(employeeId);
+  }
+
+  setTokensValidAfter(employeeId: string, epochMs: number): Promise<void> {
+    return this.employeeRepository.setTokensValidAfter(employeeId, epochMs);
+  }
+
   findByEmployeeIds(employeeIds: string[]): Promise<EmployeeDetail[]> {
     return this.employeeRepository.findByEmployeeIds(employeeIds);
   }

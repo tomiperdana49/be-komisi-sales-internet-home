@@ -52,7 +52,8 @@ export class AuthService implements IAuthService {
   }
 
   async generateTokens(employee: EmployeeDetail): Promise<AuthTokens> {
-    const now = Math.floor(Date.now() / 1000);
+    const issuedAtMs = Date.now();
+    const now = Math.floor(issuedAtMs / 1000);
 
     const accessTokenPayload: AccessTokenPayload = {
       typ: "access",
@@ -60,12 +61,16 @@ export class AuthService implements IAuthService {
       svp: employee.manager_id,
       email: employee.email,
       role: employee.job_position,
+      iat: now,
+      iatMs: issuedAtMs,
       exp: now + 60 * 15, // 15 minutes
     };
     const refreshTokenPayload: RefreshTokenPayload = {
       typ: "refresh",
       sub: employee.employee_id,
       email: employee.email,
+      iat: now,
+      iatMs: issuedAtMs,
       exp: now + 60 * 60 * 24 * 7, // 7 days
     };
 
