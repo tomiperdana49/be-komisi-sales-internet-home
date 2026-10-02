@@ -8,6 +8,7 @@ import type {
   AuthTokens,
   IAuthService,
   RefreshTokenPayload,
+  TokenType,
 } from "../interface/auth.interface";
 import type { EmployeeDetail } from "../interface/employee.interface";
 
@@ -54,6 +55,7 @@ export class AuthService implements IAuthService {
     const now = Math.floor(Date.now() / 1000);
 
     const accessTokenPayload: AccessTokenPayload = {
+      typ: "access",
       sub: employee.employee_id,
       svp: employee.manager_id,
       email: employee.email,
@@ -61,6 +63,7 @@ export class AuthService implements IAuthService {
       exp: now + 60 * 15, // 15 minutes
     };
     const refreshTokenPayload: RefreshTokenPayload = {
+      typ: "refresh",
       sub: employee.employee_id,
       email: employee.email,
       exp: now + 60 * 60 * 24 * 7, // 7 days
@@ -73,18 +76,27 @@ export class AuthService implements IAuthService {
   }
 
   async verifyAccessToken(token: string): Promise<AccessTokenPayload> {
-    try {
-      return (await verify(token, authConfig.jwtSecret!, "HS256")) as unknown as AccessTokenPayload;
-    } catch {
-      throw new UnauthorizedException("Invalid or expired token");
-    }
+    const payload = await this.verifyTyped(token, "access");
+    if (!payload) throw new UnauthorizedException("Invalid or expired token");
+    return payload as unknown as AccessTokenPayload;
   }
 
   async verifyRefreshToken(token: string): Promise<RefreshTokenPayload> {
+    const payload = await this.verifyTyped(token, "refresh");
+    if (!payload) throw new UnauthorizedException("Invalid refresh token");
+    return payload as unknown as RefreshTokenPayload;
+  }
+
+  /**
+   * Valid signature, not expired, AND the expected kind. Tokens issued before the
+   * `typ` claim existed have none, so they're rejected and the user signs in again once.
+   */
+  private async verifyTyped(token: string, type: TokenType): Promise<Record<string, unknown> | null> {
     try {
-      return (await verify(token, authConfig.jwtSecret!, "HS256")) as unknown as RefreshTokenPayload;
+      const payload = (await verify(token, authConfig.jwtSecret!, "HS256")) as Record<string, unknown>;
+      return payload.typ === type ? payload : null;
     } catch {
-      throw new UnauthorizedException("Invalid refresh token");
+      return null;
     }
   }
 }

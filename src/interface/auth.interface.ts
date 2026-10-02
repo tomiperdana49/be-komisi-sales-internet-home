@@ -5,7 +5,15 @@ export type AuthTokens = {
   refreshToken: string;
 };
 
+/**
+ * Both tokens are signed with the same secret, so each carries its kind: without it a
+ * 7-day refresh token would pass as an access token, and an access token could mint
+ * new tokens forever.
+ */
+export type TokenType = "access" | "refresh";
+
 export type AccessTokenPayload = {
+  typ: "access";
   sub: string;
   svp: number | null;
   email: string;
@@ -14,6 +22,7 @@ export type AccessTokenPayload = {
 };
 
 export type RefreshTokenPayload = {
+  typ: "refresh";
   sub: string;
   email: string;
   exp: number;
