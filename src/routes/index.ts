@@ -58,10 +58,6 @@ router.get("/summary/churn", authMiddleware, adminMiddleware, (c) => container.s
 router.post("/summary/churn/:id/approve", authMiddleware, adminMiddleware, (c) =>
   container.summaryController.approveChurn(c),
 );
-router.get("/summary/target", authMiddleware, adminMiddleware, (c) => container.summaryController.target(c));
-router.put("/summary/target/:id", authMiddleware, adminMiddleware, (c) =>
-  container.summaryController.updateTarget(c),
-);
 router.get("/summary/consistency-bonus", authMiddleware, adminMiddleware, (c) =>
   container.summaryController.consistencyBonus(c),
 );
@@ -70,6 +66,25 @@ router.put("/summary/consistency-bonus/:id", authMiddleware, adminMiddleware, (c
 );
 router.delete("/summary/consistency-bonus/:id", authMiddleware, adminMiddleware, (c) =>
   container.summaryController.revokeConsistencyBonus(c),
+);
+
+// Read-only, for every signed-in user: the dashboard's term tooltips quote the period's actual rates.
+router.get("/commission-rules/effective", authMiddleware, (c) => container.commissionRuleController.effective(c));
+router.get("/summary/rules", authMiddleware, adminMiddleware, (c) => container.commissionRuleController.list(c));
+router.get("/summary/rules/effective", authMiddleware, adminMiddleware, (c) =>
+  container.commissionRuleController.effective(c),
+);
+router.get("/summary/rules/:id", authMiddleware, adminMiddleware, (c) => container.commissionRuleController.show(c));
+router.post("/summary/rules", authMiddleware, adminMiddleware, (c) => container.commissionRuleController.create(c));
+router.put("/summary/rules/:id", authMiddleware, adminMiddleware, (c) => container.commissionRuleController.update(c));
+router.get("/summary/rules/:id/preview", authMiddleware, adminMiddleware, (c) =>
+  container.commissionRuleController.preview(c),
+);
+router.post("/summary/rules/:id/publish", authMiddleware, adminMiddleware, (c) =>
+  container.commissionRuleController.publish(c),
+);
+router.delete("/summary/rules/:id", authMiddleware, adminMiddleware, (c) =>
+  container.commissionRuleController.remove(c),
 );
 
 export default router;

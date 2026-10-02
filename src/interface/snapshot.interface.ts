@@ -30,6 +30,8 @@ export type RawSnapshotInput = {
   biayaReferral: Scalar;
   referralName: Scalar;
   businessOperation?: Scalar;
+  /** New-customer invoice that is really a renewal (billing counter > 1). */
+  isRenewal?: boolean;
 };
 
 export interface ISnapshotRepository {

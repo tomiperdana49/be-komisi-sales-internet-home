@@ -15,6 +15,8 @@ export type NewCustomerInvoiceRow = {
   "Tanggal Transaksi Pembayaran": unknown;
   "New Subscription": unknown;
   "Invoice Prorata": unknown;
+  /** Billing's per-service invoice counter: 1 = the first invoice, > 1 = a later (renewal) invoice. */
+  Counter: unknown;
   Code: string | null;
   "Is Upgrade": number | null;
   "Line Rental": unknown;

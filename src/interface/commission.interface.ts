@@ -23,6 +23,8 @@ export type CommissionSnapshotRow = {
   month: number | null;
   late_month: number | null;
   type: SnapshotType | null;
+  /** A "new" row that is really a renewal's price increase — commissioned as recurring. */
+  is_renewal?: number | boolean;
   referral_fee: number | null;
   referral_type: string | null;
   referral_name: string | null;
@@ -81,6 +83,8 @@ export type CommissionLineItem = {
   /** Employee ID of the Sales Manager credited for this row (raw snapshots.manager column). */
   manager: string | null;
   type: string;
+  /** Renewal price increase billed as "new" but commissioned as recurring. */
+  isRenewal: boolean;
   month: number;
   lateMonth: number;
   isApproved: boolean;
@@ -102,6 +106,11 @@ export type SalesCommissionResult = {
   employeeId: string;
   status: string | null;
   activityCount: number;
+  /**
+   * NusaSelecta New units sold (before churn), by group. They earn commission per unit
+   * but only count toward New Achievement in groups (3 Basic/Prime or 2 Ultra = 1).
+   */
+  nusaSelectaNewUnits: { basicPrime: number; ultra: number };
   achievementStatus: string;
   motivation: string;
   bonusBulanan: number;

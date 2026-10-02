@@ -25,13 +25,10 @@ export type EmployeeDetail = {
   managerPhotoProfile?: string | null;
 };
 
-/** Minimum monthly New Achievement expected from one Permanent sales, unless overridden per employee/period. */
-export const DEFAULT_SALES_TARGET = 12;
-
 export type StatusPeriodRow = {
   employee_id: string;
   status: string;
-  /** This employee's New Achievement target for the period (admin-configurable, default DEFAULT_SALES_TARGET). */
+  /** This employee's New Achievement target for the period (admin-configurable; starts at the period's rules default). */
   target: number;
   start_date: Date | string;
   end_date: Date | string;
@@ -80,6 +77,8 @@ export interface IEmployeeRepository {
     startDate: string,
     endDate: string,
     status: string,
+    /** Target given to a newly created row; existing rows keep whatever target they already have. */
+    initialTarget: number,
   ): Promise<void>;
   findStatusByPeriod(
     employeeId: string,
@@ -91,17 +90,6 @@ export interface IEmployeeRepository {
     startDate: string,
     endDate: string,
   ): Promise<StatusPeriodRow[]>;
-  /**
-   * Admin override of one employee's target for a period. Returns false
-   * (no-op) when there's no status_period row to attach it to — that
-   * employee isn't registered for that period yet (KOMISI.md 6.E).
-   */
-  updateTargetByPeriod(
-    employeeId: string,
-    startDate: string,
-    endDate: string,
-    target: number,
-  ): Promise<boolean>;
   /**
    * Every Account Manager registered (has a status_period row) for a
    * period — the period-aware roster shared by the admin target/sales/invoice
@@ -150,6 +138,8 @@ export interface IEmployeeService {
     startDate: string,
     endDate: string,
     status: string,
+    /** Target given to a newly created row; existing rows keep whatever target they already have. */
+    initialTarget: number,
   ): Promise<void>;
   getAllEmployeeIds(): Promise<string[]>;
   deactivateEmployee(employeeId: string): Promise<void>;
@@ -164,12 +154,6 @@ export interface IEmployeeService {
     startDate: string,
     endDate: string,
   ): Promise<StatusPeriodRow[]>;
-  updateTargetByPeriod(
-    employeeId: string,
-    startDate: string,
-    endDate: string,
-    target: number,
-  ): Promise<boolean>;
   getSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]>;
   findByEmployeeId(employeeId: string): Promise<EmployeeDetail | null>;
   findByEmployeeIds(employeeIds: string[]): Promise<EmployeeDetail[]>;

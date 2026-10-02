@@ -15,6 +15,7 @@ import {
   isNusaBasicPrime,
   isNusaSelecta,
   isNusaUltra,
+  resolveTarget,
   toCommissionCategory,
   toNumber,
   type SnapshotType,
@@ -33,7 +34,8 @@ import type {
   SalesSummaryItem,
 } from "../interface/commission.interface";
 import type { ChurnRow, IChurnService } from "../interface/churn.interface";
-import { DEFAULT_SALES_TARGET, type IEmployeeService } from "../interface/employee.interface";
+import type { IEmployeeService } from "../interface/employee.interface";
+import type { CommissionRules, ICommissionRulesProvider } from "../interface/commission-rules.interface";
 import {
   ADJUSTABLE_FIELD_COLUMNS,
   type AdjustableSnapshotFields,
@@ -66,12 +68,23 @@ function addTo(target: CommissionStats, values: Partial<CommissionStats>): void 
   target.mrc += values.mrc ?? 0;
 }
 
+/**
+ * The type a row is commissioned as. A renewal's price increase is stored as
+ * "new" (it comes from the new-customer job) but the customer isn't new, so
+ * it's commissioned as recurring: recurring rate, no New Achievement credit,
+ * no missed-target penalty (KOMISI.md 1.3).
+ */
+function effectiveType(row: CommissionSnapshotRow): SnapshotType {
+  if (row.is_renewal && row.type === "new") return "recurring";
+  return row.type ?? "recurring";
+}
+
 /** The bucket a row falls into for display: Alat/Setup override the invoice's own type. */
 function resolveBucket(row: CommissionSnapshotRow): SnapshotType | "alat" | "setup" {
   const category = toCommissionCategory(row.category);
   if (category === "alat") return "alat";
   if (category === "setup") return "setup";
-  return row.type ?? "recurring";
+  return effectiveType(row);
 }
 
 /**
@@ -84,13 +97,13 @@ function resolveBucket(row: CommissionSnapshotRow): SnapshotType | "alat" | "set
  * credit, rather than silently earning free target progress at 0%. Recurring
  * is unaffected — its rate never depends on the service's rate-table entry.
  */
-function isExcludedFromCommission(row: CommissionSnapshotRow): boolean {
+function isExcludedFromCommission(rules: CommissionRules, row: CommissionSnapshotRow): boolean {
   const bucket = resolveBucket(row);
-  if (bucket === "recurring" && isNusaSelecta(row.service_id)) return true;
+  if (bucket === "recurring" && isNusaSelecta(rules, row.service_id)) return true;
 
   const category = toCommissionCategory(row.category);
   if (category === "home" && (bucket === "new" || bucket === "upgrade")) {
-    return !hasCommissionRate(row.service_id);
+    return !hasCommissionRate(rules, row.service_id);
   }
 
   return false;
@@ -102,7 +115,19 @@ export class CommissionService {
     private readonly churnService: IChurnService,
     private readonly employeeService: IEmployeeService,
     private readonly consistencyBonusService: IConsistencyBonusService,
+    private readonly rulesProvider: ICommissionRulesProvider,
   ) {}
+
+  /** Same engine with a different rules source — used to preview a draft rule set without publishing it. */
+  withRules(rulesProvider: ICommissionRulesProvider): CommissionService {
+    return new CommissionService(
+      this.snapshotRepository,
+      this.churnService,
+      this.employeeService,
+      this.consistencyBonusService,
+      rulesProvider,
+    );
+  }
 
   /**
    * Itemized churn rows for one salesperson in a period, each valued the
@@ -113,15 +138,16 @@ export class CommissionService {
     const startDate = toSqlDate(start);
     const endDate = toSqlDate(end);
 
-    const [rows, statusPeriod] = await Promise.all([
+    const [rows, statusPeriod, rules] = await Promise.all([
       this.churnService.getByEmployeeId(employeeId, startDate, endDate),
       this.employeeService.getStatusByPeriod(employeeId, startDate, endDate),
+      this.rulesProvider.getForPeriod(period),
     ]);
     const status = statusPeriod?.status ?? null;
-    const target = statusPeriod?.target ?? DEFAULT_SALES_TARGET;
+    const target = resolveTarget(rules, period, status, statusPeriod?.target);
 
     return rows.map((churn) => {
-      const { mrc, commission, commissionPercentage } = this.valueChurn(churn, status, target);
+      const { mrc, commission, commissionPercentage } = this.valueChurn(rules, churn, status, target);
       return { ...churn, mrc, commission, commissionPercentage };
     });
   }
@@ -179,7 +205,7 @@ export class CommissionService {
     const team = await this.employeeService.getHierarchy(managerId, undefined, false, false);
     const teamIds = team.map((e) => e.employee_id);
 
-    const [statusRows, recurringRows, managerStatusPeriod, consistencyBonusByEmployeeId, managerConsistencyBonus] =
+    const [statusRows, recurringRows, managerStatusPeriod, consistencyBonusByEmployeeId, managerConsistencyBonus, rules] =
       await Promise.all([
         teamIds.length > 0
           ? this.employeeService.getStatusesByPeriodAndIds(teamIds, startDate, endDate)
@@ -188,13 +214,14 @@ export class CommissionService {
         this.employeeService.getStatusByPeriod(managerId, startDate, endDate),
         this.consistencyBonusService.getAmountsByEmployeeIds(teamIds, period),
         this.consistencyBonusService.getAmount(managerId, period),
+        this.rulesProvider.getForPeriod(period),
       ]);
-    const managerTarget = managerStatusPeriod?.target ?? DEFAULT_SALES_TARGET;
+    const managerTarget = resolveTarget(rules, period, managerStatusPeriod?.status, managerStatusPeriod?.target);
 
     // KOMISI.md 6.E: members without a status_period record for this period
     // are skipped entirely — no target contribution, no commission, no row.
     const statusByEmployeeId = new Map(statusRows.map((s) => [s.employee_id, s.status]));
-    const targetByEmployeeId = new Map(statusRows.map((s) => [s.employee_id, s.target]));
+    const targetByEmployeeId = new Map(statusRows.map((s) => [s.employee_id, resolveTarget(rules, period, s.status, s.target)]));
     const coveredTeam = team.filter((e) => statusByEmployeeId.has(e.employee_id));
 
     const memberResults = await Promise.all(
@@ -215,9 +242,10 @@ export class CommissionService {
     const teamActivity = memberResults.reduce((sum, r) => sum + r.activityCount, 0);
     const permanentTargetSum = coveredTeam
       .filter((e) => statusByEmployeeId.get(e.employee_id) === "Permanent")
-      .reduce((sum, e) => sum + (targetByEmployeeId.get(e.employee_id) ?? DEFAULT_SALES_TARGET), 0);
+      .reduce((sum, e) => sum + (targetByEmployeeId.get(e.employee_id) ?? rules.targets.permanent), 0);
 
     const performance = calculateManagerPerformance(
+      rules,
       permanentCount,
       coveredTeam.length - permanentCount,
       teamActivity,
@@ -284,7 +312,7 @@ export class CommissionService {
       }
     }
 
-    const newCommissionRate = getManagerNewCommissionRate(performance.achievementPercentage);
+    const newCommissionRate = getManagerNewCommissionRate(rules, performance.achievementPercentage);
     const overrideNewCommission = teamTotals.newCommission * (newCommissionRate / 100);
 
     // NET recurring subscription behind the override — same late-payment
@@ -297,10 +325,10 @@ export class CommissionService {
         toNumber(row.referral_fee),
         row.referral_type,
       );
-      teamRecurringSubscriptionNet += applyLateMonthPenalty(basis, row.late_month, row.is_approved);
+      teamRecurringSubscriptionNet += applyLateMonthPenalty(rules, basis, row.late_month, row.is_approved);
     }
 
-    const recurringCommissionRate = getManagerRecurringRate(performance.isTargetAchieved);
+    const recurringCommissionRate = getManagerRecurringRate(rules, performance.isTargetAchieved);
     const overrideRecurringCommission =
       teamRecurringSubscriptionNet * (recurringCommissionRate / 100);
 
@@ -310,7 +338,7 @@ export class CommissionService {
     // the only commission stream they actually feed.
     const croRecurring = recurringRows
       .filter((row) => row.sales === CRO_PLACEHOLDER)
-      .map((row) => this.valueManagerRecurringRow(row, recurringCommissionRate));
+      .map((row) => this.valueManagerRecurringRow(rules, row, recurringCommissionRate));
 
     // Team Production by Service is meant to show the manager area's FULL
     // production, so it also folds in the manager's own personal sales
@@ -331,7 +359,7 @@ export class CommissionService {
       target.recurringCommission += g.recurring.commission;
     }
     for (const item of croRecurring) {
-      const group = getRecurringServiceGroupLabel(item.category, item.serviceId);
+      const group = getRecurringServiceGroupLabel(rules, item.category, item.serviceId);
       const target = teamTotals.byServiceGroup[group];
       target.recurringSubscription += item.subscription;
       target.recurringCommission += item.commission;
@@ -414,12 +442,16 @@ export class CommissionService {
    * usual status/activity-gated rate — used for Customer Relation Officer
    * rows, which have no real employee to derive a rate from.
    */
-  private valueManagerRecurringRow(row: CommissionSnapshotRow, ratePercentage: number): CommissionLineItem {
+  private valueManagerRecurringRow(
+    rules: CommissionRules,
+    row: CommissionSnapshotRow,
+    ratePercentage: number,
+  ): CommissionLineItem {
     const months = Math.max(toNumber(row.month) || 1, 1);
     const subscription = toNumber(row.subscription);
     const mrc = subscription / months;
     const basis = getCommissionBasis(subscription, toNumber(row.referral_fee), row.referral_type);
-    const baseCommission = applyLateMonthPenalty(basis, row.late_month, row.is_approved);
+    const baseCommission = applyLateMonthPenalty(rules, basis, row.late_month, row.is_approved);
 
     return {
       aiInvoice: row.ai_invoice,
@@ -435,6 +467,7 @@ export class CommissionService {
       businessOperation: row.business_operation,
       manager: row.manager,
       type: "recurring",
+      isRenewal: Boolean(row.is_renewal),
       month: months,
       lateMonth: toNumber(row.late_month),
       isApproved: Boolean(row.is_approved),
@@ -476,21 +509,22 @@ export class CommissionService {
     const startDate = toSqlDate(start);
     const endDate = toSqlDate(end);
 
-    const [allRows, churnRows, statusPeriod, consistencyBonus] = await Promise.all([
+    const [allRows, churnRows, statusPeriod, consistencyBonus, rules] = await Promise.all([
       this.snapshotRepository.findBySales(employeeId, period),
       this.churnService.getByEmployeeId(employeeId, startDate, endDate),
       this.employeeService.getStatusByPeriod(employeeId, startDate, endDate),
       consistencyBonusOverride !== undefined
         ? Promise.resolve(consistencyBonusOverride)
         : this.consistencyBonusService.getAmount(employeeId, period),
+      this.rulesProvider.getForPeriod(period),
     ]);
     const status = statusPeriod?.status ?? null;
-    const target = targetOverride ?? statusPeriod?.target ?? DEFAULT_SALES_TARGET;
+    const target = targetOverride ?? resolveTarget(rules, period, status, statusPeriod?.target);
 
-    const rows = allRows.filter((row) => !isExcludedFromCommission(row));
+    const rows = allRows.filter((row) => !isExcludedFromCommission(rules, row));
 
-    const { activityCount, grossNusaSelectaActivity, customerHasSetup } =
-      this.computeActivity(rows, churnRows);
+    const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =
+      this.computeActivity(rules, rows, churnRows);
     const rateActivityCount = rateActivityCountOverride ?? activityCount;
 
     const total = emptyStats();
@@ -507,7 +541,7 @@ export class CommissionService {
     for (const row of rows) {
       const category = toCommissionCategory(row.category);
       const bucket = resolveBucket(row);
-      const type = (row.type ?? "recurring") as SnapshotType;
+      const type = effectiveType(row);
       const months = Math.max(toNumber(row.month) || 1, 1);
 
       const subscription = toNumber(row.subscription);
@@ -519,6 +553,7 @@ export class CommissionService {
       );
 
       const { commission, commissionPercentage, baseCommission } = calculateCommission(
+        rules,
         basis,
         row.late_month,
         row.is_approved,
@@ -538,7 +573,7 @@ export class CommissionService {
       // NusaSelecta "new" units are counted as grouped achievements
       // instead of one-per-row, so they're excluded from the raw count
       // and added back in aggregate below.
-      const countsIndividually = !(isNusaSelecta(row.service_id) && bucket === "new");
+      const countsIndividually = !(isNusaSelecta(rules, row.service_id) && bucket === "new");
       const delta = {
         count: countsIndividually ? 1 : 0,
         commission,
@@ -552,8 +587,8 @@ export class CommissionService {
       // Recurring uses the 5-way grouping (carves out Digital Business and
       // Access Business); every other bucket keeps the plain 3-way one.
       const group = bucket === "recurring"
-        ? getRecurringServiceGroupLabel(row.category, row.service_id)
-        : getServiceGroupLabel(row.service_id);
+        ? getRecurringServiceGroupLabel(rules, row.category, row.service_id)
+        : getServiceGroupLabel(rules, row.service_id);
       addTo(byServiceGroup[group]![bucket], delta);
 
       items.push({
@@ -570,6 +605,7 @@ export class CommissionService {
         businessOperation: row.business_operation,
         manager: row.manager,
         type: bucket,
+        isRenewal: Boolean(row.is_renewal),
         month: months,
         lateMonth: toNumber(row.late_month),
         isApproved: Boolean(row.is_approved),
@@ -591,6 +627,7 @@ export class CommissionService {
     byServiceGroup.NusaSelecta!.new.count += grossNusaSelectaActivity;
 
     const deduction = this.applyChurnDeduction(
+      rules,
       churnRows,
       status,
       target,
@@ -599,7 +636,7 @@ export class CommissionService {
       byServiceGroup,
     );
 
-    const { achievementStatus, motivation } = calculateAchievement(status, activityCount);
+    const { achievementStatus, motivation } = calculateAchievement(rules, status, activityCount);
 
     return {
       period,
@@ -608,10 +645,11 @@ export class CommissionService {
       employeeId,
       status,
       activityCount,
+      nusaSelectaNewUnits,
       achievementStatus,
       motivation,
-      bonusBulanan: calculateMonthlyBonus(activityCount, target, status),
-      bonusKelebihanService: calculateExcessServiceBonus(activityCount, target, status),
+      bonusBulanan: calculateMonthlyBonus(rules, activityCount, target, status),
+      bonusKelebihanService: calculateExcessServiceBonus(rules, activityCount, target, status),
       consistencyBonus,
       total,
       breakdown,
@@ -626,7 +664,7 @@ export class CommissionService {
    * first: standard services count 1:1, NusaSelecta is grouped, and
    * unapproved churn is subtracted before grouping.
    */
-  private computeActivity(rows: CommissionSnapshotRow[], churnRows: ChurnRow[]) {
+  private computeActivity(rules: CommissionRules, rows: CommissionSnapshotRow[], churnRows: ChurnRow[]) {
     let basicPrime = 0;
     let ultra = 0;
     let standard = 0;
@@ -637,8 +675,8 @@ export class CommissionService {
       if (bucket === "setup") customerHasSetup.add(row.customer_id);
       if (bucket !== "new") continue;
 
-      if (isNusaBasicPrime(row.service_id)) basicPrime++;
-      else if (isNusaUltra(row.service_id)) ultra++;
+      if (isNusaBasicPrime(rules, row.service_id)) basicPrime++;
+      else if (isNusaUltra(rules, row.service_id)) ultra++;
       else standard++;
     }
 
@@ -650,8 +688,8 @@ export class CommissionService {
 
     for (const churn of churnRows) {
       if (churn.is_approved) continue;
-      if (isNusaBasicPrime(churn.service_id)) netBasicPrime--;
-      else if (isNusaUltra(churn.service_id)) netUltra--;
+      if (isNusaBasicPrime(rules, churn.service_id)) netBasicPrime--;
+      else if (isNusaUltra(rules, churn.service_id)) netUltra--;
       else netStandard--;
     }
 
@@ -660,7 +698,7 @@ export class CommissionService {
       netStandard + calculateNusaSelectaActivity(netBasicPrime, netUltra),
     );
 
-    return { activityCount, grossNusaSelectaActivity, customerHasSetup };
+    return { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra } };
   }
 
   /**
@@ -668,12 +706,12 @@ export class CommissionService {
    * target was met, so the deduction itself isn't discounted by the
    * performance penalty.
    */
-  private valueChurn(churn: ChurnRow, status: string | null, target: number) {
+  private valueChurn(rules: CommissionRules, churn: ChurnRow, status: string | null, target: number) {
     const price = toNumber(churn.price);
     const months = Math.max(toNumber(churn.period) || 1, 1);
     const mrc = price / months;
 
-    const { commission, commissionPercentage } = calculateCommission(price, 0, false, {
+    const { commission, commissionPercentage } = calculateCommission(rules, price, 0, false, {
       category: "home",
       type: "new",
       serviceId: churn.service_id,
@@ -693,6 +731,7 @@ export class CommissionService {
    * the subscription, the MRC, and the commission it would have earned.
    */
   private applyChurnDeduction(
+    rules: CommissionRules,
     churnRows: ChurnRow[],
     status: string | null,
     target: number,
@@ -705,7 +744,7 @@ export class CommissionService {
     for (const churn of churnRows) {
       if (churn.is_approved) continue;
 
-      const { price, mrc, commission } = this.valueChurn(churn, status, target);
+      const { price, mrc, commission } = this.valueChurn(rules, churn, status, target);
 
       deduction.count += 1;
       deduction.commission += commission;
@@ -716,7 +755,7 @@ export class CommissionService {
       addTo(total, negative);
       addTo(breakdown.new, negative);
 
-      const group = getServiceGroupLabel(churn.service_id);
+      const group = getServiceGroupLabel(rules, churn.service_id);
       addTo(byServiceGroup[group]!.new, negative);
     }
 

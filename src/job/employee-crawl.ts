@@ -3,9 +3,14 @@ import { getDateRangeForPeriod, resolvePeriod, toSqlDate } from "../helper/perio
 
 async function run() {
   const crawledIds: string[] = [];
-  const { start, end } = getDateRangeForPeriod(resolvePeriod());
+  const period = resolvePeriod();
+  const { start, end } = getDateRangeForPeriod(period);
   const startDate = toSqlDate(start);
   const endDate = toSqlDate(end);
+  // Only Permanent staff are ever gated on target (rate/performance-penalty
+  // checks all require status === 'Permanent'); everyone else starts at the
+  // probation default (0 unless an admin changed it).
+  const { targets } = await container.commissionRuleService.getForPeriod(period);
 
   const sales = await container.nusaworkService.getSalesHome();
   for (const employee of sales) {
@@ -15,6 +20,7 @@ async function run() {
       startDate,
       endDate,
       employee.status,
+      employee.status === "Permanent" ? targets.permanent : targets.probation,
     );
     crawledIds.push(employee.employeeId);
     console.log("Employee inserted:", employee.employeeId);

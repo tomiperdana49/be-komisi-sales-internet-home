@@ -6,16 +6,17 @@ async function run() {
   const period = resolvePeriod();
   console.log(`Mengambil data billing (old customer) untuk periode "${period}"...`);
 
-  const [inputs, employeeMap] = await Promise.all([
+  const [inputs, employeeMap, rules] = await Promise.all([
     container.oldCustomerService.fetchSnapshotInputs(period),
     container.employeeService.getEmployeeIdByName(),
+    container.commissionRuleService.getForPeriod(period),
   ]);
 
   const values: any[][] = [];
   let skipped = 0;
 
   for (const input of inputs) {
-    const built = container.oldCustomerService.buildRecurringSnapshotValues(input, employeeMap);
+    const built = container.oldCustomerService.buildRecurringSnapshotValues(input, employeeMap, rules.excludedRecurringCategories);
     if (!built) {
       skipped++;
       continue;

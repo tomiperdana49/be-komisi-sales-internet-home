@@ -222,6 +222,13 @@ export class NewCustomerService implements INewCustomerService {
         prorate = toNumber(inv.DPP);
       }
 
+      // Billing flags part of a renewal's price (e.g. promo pricing ending) as
+      // new_subscription, but the customer isn't new: counter > 1 means an
+      // earlier invoice exists. Kept as a "new" row (this job owns those) and
+      // commissioned as recurring instead (KOMISI.md 1.3).
+      const isRenewal =
+        inv.SG !== "Alat" && inv.SG !== "ST" && upgrade === null && prorate === null && (toNumber(inv.Counter) ?? 0) > 1;
+
       const categorySourceName = account?.["Nama Service"] ?? "";
       const category = mapCategory(sg, categorySourceName);
 
@@ -251,6 +258,7 @@ export class NewCustomerService implements INewCustomerService {
         telatBulan: late,
         biayaReferral: null,
         referralName: null,
+        isRenewal,
       });
     }
 

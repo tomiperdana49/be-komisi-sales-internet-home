@@ -100,43 +100,6 @@ export class SummaryController {
   }
 
   /**
-   * Every Account Manager registered for a period (has a status_period row —
-   * KOMISI.md 6.E) with their New Achievement target. Anyone not yet
-   * crawled for that period simply doesn't appear.
-   */
-  async target(c: Context) {
-    const period = resolvePeriodFromQuery(c);
-    const { start, end } = getDateRangeForPeriod(period);
-    const data = await this.employeeService.getSalesTargetsByPeriod(toSqlDate(start), toSqlDate(end));
-    return c.json(successResponse("Sales target retrieved successfully", data));
-  }
-
-  /** Admin override of one Account Manager's New Achievement target for a period. */
-  async updateTarget(c: Context) {
-    const employeeId = c.req.param("id")!;
-    const period = resolvePeriodFromQuery(c);
-    const { start, end } = getDateRangeForPeriod(period);
-    const body = await c.req.json();
-
-    const target = Number.parseInt(body.target, 10);
-    if (Number.isNaN(target) || target < 0) {
-      throw new BadRequestException("Parameter target must be a non-negative integer");
-    }
-
-    const updated = await this.employeeService.updateTargetByPeriod(
-      employeeId,
-      toSqlDate(start),
-      toSqlDate(end),
-      target,
-    );
-    if (!updated) {
-      throw new NotFoundException("This employee isn't registered for that period yet");
-    }
-
-    return c.json(successResponse("Sales target updated successfully"));
-  }
-
-  /**
    * Every Account Manager registered for a period with their Bonus
    * Konsistensi grant, if any — same period-aware roster as Target.
    */

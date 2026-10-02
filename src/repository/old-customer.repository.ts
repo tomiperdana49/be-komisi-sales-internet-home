@@ -2,15 +2,17 @@ import type { GoogleSpreadsheetRow } from "google-spreadsheet";
 import type { BillingDatabase } from "../lib/billing-database";
 import type { GoogleSheetsClient } from "../lib/google-sheets-client";
 import { googleConfig } from "../config/google.config";
+import { oldCustomerConfig } from "../config/old-customer.config";
 import type {
   IOldCustomerRepository,
   OldCustomerAccountRow,
   OldCustomerInvoiceRow,
 } from "../interface/old-customer.interface";
 
-// InvoiceType 8 is only included for customers listed in an Apps Script
-// property (INCLUDE_CUSTOMER_ID) we have no access to here, so it's
-// excluded unconditionally — matching that property's default (unset/empty).
+// Mirrors the old Apps Script's SQL_INVOICE_RECEIPT (the query behind the
+// old-customer Google Sheet), so the DB job and the sheet see the same rows.
+// `{{INVOICE_TYPE_8_FILTER}}` is filled by findInvoices: InvoiceType 8 only
+// counts for the customers in OLD_CUSTOMER_INCLUDE_CUSTOMER_IDS.
 const SQL_INVOICE_RECEIPT = `
 SELECT
     cit.CustId \`CID\`,
@@ -27,6 +29,7 @@ SELECT
     MAX(IFNULL(ncic.trx_date, nci2.TransDate)) \`Tanggal Transaksi Pembayaran\`,
     nci.AI \`AI Invoice\`,
     MAX(nci2.AI) \`AI Receipt\`,
+    cit.PeriodDescription \`Invoice Period Description\`,
     s.ServiceType AS \`Nama Service\`,
     (ncic.line_rental / IFNULL(itm.Month, 1)) \`Line Rental\`,
     IFNULL(ncic.is_prorata, 0) \`Is Prorata\`,
@@ -59,10 +62,9 @@ WHERE cit.RInvoiceNum = 0
       (DATE(nci2.InsertDate) IS NOT NULL AND DATE(nci2.InsertDate) BETWEEN ? AND ?) OR
       (ncic.trx_date IS NOT NULL AND ncic.trx_date BETWEEN ? AND ?)
     )
-    AND cit.InvoiceType != 8
+    AND (cit.InvoiceType != 8 OR (cit.InvoiceType = 8 AND {{INVOICE_TYPE_8_FILTER}}))
     AND IFNULL(bce.type, 'customer') != 'internal'
     AND cs.CustStatus != 'FR'
-    AND IFNULL(s.ServiceGroup, '') NOT IN ('DO', 'IP')
 GROUP BY nci.AI
 HAVING DPP > 0
 ORDER BY nci.AI;
@@ -75,12 +77,16 @@ SELECT
     c.CustName AS \`Nama Customer\`,
     c.CustCompany AS \`Company\`,
     cs.CustAccName AS \`Account\`,
+    s.ServiceType AS \`Nama Service Account\`,
+    s.ServiceGroup AS \`Category\`,
     IF(ss.NormalUpCeil > ss.NormalDownCeil, FLOOR(ss.NormalUpCeil/1024), FLOOR(ss.NormalDownCeil/1024)) AS \`Bandwidth (Mbps)\`,
     v.Vendor,
     vt.tagihan \`Line Rental Account\`,
     TRIM(CONCAT(TRIM(e1.EmpFName), ' ', TRIM(e1.EmpLName))) \`Sales\`,
     TRIM(CONCAT(TRIM(e2.EmpFName), ' ', TRIM(e2.EmpLName))) \`Manager Sales\`,
-    b.BranchCity \`Cabang\`
+    b.BranchCity \`Cabang\`,
+    cs.HandleByWHMCS AS \`WHMCS\`,
+    IF(c.ResellerId > 1, r.Name, NULL) \`Reseller\`
 FROM
     Customer c
     LEFT JOIN CustomerServices cs ON c.CustId = cs.CustId
@@ -113,10 +119,24 @@ FROM
     LEFT JOIN Employee e2 ON e2.EmpId = IFNULL(cs.ManagerSalesId, c.ManagerSalesId)
     LEFT JOIN NusaBranch b ON b.BranchId = IFNULL(c.DisplayBranchId, c.BranchId)
     LEFT JOIN bca_customer_exception bce ON bce.customerId = c.CustId
+    LEFT JOIN Reseller r ON r.Id = c.ResellerId
 WHERE
     IFNULL(c.DisplayBranchId, c.BranchId) IN ('020', '062', '025', '027', '029')
     AND IFNULL(bce.type, 'customer') != 'internal';
 `;
+
+/** Customers transferred away from a (resigned) salesperson. */
+const SQL_RESIGN = `SELECT cust_id FROM transfer_customers WHERE initial_sales = ?`;
+
+/**
+ * The InvoiceType 8 condition plus its bound params. Customer IDs are always
+ * bound as parameters, never spliced into the SQL text.
+ */
+export function buildInvoiceType8Filter(customerIds: string[]): { sql: string; params: string[][] } {
+  return customerIds.length > 0
+    ? { sql: "cit.CustId IN (?)", params: [customerIds] }
+    : { sql: "FALSE", params: [] };
+}
 
 export class OldCustomerRepository implements IOldCustomerRepository {
   constructor(
@@ -125,11 +145,21 @@ export class OldCustomerRepository implements IOldCustomerRepository {
   ) {}
 
   findInvoices(params: string[]): Promise<OldCustomerInvoiceRow[]> {
-    return this.billingDb.query<OldCustomerInvoiceRow[]>(SQL_INVOICE_RECEIPT, params);
+    const filter = buildInvoiceType8Filter(oldCustomerConfig.includeInvoiceType8CustomerIds);
+    // The filter's placeholder comes after the date placeholders in the SQL text.
+    return this.billingDb.query<OldCustomerInvoiceRow[]>(
+      SQL_INVOICE_RECEIPT.replace("{{INVOICE_TYPE_8_FILTER}}", filter.sql),
+      [...params, ...filter.params],
+    );
   }
 
   findAccounts(): Promise<OldCustomerAccountRow[]> {
     return this.billingDb.query<OldCustomerAccountRow[]>(SQL_ACCOUNT);
+  }
+
+  async findTransferredCustomerIds(initialSalesId: string): Promise<string[]> {
+    const rows = await this.billingDb.query<{ cust_id: string }[]>(SQL_RESIGN, [initialSalesId]);
+    return rows.map((r) => r.cust_id);
   }
 
   findSheetRows(period: string): Promise<GoogleSpreadsheetRow[]> {

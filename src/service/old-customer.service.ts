@@ -32,9 +32,6 @@ const VPS_SERVICE_IDS = [
 
 const FO_CATEGORIES = ["FO", "FO Prepaid"];
 
-// Never commission-eligible — dropped outright rather than rated at 0%.
-const EXCLUDED_OLD_CUSTOMER_CATEGORIES = new Set(["IP Public", "Domain"]);
-
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -91,6 +88,20 @@ function mapCategory(sg: string | null, serviceId: string | null): string {
     default:
       return "Lain-lain";
   }
+}
+
+/**
+ * A recurring invoice counts in the period its payment falls in (start..end,
+ * inclusive), not just "paid at some point". The invoice query also matches
+ * on AwalPeriode >= period, so an invoice paid early — e.g. October's service
+ * paid on 22 Sep — would otherwise count in September (paid then) AND again in
+ * October. Mirrors how the old Apps Script/sheet assigns rows to periods.
+ */
+export function isPaidWithinPeriod(paid: unknown, paymentDateRaw: unknown, start: Date, end: Date): boolean {
+  if (Number(paid) !== 1 || paymentDateRaw === null || paymentDateRaw === undefined) return false;
+  const paymentDate = new Date(paymentDateRaw as any);
+  if (Number.isNaN(paymentDate.getTime())) return false;
+  return paymentDate >= start && paymentDate <= end;
 }
 
 function getLateInMonth(dueDate: unknown, paymentDateRaw: unknown): number | null {
@@ -160,9 +171,12 @@ export class OldCustomerService implements IOldCustomerService {
         inv["Tanggal Transaksi Pembayaran"],
       );
 
+      const paymentDate = inv["Tanggal Transaksi Pembayaran"] ?? inv["Tanggal Input Pembayaran"];
+      const paid = isPaidWithinPeriod(inv.Paid, paymentDate, start, end) ? 1 : 0;
+
       results.push({
         category,
-        paid: inv.Paid,
+        paid,
         serviceId: inv.SID,
         namaService: inv["Nama Service"],
         dpp: toNumber(inv.DPP),
@@ -185,7 +199,8 @@ export class OldCustomerService implements IOldCustomerService {
         bulan: inv.Bulan,
         telatBulan: late,
         biayaReferral: null,
-        referralName: null,
+        // Same source as the sheet's "Reseller" column.
+        referralName: account.Reseller,
         businessOperation:
           category === "Digital Business"
             ? normalizeBusinessOperation(inv["Business Operation"])
@@ -244,7 +259,8 @@ export class OldCustomerService implements IOldCustomerService {
 
   /**
    * Old-customer variant: no category allowlist (every category is kept)
-   * except IP Public and Domain, which never earn commission and are
+   * except the period's excluded categories (IP Public and Domain by
+   * default, admin-configurable), which never earn commission and are
    * dropped outright. Subscription comes straight from DPP, and type is
    * always "recurring". Paid gate and sales/manager resolution stay
    * identical to the new-customer path.
@@ -252,11 +268,13 @@ export class OldCustomerService implements IOldCustomerService {
   buildRecurringSnapshotValues(
     input: RawSnapshotInput,
     employeeMap: Map<string, string>,
+    /** Categories that never earn commission (CommissionRules.excludedRecurringCategories) — dropped outright rather than rated at 0%. */
+    excludedCategories: string[],
   ): any[] | null {
     const category = input.category?.toString().trim() || null;
     const paid = input.paid?.toString().trim();
 
-    if (category && EXCLUDED_OLD_CUSTOMER_CATEGORIES.has(category)) return null;
+    if (category && excludedCategories.some((c) => c.toLowerCase() === category.toLowerCase())) return null;
     if (paid !== "1") return null;
 
     // Digital Business commission is driven entirely by Internal vs Resell

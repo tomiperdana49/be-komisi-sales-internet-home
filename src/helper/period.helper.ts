@@ -20,6 +20,11 @@ export function resolvePeriod(): string {
     return periodArg;
   }
 
+  return currentPeriod();
+}
+
+/** The current calendar month as YYYYMM — the period the hourly jobs crawl by default. */
+export function currentPeriod(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");

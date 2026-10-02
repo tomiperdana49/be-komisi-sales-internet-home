@@ -2,9 +2,13 @@
 
 Dokumen ini fokus pada **aturan bisnis perhitungan komisi**.
 
-> **⚠️ Target Aktivitas kini dapat dikonfigurasi per Account Manager per periode** (menu admin *Summary > Target*), disimpan sebagai kolom `target` di tabel `status_period` (satu baris = satu employee + satu periode), dengan default **12** (`DEFAULT_SALES_TARGET`) untuk status **Permanent**, dan **0** untuk status **Probation** (karena rate recurring & performance penalty hanya pernah menggerbang status Permanent — lihat 2.A & 1.2) saat baris itu pertama dibuat oleh `employee:crawl`. Target inilah yang dipakai untuk rate recurring (2.A) dan performance penalty (1.2), serta ikut membentuk Target Dasar Tim seorang manager (6.A). **Tier badge Achievement (Bagian 5.A: Capai target Bonus/Capai target/SP1) TIDAK ikut berubah** — tetap memakai angka tetap 15/12/3 berapa pun target aktivitas seorang Account Manager diatur.
+> **⚙️ Angka-angka di dokumen ini adalah nilai bawaan dan bisa diubah admin** dari menu *Summary > Aturan Komisi*: tabel rate produk (termasuk menambah produk/ServiceId baru, rate setup per produk, dan mulai kontrak berapa bulan rate 6 & 12 bulan berlaku), kategori recurring yang tidak mendapat komisi (default IP Public & Domain — diterapkan saat job import mengambil data periode tersebut), rate prorate/setup/alat/recurring/Digital Business, potongan telat bayar & gagal target, target default, batas status pencapaian, tier bonus bulanan & bonus kelebihan service, serta threshold tim, tier overriding New, dan rate overriding recurring manager.
 >
-> **Tidak ada baris `status_period` = belum terdaftar pada periode itu**: sama seperti aturan 6.E untuk anggota tim manager, sales yang belum pernah di-crawl untuk periode tersebut (mis. periode di masa depan, atau sebelum sales itu bergabung) **tidak muncul** di halaman *Summary > Target* dan **tidak bisa** diatur targetnya sampai `employee:crawl` membuat baris `status_period` untuk periode itu.
+> Setiap perubahan disimpan sebagai **versi** (tabel `commission_rule_set`) yang **berlaku mulai periode tertentu**: periode P memakai versi terbit terbaru dengan periode berlaku ≤ P, dan periode tanpa versi apa pun memakai nilai bawaan di `src/helper/commission-rules.default.ts` (= angka di dokumen ini). Versi hanya boleh berlaku mulai periode berjalan atau sesudahnya, dan versi yang sudah terbit tidak bisa diubah/dihapus — koreksi dilakukan dengan versi baru. **Logika** perhitungan (urutan potongan, pengelompokan NusaSelecta, aturan churn, dsb.) tetap seperti dijelaskan di bawah dan tidak bisa diubah dari halaman tersebut.
+
+> **⚠️ Target Aktivitas (New Achievement) mulai periode Oktober 2026 (`202610`) selalu mengikuti *Summary > Aturan Komisi*** — target default **Permanent** (bawaan **12**) dan **Probation/Contract** (bawaan **0**), sama untuk semua Account Manager dengan status tersebut. Target per Account Manager tidak lagi bisa diubah (menu *Summary > Target* dihapus). Untuk periode **sebelum Oktober 2026**, target yang tersimpan di kolom `status_period.target` tetap dipakai, sehingga komisi yang sudah dilaporkan tidak berubah (lihat `RULE_TARGETS_SINCE` & `resolveTarget()` di `commission.helper.ts`). Target inilah yang dipakai untuk rate recurring (2.A), performance penalty (1.2), dan Target Dasar Tim manager (6.A). **Tier badge Achievement (Bagian 5.A) tetap memakai batas di Aturan Komisi** (bawaan 15/12/3).
+>
+> **Tidak ada baris `status_period` = belum terdaftar pada periode itu**: sama seperti aturan 6.E untuk anggota tim manager, sales yang belum pernah di-crawl untuk periode tersebut (mis. periode di masa depan, atau sebelum sales itu bergabung) **tidak muncul** di ringkasan sampai `employee:crawl` membuat baris `status_period` untuk periode itu.
 
 ## Aturan dan Perhitungan Komisi Sales & Manager
 
@@ -18,10 +22,21 @@ Dokumen ini fokus pada **aturan bisnis perhitungan komisi**.
      - **Pengecualian**: Penalti ini **TIDAK BERLAKU** jika invoice ditandai sebagai disetujui (`is_approved == true`) di database.
   2. **Performance Penalty (Gagal Target Aktivitas)**:
      - Berlaku khusus untuk pegawai berstatus **Permanent** pada layanan tipe **New** (Pemasangan Baru).
-     - Jika New Achievement < Target Aktivitas Sales tersebut (default **12**, bisa diatur admin per periode), maka dikenakan penalti sebesar **70%** (Sales hanya mendapatkan komisi dari 30% Dasar Komisi).
+     - Jika New Achievement < Target Aktivitas Sales tersebut (bawaan **12**, diatur di Aturan Komisi), maka dikenakan penalti sebesar **70%** (Sales hanya mendapatkan komisi dari 30% Dasar Komisi).
      - **Pengecualian**: Produk tipe **Prorate**, **Upgrade**, dan **Recurring** dibebaskan dari penalti performa ini (langsung mengambil Dasar Komisi tanpa potongan 70%).
 - **Base Commission (Dasar Komisi Akhir)**: Dihitung dengan rumus:
   `Base Commission = Commission Basis * (1 - Total Persentase Penalti)`.
+
+#### 1.3 Kenaikan Harga Saat Perpanjangan (Renewal)
+
+Billing kadang mencatat sebagian nilai invoice **perpanjangan** sebagai `new_subscription` — misalnya pelanggan tahun pertama bayar Rp 6.640.000 (harga promo), perpanjangan tahun kedua Rp 8.000.000, maka selisih Rp 1.360.000 ditandai "baru". Pelanggannya bukan pelanggan baru, jadi:
+
+- Invoice customer baru dengan **`counter > 1`** di `NewCustomerInvoiceInternetCounter` (bukan upgrade, bukan prorata, bukan alat/setup) ditandai **`is_renewal = TRUE`** oleh job `new-customer-db`. Baris tetap bertipe `new` di tabel `snapshots` (milik job customer baru), tetapi:
+  - **Dihitung sebagai Recurring**: memakai rate recurring (Bagian 2.A), tampil di tab Recurring dengan label *Perpanjangan*.
+  - **Tidak menambah New Achievement** dan **tidak kena penalti performa 70%**.
+  - Ikut ke dasar **Overriding Recurring** manager (Bagian 6.D).
+  - Untuk produk NusaSelecta, sama seperti recurring NusaSelecta lainnya: **tidak dapat komisi** (Bagian 2.A).
+- Sisa nilai invoice yang sama (`dpp − new_subscription`) tetap diambil job customer lama sebagai recurring biasa.
 
 ### 2. Aturan Komisi Sales
 
@@ -187,7 +202,7 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 **A. Target & Capaian Tim**
 
 - **Jumlah AM** = total seluruh anggota tim di bawah binaan manager, **termasuk yang Probation**. Angka ini hanya dipakai untuk menentukan Threshold di Bagian 6.B.
-- **Target Dasar Tim** = jumlah Target Aktivitas masing-masing anggota **Permanent** di tim tersebut (default 12/orang, bisa diatur admin per sales per periode — lihat catatan di awal dokumen). Pegawai **Probation tidak menambah** target dasar.
+- **Target Dasar Tim** = jumlah Target Aktivitas masing-masing anggota **Permanent** di tim tersebut (bawaan 12/orang dari Aturan Komisi — lihat catatan di awal dokumen). Pegawai **Probation tidak menambah** target dasar.
 - **Target Akhir Manager** = `Target Dasar Tim x Threshold%`, **dibulatkan** ke bilangan bulat terdekat.
 - **Status Capai Target** = `Total New Achievement seluruh anggota tim >= Target Akhir Manager`. Status inilah yang dipakai untuk rate recurring (Bagian 6.D) dan komisi penjualan pribadi manager (Bagian 6.F).
 - **Persentase Capaian** = `(Total New Achievement Tim / Target Dasar Tim) x 100%`. Angka ini dipakai untuk tier komisi New di Bagian 6.C — perhatikan pembaginya adalah **Target Dasar**, bukan Target Akhir.
@@ -213,7 +228,7 @@ Semakin besar tim, semakin ringan persentase targetnya. Threshold dipilih berdas
 > **Contoh perhitungan:** Tim berisi **9 Permanent + 1 Probation**, semua 9 Permanent memakai target default 12.
 >
 > 1. Jumlah AM = **10** → Threshold = **85%** (dari tabel).
-> 2. Target Dasar = `9 x 12` = **108** (probation tidak ikut dihitung; kalau salah satu member punya target custom, Target Dasar = jumlah target masing-masing, bukan lagi perkalian rata).
+> 2. Target Dasar = `9 x 12` = **108** (probation tidak ikut dihitung).
 > 3. Target Akhir = `108 x 85%` = `91.8` → dibulatkan menjadi **92**.
 >
 > Manager harus mengumpulkan **92 New Achievement** dari total timnya untuk dinyatakan **Capai Target**.

@@ -1,9 +1,12 @@
 /**
  * Pure commission math. Every rule here is documented in KOMISI.md —
- * keep the two in sync when either changes.
+ * keep the two in sync when either changes. The numbers themselves (rates,
+ * tiers, thresholds) come from the period's CommissionRules, which admins
+ * edit from the "Aturan Komisi" page; DEFAULT_COMMISSION_RULES holds the
+ * values used before any rule set is published.
  */
 
-import { DEFAULT_SALES_TARGET } from "../interface/employee.interface";
+import type { CommissionProductRule, CommissionRules } from "../interface/commission-rules.interface";
 
 /** Commission behaves differently per group; derived from the snapshot's `category` label. */
 export type CommissionCategory = "home" | "alat" | "setup" | "digital-business";
@@ -22,45 +25,24 @@ export type ServiceGroupLabel = "Home" | "Nusafiber" | "NusaSelecta";
  */
 export type RecurringServiceGroupLabel = ServiceGroupLabel | "Digital Business" | "Access Business";
 
-const NUSAFIBER_SERVICE_IDS = new Set(["BFLITE"]);
-const NUSA_BASIC_PRIME_IDS = new Set(["NFSP030", "NFSP100"]);
-const NUSA_ULTRA_IDS = new Set(["NFSP200"]);
-
-/** Services whose New/Upgrade rate only steps up at >= 6 months (others step at > 1). */
-const SIX_MONTH_TIER_IDS = new Set(["NFSP030", "NFSP100", "NFSP200"]);
-
 /**
- * Rates per ServiceId. Note several products carry two interchangeable
- * ServiceIds in billing (same ServiceType name) — both aliases must be
- * listed or the sale silently earns 0%:
- *   Standard 100 -> HOME100 / HOMESTD100
- *   Advanced 200 -> HOMEADV / HOMEADV200
- *   Premium 300  -> HOMEPREM300 / HOME300
+ * ServiceId (upper-cased) -> product, built once per rules object. Rules
+ * objects are treated as immutable (see deepFreeze in commission-rules.default.ts):
+ * build a new one to change anything, never mutate one that's been used.
  */
-const COMMISSION_RATES: Record<string, { 1: number; 6: number; 12: number }> = {
-  BFLITE: { 1: 28.38, 6: 6.55, 12: 5.09 },
-  NFSP030: { 1: 20.0, 6: 5.56, 12: 4.44 },
-  NFSP100: { 1: 20.0, 6: 5.56, 12: 4.44 },
-  NFSP200: { 1: 26.0, 6: 6.0, 12: 4.67 },
-  HOME100: { 1: 28.57, 6: 5.95, 12: 4.76 },
-  HOMESTD100: { 1: 28.57, 6: 5.95, 12: 4.76 },
-  HOMEADV200: { 1: 27.78, 6: 5.56, 12: 4.63 },
-  HOMEADV: { 1: 27.78, 6: 5.56, 12: 4.63 },
-  HOMEPREM300: { 1: 31.25, 6: 6.25, 12: 5.21 },
-  HOME300: { 1: 31.25, 6: 6.25, 12: 5.21 },
-  LITE100: { 1: 27.0, 6: 5.56, 12: 4.63 },
-  LITE200: { 1: 28.0, 6: 5.95, 12: 4.76 },
-};
+const productIndexCache = new WeakMap<CommissionRules, Map<string, CommissionProductRule>>();
 
-/**
- * Threshold keyed by TOTAL team size (Permanent + Probation), per the
- * business spec. Note this deliberately differs from the legacy
- * implementation, which keyed off the Permanent count only.
- */
-const TEAM_TARGET_THRESHOLDS: Record<number, number> = {
-  1: 120, 2: 115, 3: 110, 4: 105, 5: 100,
-  6: 95, 7: 92, 8: 90, 9: 88, 10: 85,
-};
+function findProduct(rules: CommissionRules, serviceId: string | null | undefined): CommissionProductRule | undefined {
+  let index = productIndexCache.get(rules);
+  if (!index) {
+    index = new Map();
+    for (const product of rules.products) {
+      for (const id of product.serviceIds) index.set(id.toUpperCase(), product);
+    }
+    productIndexCache.set(rules, index);
+  }
+  return index.get(serviceId?.toUpperCase() ?? "");
+}
 
 export function toNumber(value: unknown): number {
   return Number(value || 0);
@@ -80,10 +62,10 @@ export function toCommissionCategory(category: string | null | undefined): Commi
   }
 }
 
-export function getServiceGroupLabel(serviceId: string | null | undefined): ServiceGroupLabel {
-  const code = serviceId?.toUpperCase() ?? "";
-  if (NUSAFIBER_SERVICE_IDS.has(code)) return "Nusafiber";
-  if (NUSA_BASIC_PRIME_IDS.has(code) || NUSA_ULTRA_IDS.has(code)) return "NusaSelecta";
+export function getServiceGroupLabel(rules: CommissionRules, serviceId: string | null | undefined): ServiceGroupLabel {
+  const group = findProduct(rules, serviceId)?.group;
+  if (group === "Nusafiber") return "Nusafiber";
+  if (group === "NusaSelecta Basic/Prime" || group === "NusaSelecta Ultra") return "NusaSelecta";
   return "Home";
 }
 
@@ -95,27 +77,25 @@ export function getServiceGroupLabel(serviceId: string | null | undefined): Serv
  * silently landing in "Home". Only meant for recurring rows.
  */
 export function getRecurringServiceGroupLabel(
+  rules: CommissionRules,
   category: string | null | undefined,
   serviceId: string | null | undefined,
 ): RecurringServiceGroupLabel {
   if (toCommissionCategory(category) === "digital-business") return "Digital Business";
-
-  const code = serviceId?.toUpperCase() ?? "";
-  if (NUSAFIBER_SERVICE_IDS.has(code)) return "Nusafiber";
-  if (NUSA_BASIC_PRIME_IDS.has(code) || NUSA_ULTRA_IDS.has(code)) return "NusaSelecta";
-  return hasCommissionRate(serviceId) ? "Home" : "Access Business";
+  if (!hasCommissionRate(rules, serviceId)) return "Access Business";
+  return getServiceGroupLabel(rules, serviceId);
 }
 
-export function isNusaBasicPrime(serviceId: string | null | undefined): boolean {
-  return NUSA_BASIC_PRIME_IDS.has(serviceId ?? "");
+export function isNusaBasicPrime(rules: CommissionRules, serviceId: string | null | undefined): boolean {
+  return findProduct(rules, serviceId)?.group === "NusaSelecta Basic/Prime";
 }
 
-export function isNusaUltra(serviceId: string | null | undefined): boolean {
-  return NUSA_ULTRA_IDS.has(serviceId ?? "");
+export function isNusaUltra(rules: CommissionRules, serviceId: string | null | undefined): boolean {
+  return findProduct(rules, serviceId)?.group === "NusaSelecta Ultra";
 }
 
-export function isNusaSelecta(serviceId: string | null | undefined): boolean {
-  return isNusaBasicPrime(serviceId) || isNusaUltra(serviceId);
+export function isNusaSelecta(rules: CommissionRules, serviceId: string | null | undefined): boolean {
+  return isNusaBasicPrime(rules, serviceId) || isNusaUltra(rules, serviceId);
 }
 
 /**
@@ -134,8 +114,28 @@ export function calculateNusaSelectaActivity(basicPrime: number, ultra: number):
   return achievement;
 }
 
-/** 10% deduction per late month, capped at 50%. Waived entirely for approved invoices. */
+/**
+ * First period whose New Achievement targets come only from the rules
+ * (targets.permanent / targets.probation by status). Earlier periods keep the
+ * per-AM target stored in status_period, which admins used to edit on the
+ * retired "Target" page — so already-reported commission never changes.
+ */
+export const RULE_TARGETS_SINCE = "202610";
+
+export function resolveTarget(
+  rules: CommissionRules,
+  period: string,
+  status: string | null | undefined,
+  storedTarget: number | null | undefined,
+): number {
+  if (period < RULE_TARGETS_SINCE) return storedTarget ?? rules.targets.permanent;
+  // Same split the employee crawl used for new status_period rows: only Permanent staff carry a target.
+  return status && status !== "Permanent" ? rules.targets.probation : rules.targets.permanent;
+}
+
+/** Late-payment deduction per month late, capped. Waived entirely for approved invoices. */
 export function applyLateMonthPenalty(
+  rules: CommissionRules,
   amount: number,
   lateMonth: number | null | undefined,
   isApproved: unknown = false,
@@ -143,7 +143,8 @@ export function applyLateMonthPenalty(
   const approved = isApproved === true || isApproved === 1 || isApproved === "1";
   if (approved || !lateMonth || lateMonth <= 0) return amount;
 
-  const deduction = Math.min(Number(lateMonth) * 0.1, 0.5);
+  const { latePerMonth, lateMax } = rules.penalties;
+  const deduction = Math.min(Number(lateMonth) * (latePerMonth / 100), lateMax / 100);
   return amount * (1 - deduction);
 }
 
@@ -162,19 +163,16 @@ export function getCommissionBasis(
 }
 
 /** True when a service has a configured New/Upgrade rate. */
-export function hasCommissionRate(serviceId: string | null | undefined): boolean {
-  return Boolean(COMMISSION_RATES[serviceId?.toUpperCase() ?? ""]);
+export function hasCommissionRate(rules: CommissionRules, serviceId: string | null | undefined): boolean {
+  return Boolean(findProduct(rules, serviceId));
 }
 
-function getNewUpgradeRate(serviceId: string | null | undefined, months: number): number {
-  const rates = COMMISSION_RATES[serviceId?.toUpperCase() ?? ""];
-  if (!rates) return 0; // service without a configured rate earns nothing on new/upgrade
+function getNewUpgradeRate(rules: CommissionRules, serviceId: string | null | undefined, months: number): number {
+  const product = findProduct(rules, serviceId);
+  if (!product) return 0; // service without a configured rate earns nothing on new/upgrade
 
-  if (months >= 12) return rates[12];
-  if (SIX_MONTH_TIER_IDS.has(serviceId?.toUpperCase() ?? "")) {
-    return months >= 6 ? rates[6] : rates[1];
-  }
-  return months > 1 ? rates[6] : rates[1];
+  if (months >= product.twelveMonthRateFrom) return product.rate12;
+  return months >= product.sixMonthRateFrom ? product.rate6 : product.rate1;
 }
 
 export type CommissionRateInput = {
@@ -186,7 +184,7 @@ export type CommissionRateInput = {
   status: string | null | undefined;
   /** Net New Achievement for the period, used for the target-dependent rates. */
   activityCount: number;
-  /** This employee's New Achievement target for the period (default DEFAULT_SALES_TARGET, admin-configurable). */
+  /** This employee's New Achievement target for the period (rules default, admin-configurable per employee). */
   target: number;
   /** True when the same customer also has a Setup invoice this period. */
   hasSetup: boolean;
@@ -195,39 +193,41 @@ export type CommissionRateInput = {
 };
 
 /** Returns the commission percentage (e.g. 1.5 means 1.5%). */
-export function getCommissionPercentage(input: CommissionRateInput): number {
+export function getCommissionPercentage(rules: CommissionRules, input: CommissionRateInput): number {
   const { category, type, serviceId, months, status, activityCount, target } = input;
+  const rates = rules.rates;
 
-  if (category === "setup") return 5;
-  if (category === "alat") return input.hasSetup ? 2 : 1;
+  if (category === "setup") return findProduct(rules, serviceId)?.setupRate ?? rates.setup;
+  if (category === "alat") return input.hasSetup ? rates.alatWithSetup : rates.alatStandalone;
 
   if (category === "digital-business") {
     // Rate depends only on how the service is operated — never on target.
-    if (type !== "recurring") return getNewUpgradeRate(serviceId, months);
-    if (input.businessOperation === "Internal") return 1;
-    if (input.businessOperation === "Resell") return 0.5;
+    if (type !== "recurring") return getNewUpgradeRate(rules, serviceId, months);
+    if (input.businessOperation === "Internal") return rates.digitalBusinessInternal;
+    if (input.businessOperation === "Resell") return rates.digitalBusinessResell;
     return 0;
   }
 
   // category === 'home' — every non-Alat/Setup/Digital-Business service.
   switch (type) {
     case "prorate":
-      return 10;
+      return rates.prorate;
     case "recurring":
-      return status === "Permanent" && activityCount < target ? 0.5 : 1.5;
+      return status === "Permanent" && activityCount < target ? rates.recurringMissedTarget : rates.recurringOnTarget;
     case "new":
     case "upgrade":
-      return getNewUpgradeRate(serviceId, months);
+      return getNewUpgradeRate(rules, serviceId, months);
     default:
       return 0;
   }
 }
 
 /**
- * The 70% performance penalty only bites Permanent staff who missed target,
- * and only on New installations.
+ * The missed-target performance penalty only bites Permanent staff who
+ * missed target, and only on New installations.
  */
 export function getPerformancePenalty(
+  rules: CommissionRules,
   category: CommissionCategory,
   type: SnapshotType,
   status: string | null | undefined,
@@ -240,7 +240,7 @@ export function getPerformancePenalty(
     status === "Permanent" &&
     activityCount < target;
 
-  return applies ? 0.7 : 0;
+  return applies ? rules.penalties.missedTarget / 100 : 0;
 }
 
 export type CommissionResult = {
@@ -250,13 +250,15 @@ export type CommissionResult = {
 };
 
 export function calculateCommission(
+  rules: CommissionRules,
   basis: number,
   lateMonth: number | null | undefined,
   isApproved: unknown,
   input: CommissionRateInput,
 ): CommissionResult {
-  const afterLate = applyLateMonthPenalty(basis, lateMonth, isApproved);
+  const afterLate = applyLateMonthPenalty(rules, basis, lateMonth, isApproved);
   const penalty = getPerformancePenalty(
+    rules,
     input.category,
     input.type,
     input.status,
@@ -265,7 +267,7 @@ export function calculateCommission(
   );
 
   const baseCommission = Math.max(0, afterLate * (1 - penalty));
-  const commissionPercentage = getCommissionPercentage(input);
+  const commissionPercentage = getCommissionPercentage(rules, input);
 
   return {
     baseCommission,
@@ -277,20 +279,23 @@ export function calculateCommission(
 export type AchievementResult = { achievementStatus: string; motivation: string };
 
 export function calculateAchievement(
+  rules: CommissionRules,
   status: string | null | undefined,
   activityCount: number,
 ): AchievementResult {
+  const a = rules.achievement;
+
   if (status === "Permanent") {
-    if (activityCount >= 15) {
+    if (activityCount >= a.permanentBonus) {
       return {
         achievementStatus: "Capai target Bonus",
         motivation: "Congratulations on your outstanding achievement!",
       };
     }
-    if (activityCount >= 12) {
+    if (activityCount >= a.permanentOnTarget) {
       return { achievementStatus: "Capai target", motivation: "Bravo! Keep up the great work!" };
     }
-    if (activityCount < 3) {
+    if (activityCount < a.permanentSp1Below) {
       return { achievementStatus: "SP1", motivation: "Keep fighting and don't give up!" };
     }
     return {
@@ -300,16 +305,16 @@ export function calculateAchievement(
   }
 
   if (status === "Probation" || status === "Contract") {
-    if (activityCount >= 8) {
+    if (activityCount >= a.probationExcellent) {
       return {
         achievementStatus: "Excellent",
         motivation: "Congratulations on your outstanding achievement!",
       };
     }
-    if (activityCount >= 5) {
+    if (activityCount >= a.probationVeryGood) {
       return { achievementStatus: "Very Good", motivation: "Bravo! Keep up the great work!" };
     }
-    if (activityCount >= 3) {
+    if (activityCount >= a.probationAverage) {
       return {
         achievementStatus: "Average",
         motivation: "You're much better than what you think!",
@@ -323,53 +328,74 @@ export function calculateAchievement(
 
 /**
  * Shared tier math for Bonus Bulanan / Bonus Kelebihan Service. For
- * Permanent staff, tiers are relative to the employee's own target (base
- * 12): each tier shifts by the same amount the target differs from 12,
- * e.g. target 13 moves the first tier from 15 to 16, target 11 moves it
- * to 14.
+ * Permanent staff, tiers are relative to the employee's own target: each
+ * tier shifts by the same amount the target differs from the rules'
+ * default Permanent target, e.g. with default 12, target 13 moves the
+ * first tier from 15 to 16, target 11 moves it to 14.
  *
- * Non-Permanent staff (Probation/Contract) always use the flat 15/17/20
- * base tiers, regardless of whatever target is configured for them —
- * target on those statuses only ever exists to gate the recurring rate /
- * performance penalty (Permanent-only rules, see KOMISI.md 2.A & 1.2),
- * not to shift the bonus tier.
+ * Non-Permanent staff (Probation/Contract) always use the unshifted
+ * tiers, regardless of whatever target is configured for them — target on
+ * those statuses only ever exists to gate the recurring rate / performance
+ * penalty (Permanent-only rules, see KOMISI.md 2.A & 1.2), not to shift
+ * the bonus tier.
  */
-function getBonusTiers(target: number, status: string | null | undefined) {
-  const effectiveTarget = status === "Permanent" ? target : DEFAULT_SALES_TARGET;
-  const shift = effectiveTarget - DEFAULT_SALES_TARGET;
-  return { tier1: 15 + shift, tier2: 17 + shift, tier3: 20 + shift };
+function getBonusTiers(rules: CommissionRules, target: number, status: string | null | undefined) {
+  const defaultTarget = rules.targets.permanent;
+  const shift = (status === "Permanent" ? target : defaultTarget) - defaultTarget;
+  return rules.bonus.tiers.map((t) => ({ at: t.at + shift, amount: t.amount }));
 }
 
 /**
  * Bonus Bulanan — flat monthly cash bonus for reaching a New Achievement
- * tier, paid on top of commission. Only covers tier1..tier3 (inclusive);
- * exceeding tier3 is Bonus Kelebihan Service instead (see below), not an
- * extra Bonus Bulanan on top of it.
+ * tier, paid on top of commission. Only covers up to the last tier
+ * (inclusive); exceeding it is Bonus Kelebihan Service instead (see below),
+ * not an extra Bonus Bulanan on top of it.
  */
-export function calculateMonthlyBonus(activityCount: number, target: number, status: string | null | undefined): number {
-  const { tier1, tier2, tier3 } = getBonusTiers(target, status);
+export function calculateMonthlyBonus(
+  rules: CommissionRules,
+  activityCount: number,
+  target: number,
+  status: string | null | undefined,
+): number {
+  const tiers = getBonusTiers(rules, target, status);
+  const last = tiers[tiers.length - 1]!;
 
-  if (activityCount > tier3) return 0; // exceeding tier3 is Bonus Kelebihan Service instead
-  if (activityCount === tier3) return 1_500_000;
-  if (activityCount >= tier2) return 1_000_000;
-  if (activityCount >= tier1) return 500_000;
+  if (activityCount > last.at) return 0; // exceeding the last tier is Bonus Kelebihan Service instead
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (activityCount >= tiers[i]!.at) return tiers[i]!.amount;
+  }
   return 0;
 }
 
 /**
  * Bonus Kelebihan Service — paid instead of Bonus Bulanan once New
- * Achievement exceeds tier3: the top Bonus Bulanan amount plus Rp 150.000
- * for every unit above tier3.
+ * Achievement exceeds the last tier: that tier's amount plus a fixed
+ * amount for every unit above it.
  */
-export function calculateExcessServiceBonus(activityCount: number, target: number, status: string | null | undefined): number {
-  const { tier3 } = getBonusTiers(target, status);
-  if (activityCount <= tier3) return 0;
-  return 1_500_000 + (activityCount - tier3) * 150_000;
+export function calculateExcessServiceBonus(
+  rules: CommissionRules,
+  activityCount: number,
+  target: number,
+  status: string | null | undefined,
+): number {
+  const tiers = getBonusTiers(rules, target, status);
+  const last = tiers[tiers.length - 1]!;
+  if (activityCount <= last.at) return 0;
+  return last.amount + (activityCount - last.at) * rules.bonus.excessPerUnit;
 }
 
-/** Threshold percentage a manager's team must reach, keyed by TOTAL team size. */
-export function getTeamTargetThreshold(totalTeamSize: number): number {
-  return TEAM_TARGET_THRESHOLDS[totalTeamSize] ?? 85;
+/**
+ * Threshold percentage a manager's team must reach, keyed by TOTAL team
+ * size. Sizes past (or between, or before) the configured entries fall back
+ * to the nearest smaller entry, else the last one.
+ */
+export function getTeamTargetThreshold(rules: CommissionRules, totalTeamSize: number): number {
+  const thresholds = rules.manager.teamThresholds;
+  let match: number | undefined;
+  for (const t of thresholds) {
+    if (t.teamSize <= totalTeamSize) match = t.percent;
+  }
+  return match ?? thresholds[thresholds.length - 1]!.percent;
 }
 
 export type ManagerPerformance = {
@@ -385,14 +411,15 @@ export type ManagerPerformance = {
 };
 
 export function calculateManagerPerformance(
+  rules: CommissionRules,
   permanentCount: number,
   probationCount: number,
   teamActivity: number,
-  /** Sum of each Permanent team member's own target for the period (admin-configurable, default DEFAULT_SALES_TARGET each). */
+  /** Sum of each Permanent team member's own target for the period (admin-configurable per employee). */
   permanentTargetSum: number,
 ): ManagerPerformance {
   const totalTeamSize = permanentCount + probationCount;
-  const thresholdPercentage = getTeamTargetThreshold(totalTeamSize);
+  const thresholdPercentage = getTeamTargetThreshold(rules, totalTeamSize);
 
   // A team with no Permanent staff has nothing to measure against: it
   // counts as achieved when anyone is on it, and as 0% when empty.
@@ -419,15 +446,12 @@ export function calculateManagerPerformance(
 }
 
 /** Manager's share of the team's New commission pot, by achievement percentage. */
-export function getManagerNewCommissionRate(achievementPercentage: number): number {
-  if (achievementPercentage >= 150) return 60;
-  if (achievementPercentage >= 125) return 50;
-  if (achievementPercentage >= 100) return 40;
-  if (achievementPercentage >= 50) return 25;
-  return 0;
+export function getManagerNewCommissionRate(rules: CommissionRules, achievementPercentage: number): number {
+  const tiers = [...rules.manager.newCommissionTiers].sort((a, b) => b.minAchievement - a.minAchievement);
+  return tiers.find((t) => achievementPercentage >= t.minAchievement)?.rate ?? 0;
 }
 
 /** Manager's flat rate on the team's recurring subscription. */
-export function getManagerRecurringRate(isTargetAchieved: boolean): number {
-  return isTargetAchieved ? 0.9 : 0.5;
+export function getManagerRecurringRate(rules: CommissionRules, isTargetAchieved: boolean): number {
+  return isTargetAchieved ? rules.manager.recurringOnTarget : rules.manager.recurringMissedTarget;
 }

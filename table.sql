@@ -20,6 +20,8 @@ CREATE TABLE snapshots(
     month INT NULL,
     late_month INT DEFAULT 0,
     type ENUM('new','prorate','upgrade','recurring') NULL DEFAULT NULL,
+    -- A "new" row that is really a renewal's price increase (billing counter > 1): commissioned as recurring.
+    is_renewal BOOLEAN NOT NULL DEFAULT FALSE,
     referral_fee DECIMAL(15,2) DEFAULT 0,
     referral_type ENUM('OTC','Cashback', 'Monthly') NULL DEFAULT NULL,
     referral_name VARCHAR(255) NULL,
@@ -98,3 +100,24 @@ CREATE TABLE churn (
     INDEX idx_churn_unregistration_date (unregistration_date),
     INDEX idx_churn_sales_id (sales_id)
 );
+
+-- Versioned commission rules edited from the admin "Aturan Komisi" page.
+-- A period uses the latest published row with effective_period <= that
+-- period; periods with none use DEFAULT_COMMISSION_RULES in code.
+CREATE TABLE commission_rule_set (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    effective_period VARCHAR(6) NOT NULL,
+    status ENUM('draft', 'published') NOT NULL DEFAULT 'draft',
+    rules JSON NOT NULL,
+    note TEXT NOT NULL,
+    created_by VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(20) NULL,
+    updated_at TIMESTAMP NULL,
+    published_by VARCHAR(20) NULL,
+    published_at TIMESTAMP NULL,
+    INDEX idx_commission_rule_set_lookup (status, effective_period)
+);
+
+-- Migration for existing databases (snapshots.is_renewal):
+-- ALTER TABLE snapshots ADD COLUMN is_renewal BOOLEAN NOT NULL DEFAULT FALSE AFTER type;

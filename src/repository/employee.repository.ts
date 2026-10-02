@@ -1,6 +1,5 @@
 import type { AppDatabase } from "../lib/app-database";
 import {
-  DEFAULT_SALES_TARGET,
   type EmployeeDetail,
   type EmployeeRow,
   type EmployeeUpsertInput,
@@ -106,6 +105,7 @@ export class EmployeeRepository implements IEmployeeRepository {
     startDate: string,
     endDate: string,
     status: string,
+    initialTarget: number,
   ): Promise<void> {
     const existing = await this.db.query<{ id: number }[]>(
       `SELECT id FROM status_period WHERE employee_id = ? AND start_date = ? AND end_date = ?`,
@@ -120,12 +120,9 @@ export class EmployeeRepository implements IEmployeeRepository {
       return;
     }
 
-    // Only Permanent staff are ever gated on target (rate/performance-penalty
-    // checks all require status === 'Permanent'), so Probation starts at 0.
-    const target = status === "Permanent" ? DEFAULT_SALES_TARGET : 0;
     await this.db.query(
       `INSERT INTO status_period (employee_id, start_date, end_date, status, target) VALUES (?, ?, ?, ?, ?)`,
-      [employeeId, startDate, endDate, status, target],
+      [employeeId, startDate, endDate, status, initialTarget],
     );
   }
 
@@ -153,19 +150,6 @@ export class EmployeeRepository implements IEmployeeRepository {
        WHERE employee_id IN (?) AND start_date = ? AND end_date = ?`,
       [employeeIds, startDate, endDate],
     );
-  }
-
-  async updateTargetByPeriod(
-    employeeId: string,
-    startDate: string,
-    endDate: string,
-    target: number,
-  ): Promise<boolean> {
-    const result = await this.db.query<{ affectedRows: number }>(
-      `UPDATE status_period SET target = ? WHERE employee_id = ? AND start_date = ? AND end_date = ?`,
-      [target, employeeId, startDate, endDate],
-    );
-    return result.affectedRows > 0;
   }
 
   findSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]> {

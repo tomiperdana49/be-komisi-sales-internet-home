@@ -70,8 +70,9 @@ export class EmployeeService implements IEmployeeService {
     startDate: string,
     endDate: string,
     status: string,
+    initialTarget: number,
   ): Promise<void> {
-    return this.employeeRepository.upsertStatusPeriod(employeeId, startDate, endDate, status);
+    return this.employeeRepository.upsertStatusPeriod(employeeId, startDate, endDate, status, initialTarget);
   }
 
   getAllEmployeeIds(): Promise<string[]> {
@@ -92,15 +93,6 @@ export class EmployeeService implements IEmployeeService {
     endDate: string,
   ): Promise<StatusPeriodRow[]> {
     return this.employeeRepository.findStatusesByPeriodAndIds(employeeIds, startDate, endDate);
-  }
-
-  updateTargetByPeriod(
-    employeeId: string,
-    startDate: string,
-    endDate: string,
-    target: number,
-  ): Promise<boolean> {
-    return this.employeeRepository.updateTargetByPeriod(employeeId, startDate, endDate, target);
   }
 
   getSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]> {

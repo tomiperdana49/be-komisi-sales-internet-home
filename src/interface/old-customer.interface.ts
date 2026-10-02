@@ -14,6 +14,7 @@ export type OldCustomerInvoiceRow = {
   "Tanggal Transaksi Pembayaran": unknown;
   "AI Invoice": number;
   "AI Receipt": number | null;
+  "Invoice Period Description": string | null;
   "Nama Service": string | null;
   "Line Rental": unknown;
   SID: string | null;
@@ -26,14 +27,22 @@ export type OldCustomerAccountRow = {
   "Nama Customer": string | null;
   Company: string | null;
   Account: string | null;
+  "Nama Service Account": string | null;
+  /** The account's own service group (Services.ServiceGroup). */
+  Category: string | null;
   Vendor: string | null;
   Sales: string | null;
   "Manager Sales": string | null;
+  Cabang: string | null;
+  WHMCS: number | null;
+  /** Reseller name, only for customers brought in by a reseller (ResellerId > 1). */
+  Reseller: string | null;
 };
 
 export interface IOldCustomerRepository {
   findInvoices(params: string[]): Promise<OldCustomerInvoiceRow[]>;
   findAccounts(): Promise<OldCustomerAccountRow[]>;
+  findTransferredCustomerIds(initialSalesId: string): Promise<string[]>;
   findSheetRows(period: string): Promise<GoogleSpreadsheetRow[]>;
 }
 
@@ -46,5 +55,6 @@ export interface IOldCustomerService {
   buildRecurringSnapshotValues(
     input: RawSnapshotInput,
     employeeMap: Map<string, string>,
+    excludedCategories: string[],
   ): any[] | null;
 }

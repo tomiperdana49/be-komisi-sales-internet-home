@@ -14,7 +14,7 @@ const SNAPSHOT_COLUMNS = `
   period, ai_invoice, ai_receipt, customer_id, customer_name, customer_company,
   customer_service_id, customer_service_account, service_id, service_name, category,
   sales, manager, vendor, subscription, line_rental, paid_date, month,
-  late_month, type, referral_fee, referral_name, business_operation
+  late_month, type, referral_fee, referral_name, business_operation, is_renewal
 `;
 
 /** Index of `ai_invoice` in the positional row tuples INSERTed via SNAPSHOT_COLUMNS above. */
@@ -56,7 +56,7 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
   findRecurringByManager(managerId: string, period: string): Promise<CommissionSnapshotRow[]> {
     return this.db.query<CommissionSnapshotRow[]>(
       `SELECT * FROM snapshots
-       WHERE manager = ? AND period = ? AND type = 'recurring'`,
+       WHERE manager = ? AND period = ? AND (type = 'recurring' OR is_renewal = TRUE)`,
       [managerId, period],
     );
   }

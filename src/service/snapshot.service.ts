@@ -38,6 +38,7 @@ export class SnapshotService implements ISnapshotService {
       parseNumber(input.biayaReferral) ?? 0,
       input.referralName?.toString().trim() || null,
       input.businessOperation?.toString().trim() || null,
+      input.isRenewal ? 1 : 0,
     ];
   }
 }
