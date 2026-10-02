@@ -265,10 +265,10 @@ export class CommissionService {
       },
     };
     for (const r of memberResults) {
-      teamTotals.newCommission += r.breakdown.new.commission + r.breakdown.prorate.commission;
+      teamTotals.newCommission += r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.alat.commission;
       teamTotals.recurringCommission += r.breakdown.recurring.commission;
-      teamTotals.newSubscription += r.breakdown.new.subscription + r.breakdown.prorate.subscription;
-      teamTotals.newMrc += r.breakdown.new.mrc + r.breakdown.prorate.mrc;
+      teamTotals.newSubscription += r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.alat.subscription;
+      teamTotals.newMrc += r.breakdown.new.mrc + r.breakdown.prorate.mrc + r.breakdown.alat.mrc;
       teamTotals.recurringSubscription += r.breakdown.recurring.subscription;
 
       for (const group of teamServiceGroups) {
@@ -276,9 +276,9 @@ export class CommissionService {
         if (!g) continue;
         const target = teamTotals.byServiceGroup[group];
         target.newCount += g.new.count;
-        target.newSubscription += g.new.subscription + (g.prorate?.subscription ?? 0);
-        target.newMrc += g.new.mrc + (g.prorate?.mrc ?? 0);
-        target.newCommission += g.new.commission + (g.prorate?.commission ?? 0);
+        target.newSubscription += g.new.subscription + (g.prorate?.subscription ?? 0) + (g.alat?.subscription ?? 0);
+        target.newMrc += g.new.mrc + (g.prorate?.mrc ?? 0) + (g.alat?.mrc ?? 0);
+        target.newCommission += g.new.commission + (g.prorate?.commission ?? 0) + (g.alat?.commission ?? 0);
         target.recurringSubscription += g.recurring.subscription;
         target.recurringCommission += g.recurring.commission;
       }
@@ -324,9 +324,9 @@ export class CommissionService {
       if (!g) continue;
       const target = teamTotals.byServiceGroup[group];
       target.newCount += g.new.count;
-      target.newSubscription += g.new.subscription + (g.prorate?.subscription ?? 0);
-      target.newMrc += g.new.mrc + (g.prorate?.mrc ?? 0);
-      target.newCommission += g.new.commission + (g.prorate?.commission ?? 0);
+      target.newSubscription += g.new.subscription + (g.prorate?.subscription ?? 0) + (g.alat?.subscription ?? 0);
+      target.newMrc += g.new.mrc + (g.prorate?.mrc ?? 0) + (g.alat?.mrc ?? 0);
+      target.newCommission += g.new.commission + (g.prorate?.commission ?? 0) + (g.alat?.commission ?? 0);
       target.recurringSubscription += g.recurring.subscription;
       target.recurringCommission += g.recurring.commission;
     }
@@ -339,8 +339,8 @@ export class CommissionService {
 
     const members = coveredTeam.map((e, i) => {
       const r = memberResults[i]!;
-      const otherSubscription = r.breakdown.alat.subscription + r.breakdown.setup.subscription;
-      const otherCommission = r.breakdown.alat.commission + r.breakdown.setup.commission;
+      const otherSubscription = r.breakdown.setup.subscription;
+      const otherCommission = r.breakdown.setup.commission;
 
       return {
         employeeId: e.employee_id,
@@ -350,9 +350,9 @@ export class CommissionService {
         activityCount: r.activityCount,
         achievementStatus: r.achievementStatus,
         motivation: r.motivation,
-        newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription,
-        newMrc: r.breakdown.new.mrc + r.breakdown.prorate.mrc,
-        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission,
+        newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.alat.subscription,
+        newMrc: r.breakdown.new.mrc + r.breakdown.prorate.mrc + r.breakdown.alat.mrc,
+        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.alat.commission,
         recurringSubscription: r.breakdown.recurring.subscription,
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription,
@@ -361,13 +361,13 @@ export class CommissionService {
         bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
         totalCommission: r.total.commission + r.bonusBulanan + r.bonusKelebihanService + r.consistencyBonus,
-        managerNewCommission: (r.breakdown.new.commission + r.breakdown.prorate.commission) * (newCommissionRate / 100),
+        managerNewCommission: (r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.alat.commission) * (newCommissionRate / 100),
         managerRecurringCommission: r.breakdown.recurring.subscription * (recurringCommissionRate / 100),
         newService: serviceGroups.map((name) => ({
           name,
           count: r.byServiceGroup[name]?.new.count ?? 0,
-          mrc: (r.byServiceGroup[name]?.new.mrc ?? 0) + (r.byServiceGroup[name]?.prorate.mrc ?? 0),
-          subscription: (r.byServiceGroup[name]?.new.subscription ?? 0) + (r.byServiceGroup[name]?.prorate.subscription ?? 0),
+          mrc: (r.byServiceGroup[name]?.new.mrc ?? 0) + (r.byServiceGroup[name]?.prorate.mrc ?? 0) + (r.byServiceGroup[name]?.alat.mrc ?? 0),
+          subscription: (r.byServiceGroup[name]?.new.subscription ?? 0) + (r.byServiceGroup[name]?.prorate.subscription ?? 0) + (r.byServiceGroup[name]?.alat.subscription ?? 0),
         })),
       };
     });
@@ -748,13 +748,13 @@ export class CommissionService {
         status: r.status,
         achievementStatus: r.achievementStatus,
         activityCount: r.activityCount,
-        newMrc: r.breakdown.new.mrc + r.breakdown.prorate.mrc,
-        newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription,
-        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission,
+        newMrc: r.breakdown.new.mrc + r.breakdown.prorate.mrc + r.breakdown.alat.mrc,
+        newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.alat.subscription,
+        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.alat.commission,
         recurringSubscription: r.breakdown.recurring.subscription,
         recurringCommission: r.breakdown.recurring.commission,
-        otherSubscription: r.breakdown.alat.subscription + r.breakdown.setup.subscription,
-        otherCommission: r.breakdown.alat.commission + r.breakdown.setup.commission,
+        otherSubscription: r.breakdown.setup.subscription,
+        otherCommission: r.breakdown.setup.commission,
         bonusBulanan: r.bonusBulanan,
         bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
