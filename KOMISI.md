@@ -42,7 +42,8 @@ Rate recurring **tidak dibedakan per kategori layanan**: berlaku sama untuk Home
 
 **B. Kategori Layanan "Home" — New, Upgrade & Prorate**
 
-- **Prorate (Prorata)**: Komisi flat **10%** dari Base Commission.
+- **Prorate (Prorata)**: Komisi flat **10%** dari Base Commission. Bebas dari penalti performa 70%.
+  *(Catatan: Bagi Manager Area, komisi Prorate anggota tim diperlakukan sama dengan Komisi New dalam pembentukan komisi overriding New Manager — lihat Bagian 6.C).*
 - **Upgrade**: Komisi berdasarkan rate `Service ID` dan durasi kontrak. Bebas dari penalti performa 70%.
 - **New (Pemasangan Baru)**: Persentase komisi ditentukan dari `Service ID` dan lama masa kontrak (`months`). Dikenakan penalti performa 70% jika Sales Permanent gagal target.
 
@@ -218,14 +219,20 @@ Semakin besar tim, semakin ringan persentase targetnya. Threshold dipilih berdas
 >
 > Manager harus mengumpulkan **92 New Achievement** dari total timnya untuk dinyatakan **Capai Target**.
 
-**C. Komisi New (Akuisisi Pelanggan Baru dari Tim)**
-Manager mengambil komisi overriding yang diproses dari total "New Commission" uang pegawainya sebulan, dipotong berdasarkan capaian target:
+**C. Komisi New & Prorate (Akuisisi Pelanggan Baru dari Tim)**
 
-- Jika Capaian `>= 150%` = Manager dikalikan **60%** dari kue New Commission.
+Manager mengambil komisi overriding yang diproses dari total kue komisi produk New dan Prorate anggota timnya sebulan, dipotong berdasarkan capaian target:
+
+> **⚠️ Komisi Prorate kini diperlakukan sama dengan Komisi New**:
+> Transaksi Prorate (penyesuaian tagihan masa aktif awal pelanggan baru) ikut menyumbang ke komisi overriding New Manager bersama dengan transaksi New. Dasar pengenaan overriding New Manager dihitung dari:
+> `Dasar Overriding New Manager = Total Komisi New Tim + Total Komisi Prorate Tim`.
+> Pada tampilan laporan summary, komisi Prorate juga digabungkan ke kolom New Commission.
+
+- Jika Capaian `>= 150%` = Manager dikalikan **60%** dari kue New & Prorate Commission.
 - Jika Capaian `>= 125%` = Manager dikalikan **50%**.
 - Jika Capaian `>= 100%` = Manager dikalikan **40%**.
 - Jika Capaian `>= 50%` = Manager dikalikan **25%**.
-- Jika Capaian `< 50%` = Manager mendapatkan **0%** bagian dari produk New.
+- Jika Capaian `< 50%` = Manager mendapatkan **0%** bagian dari produk New & Prorate.
 
 **D. Komisi Recurring (Pemasukan Berulang dari Tim)**
 Dihitung flat bulanan sebagai overriding insentif pendapatan pasif:
@@ -256,7 +263,7 @@ Manager Area juga bisa memiliki data penjualan atas namanya sendiri (invoice den
   - **Penalti performa 70%** pada tipe New.
 - **Tidak ada sirkularitas**: penjualan pribadi manager **tidak** ikut dihitung sebagai aktivitas tim. Perhitungan tim memakai `getHierarchy(..., isSelf = false)` yang menarik mulai dari bawahan langsung, sehingga manager sendiri **tidak** termasuk anggota tim yang dijumlahkan pada Bagian 6.A.
 
-_Total Komisi Manager akhir bulan = `Komisi Penjualan Pribadi` (F) + `Overriding Komisi New` (C) + `Overriding Komisi Recurring` (D)._
+_Total Komisi Manager akhir bulan = `Komisi Penjualan Pribadi` (F) + `Overriding Komisi New & Prorate` (C) + `Overriding Komisi Recurring` (D)._
 _Semua perhitungan Manager menggunakan angka **NET** (setelah dikurangi churn dan penalti masing-masing anggota tim)._
 
 ---
