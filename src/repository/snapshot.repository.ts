@@ -52,11 +52,13 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
    * column. Unlike findBySales this deliberately does NOT require a real
    * salesperson — that's what lets Customer Relation Officer invoices
    * still count toward the manager's recurring pool (KOMISI.md 6.D).
+   * Renewal price increases (is_renewal, stored as type 'new') stay out of
+   * the pool (KOMISI.md 1.3).
    */
   findRecurringByManager(managerId: string, period: string): Promise<CommissionSnapshotRow[]> {
     return this.db.query<CommissionSnapshotRow[]>(
       `SELECT * FROM snapshots
-       WHERE manager = ? AND period = ? AND (type = 'recurring' OR is_renewal = TRUE)`,
+       WHERE manager = ? AND period = ? AND type = 'recurring'`,
       [managerId, period],
     );
   }

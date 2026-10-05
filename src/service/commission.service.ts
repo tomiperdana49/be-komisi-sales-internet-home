@@ -7,14 +7,17 @@ import {
   calculateManagerPerformance,
   calculateNusaSelectaActivity,
   getCommissionBasis,
+  getManagerNewCommissionBasis,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getRecurringServiceGroupLabel,
   getServiceGroupLabel,
   hasCommissionRate,
+  isDomainService,
   isNusaBasicPrime,
   isNusaSelecta,
   isNusaUltra,
+  resolveBusinessOperation,
   resolveTarget,
   toCommissionCategory,
   toNumber,
@@ -90,7 +93,9 @@ function resolveBucket(row: CommissionSnapshotRow): SnapshotType | "alat" | "set
 /**
  * NusaSelecta packages earn nothing on recurring — only New/Upgrade/Prorate
  * (KOMISI.md 2.A). These rows are dropped outright rather than rated at 0%,
- * matching the legacy behaviour of filtering them in the query.
+ * matching the legacy behaviour of filtering them in the query. Domain
+ * services are dropped from recurring the same way, even when billing files
+ * them under Digital Business.
  *
  * Home-category New/Upgrade sales of a service with no configured rate are
  * dropped the same way: they earn no commission AND give no New Achievement
@@ -100,6 +105,7 @@ function resolveBucket(row: CommissionSnapshotRow): SnapshotType | "alat" | "set
 function isExcludedFromCommission(rules: CommissionRules, row: CommissionSnapshotRow): boolean {
   const bucket = resolveBucket(row);
   if (bucket === "recurring" && isNusaSelecta(rules, row.service_id)) return true;
+  if (bucket === "recurring" && isDomainService(row.service_name)) return true;
 
   const category = toCommissionCategory(row.category);
   if (category === "home" && (bucket === "new" || bucket === "upgrade")) {
@@ -260,6 +266,7 @@ export class CommissionService {
       performance.isTargetAchieved ? managerTarget : 0,
       managerTarget,
       managerConsistencyBonus,
+      true,
     );
 
     // Kept 3-way — only used below for each member's "New Service" display,
@@ -293,7 +300,7 @@ export class CommissionService {
       },
     };
     for (const r of memberResults) {
-      teamTotals.newCommission += r.breakdown.new.commission;
+      teamTotals.newCommission += getManagerNewCommissionBasis(r.breakdown);
       teamTotals.recurringCommission += r.breakdown.recurring.commission;
       teamTotals.newSubscription += r.breakdown.new.subscription;
       teamTotals.newMrc += r.breakdown.new.mrc;
@@ -389,7 +396,7 @@ export class CommissionService {
         bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
         totalCommission: r.total.commission + r.bonusBulanan + r.bonusKelebihanService + r.consistencyBonus,
-        managerNewCommission: r.breakdown.new.commission * (newCommissionRate / 100),
+        managerNewCommission: getManagerNewCommissionBasis(r.breakdown) * (newCommissionRate / 100),
         managerRecurringCommission: r.breakdown.recurring.subscription * (recurringCommissionRate / 100),
         newService: serviceGroups.map((name) => ({
           name,
@@ -504,6 +511,8 @@ export class CommissionService {
     targetOverride?: number,
     /** This employee's Bonus Konsistensi amount for the period. Defaults to a fresh lookup (0 if never granted) when omitted. */
     consistencyBonusOverride?: number,
+    /** Drops Alat rows entirely — a Manager's personal sales earn nothing on Alat (KOMISI.md 6.F). */
+    excludeAlat = false,
   ): Promise<SalesCommissionResult> {
     const { start, end } = getDateRangeForPeriod(period);
     const startDate = toSqlDate(start);
@@ -521,7 +530,11 @@ export class CommissionService {
     const status = statusPeriod?.status ?? null;
     const target = targetOverride ?? resolveTarget(rules, period, status, statusPeriod?.target);
 
-    const rows = allRows.filter((row) => !isExcludedFromCommission(rules, row));
+    const rows = allRows.filter(
+      (row) =>
+        !isExcludedFromCommission(rules, row) &&
+        !(excludeAlat && toCommissionCategory(row.category) === "alat"),
+    );
 
     const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =
       this.computeActivity(rules, rows, churnRows);
@@ -566,7 +579,7 @@ export class CommissionService {
           activityCount: rateActivityCount,
           target,
           hasSetup: customerHasSetup.has(row.customer_id),
-          businessOperation: row.business_operation,
+          businessOperation: resolveBusinessOperation(row.category, row.business_operation),
         },
       );
 

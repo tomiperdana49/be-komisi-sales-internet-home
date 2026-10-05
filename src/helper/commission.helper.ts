@@ -7,6 +7,7 @@
  */
 
 import type { CommissionProductRule, CommissionRules } from "../interface/commission-rules.interface";
+import type { CommissionBreakdown } from "../interface/commission.interface";
 
 /** Commission behaves differently per group; derived from the snapshot's `category` label. */
 export type CommissionCategory = "home" | "alat" | "setup" | "digital-business";
@@ -56,10 +57,27 @@ export function toCommissionCategory(category: string | null | undefined): Commi
     case "Setup":
       return "setup";
     case "Digital Business":
+    case "IP Public":
       return "digital-business";
     default:
       return "home";
   }
+}
+
+/**
+ * IP Public has no business_operation in billing; it's commissioned like
+ * Internal Digital Business (the "Data Center" group in the old reports).
+ */
+export function resolveBusinessOperation(
+  category: string | null | undefined,
+  businessOperation: string | null | undefined,
+): string | null {
+  return category?.trim() === "IP Public" ? "Internal" : (businessOperation ?? null);
+}
+
+/** Domain services never earn recurring commission, whatever category billing files them under. */
+export function isDomainService(serviceName: string | null | undefined): boolean {
+  return /^domain\b/i.test(serviceName?.trim() ?? "");
 }
 
 export function getServiceGroupLabel(rules: CommissionRules, serviceId: string | null | undefined): ServiceGroupLabel {
@@ -149,17 +167,16 @@ export function applyLateMonthPenalty(
 }
 
 /**
- * Commission basis: Cashback/Monthly referrals are paid out of the same
- * pot, so their fee comes off before commission is calculated.
+ * Commission basis: the referral fee comes off the subscription before
+ * commission is calculated, unless the referral is OTC.
  */
 export function getCommissionBasis(
   subscription: number,
   referralFee: number,
   referralType: string | null | undefined,
 ): number {
-  return referralType === "Cashback" || referralType === "Monthly"
-    ? subscription - referralFee
-    : subscription;
+  // Cashback, Monthly and referrals with no type recorded are all deducted.
+  return referralType === "OTC" ? subscription : subscription - referralFee;
 }
 
 /** True when a service has a configured New/Upgrade rate. */
@@ -449,6 +466,15 @@ export function calculateManagerPerformance(
 export function getManagerNewCommissionRate(rules: CommissionRules, achievementPercentage: number): number {
   const tiers = [...rules.manager.newCommissionTiers].sort((a, b) => b.minAchievement - a.minAchievement);
   return tiers.find((t) => achievementPercentage >= t.minAchievement)?.rate ?? 0;
+}
+
+/**
+ * KOMISI.md 6.C: the part of a team member's commission the manager's
+ * Overriding New is taken from — New, Prorate and Alat. Upgrade and Setup
+ * are left out.
+ */
+export function getManagerNewCommissionBasis(breakdown: CommissionBreakdown): number {
+  return breakdown.new.commission + breakdown.prorate.commission + breakdown.alat.commission;
 }
 
 /** Manager's flat rate on the team's recurring subscription. */

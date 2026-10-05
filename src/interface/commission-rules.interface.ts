@@ -32,7 +32,7 @@ export const commissionRulesSchema = z
      * when the hourly import job pulls a period's invoices, so a change shows
      * up on that period's next import, not in a preview.
      */
-    excludedRecurringCategories: z.array(z.string().trim().min(1)).default(["IP Public", "Domain"]),
+    excludedRecurringCategories: z.array(z.string().trim().min(1)).default(["Domain"]),
     rates: z.object({
       prorate: percent,
       setup: percent,

@@ -4,6 +4,12 @@ import {
   calculateCommission,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
+  getCommissionBasis,
+  getCommissionPercentage,
+  isDomainService,
+  resolveBusinessOperation,
+  toCommissionCategory,
+  getManagerNewCommissionBasis,
   getManagerNewCommissionRate,
   getTeamTargetThreshold,
   hasCommissionRate,
@@ -102,6 +108,46 @@ describe("edited rules are what the math uses", () => {
   });
 });
 
+describe("IP Public and Domain recurring", () => {
+  test("IP Public earns the Internal Digital Business rate", () => {
+    const rate = getCommissionPercentage(rules, newSale({
+      category: toCommissionCategory("IP Public"),
+      type: "recurring",
+      businessOperation: resolveBusinessOperation("IP Public", null),
+    }));
+    expect(rate).toBe(rules.rates.digitalBusinessInternal);
+  });
+
+  test("Domain is recognised by service name, not category", () => {
+    expect(isDomainService("Domain International (.COM)")).toBe(true);
+    expect(isDomainService("Co-location Server 2U")).toBe(false);
+  });
+});
+
+describe("referral deduction", () => {
+  test("deducts Cashback, Monthly and untyped referrals, but not OTC", () => {
+    expect(getCommissionBasis(5_000_000, 499_900, "Cashback")).toBe(4_500_100);
+    expect(getCommissionBasis(5_000_000, 499_900, "Monthly")).toBe(4_500_100);
+    expect(getCommissionBasis(5_000_000, 499_900, null)).toBe(4_500_100);
+    expect(getCommissionBasis(5_000_000, 499_900, "OTC")).toBe(5_000_000);
+  });
+});
+
+describe("manager Overriding New basis", () => {
+  test("takes New, Prorate and Alat commission, but not Upgrade, Setup or Recurring", () => {
+    const stats = (commission: number) => ({ count: 1, commission, subscription: 0, mrc: 0 });
+    const breakdown = {
+      new: stats(1000),
+      prorate: stats(100),
+      alat: stats(10),
+      upgrade: stats(50000),
+      setup: stats(60000),
+      recurring: stats(70000),
+    };
+    expect(getManagerNewCommissionBasis(breakdown)).toBe(1110);
+  });
+});
+
 describe("contract-length tiers", () => {
   test("the 12-month rate threshold is per product", () => {
     const edited = clone();
@@ -137,7 +183,7 @@ describe("rule sets saved before newer settings existed", () => {
     for (const p of old.products) delete p.twelveMonthRateFrom;
 
     const parsed = commissionRulesSchema.parse(old);
-    expect(parsed.excludedRecurringCategories).toEqual(["IP Public", "Domain"]);
+    expect(parsed.excludedRecurringCategories).toEqual(["Domain"]);
     expect(parsed.products.every((p) => p.twelveMonthRateFrom === 12)).toBe(true);
   });
 });

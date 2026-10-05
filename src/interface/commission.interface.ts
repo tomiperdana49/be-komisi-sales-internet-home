@@ -194,6 +194,7 @@ export type ManagerCommissionResult = {
   override: ManagerOverride;
   /** Team's raw production totals (the "pot" before the manager's override cut). */
   teamTotals: {
+    /** Overriding New basis: the team's New + Prorate + Alat commission (getManagerNewCommissionBasis). */
     newCommission: number;
     recurringCommission: number;
     newSubscription: number;

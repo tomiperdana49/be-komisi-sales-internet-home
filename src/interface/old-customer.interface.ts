@@ -6,6 +6,7 @@ export type OldCustomerInvoiceRow = {
   CID: string;
   CSID: number | null;
   SG: string | null;
+  "Tanggal Invoice": unknown;
   "Tanggal Jatuh Tempo": unknown;
   Bulan: number | null;
   DPP: unknown;
@@ -18,6 +19,7 @@ export type OldCustomerInvoiceRow = {
   "Nama Service": string | null;
   "Line Rental": unknown;
   SID: string | null;
+  "Is Prorata": number | null;
   "Business Operation": string | null;
 };
 
@@ -42,6 +44,8 @@ export type OldCustomerAccountRow = {
 export interface IOldCustomerRepository {
   findInvoices(params: string[]): Promise<OldCustomerInvoiceRow[]>;
   findAccounts(): Promise<OldCustomerAccountRow[]>;
+  /** Referral fee per account name for the period, from the reseller spreadsheet; empty when it isn't configured. */
+  findResellerFees(period: string): Promise<Map<string, number>>;
   findTransferredCustomerIds(initialSalesId: string): Promise<string[]>;
   findSheetRows(period: string): Promise<GoogleSpreadsheetRow[]>;
 }

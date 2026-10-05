@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { buildInvoiceType8Filter, OldCustomerRepository } from "./old-customer.repository";
+import { buildInvoiceType8Filter, buildResellerFeeMap, OldCustomerRepository } from "./old-customer.repository";
 import { oldCustomerConfig } from "../config/old-customer.config";
 
 // Records what would be sent to the billing DB — nothing is ever executed.
@@ -71,5 +71,18 @@ describe("other old-customer queries", () => {
     const { repo, calls } = recordingRepository();
     await repo.findTransferredCustomerIds("0202613");
     expect(calls[0]).toEqual({ sql: "SELECT cust_id FROM transfer_customers WHERE initial_sales = ?", params: ["0202613"] });
+  });
+});
+
+describe("reseller spreadsheet referral fees", () => {
+  test("maps trimmed account names to fees, later branch tabs win, missing tabs are skipped", () => {
+    const fees = buildResellerFeeMap([
+      [["evayamin ", 499_900], ["", 100], ["ptlintas1", 1_000_000]],
+      null,
+      [["ptlintas1", 2_000_000]],
+    ]);
+    expect(fees.get("evayamin")).toBe(499_900);
+    expect(fees.get("ptlintas1")).toBe(2_000_000);
+    expect(fees.size).toBe(2);
   });
 });

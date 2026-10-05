@@ -125,6 +125,21 @@ WHERE
     AND IFNULL(bce.type, 'customer') != 'internal';
 `;
 
+/** Branch tabs of the reseller spreadsheet, in the order the old Apps Script read them (later tabs win). */
+const RESELLER_BRANCH_TABS = ["Medan", "Bali", "Nusa.id", "Binjai", "Tj Morawa"];
+
+/** Column A = account name, column B = referral fee; rows without an account name are skipped. */
+export function buildResellerFeeMap(tabs: (unknown[][] | null)[]): Map<string, number> {
+  const fees = new Map<string, number>();
+  for (const rows of tabs) {
+    for (const [account, fee] of rows ?? []) {
+      const key = String(account ?? "").trim();
+      if (key) fees.set(key, Number(fee) || 0);
+    }
+  }
+  return fees;
+}
+
 /** Customers transferred away from a (resigned) salesperson. */
 const SQL_RESIGN = `SELECT cust_id FROM transfer_customers WHERE initial_sales = ?`;
 
@@ -155,6 +170,19 @@ export class OldCustomerRepository implements IOldCustomerRepository {
 
   findAccounts(): Promise<OldCustomerAccountRow[]> {
     return this.billingDb.query<OldCustomerAccountRow[]>(SQL_ACCOUNT);
+  }
+
+  async findResellerFees(period: string): Promise<Map<string, number>> {
+    if (!googleConfig.resellerSpreadsheetId) {
+      console.warn("GOOGLE_SPREADSHEET_ID_RESELLER belum diisi — referral fee tidak diambil");
+      return new Map();
+    }
+    const tabs = await this.sheets.getValues(
+      RESELLER_BRANCH_TABS.map((branch) => `${branch} ${period}`),
+      googleConfig.resellerSpreadsheetId,
+      "A:B",
+    );
+    return buildResellerFeeMap(tabs);
   }
 
   async findTransferredCustomerIds(initialSalesId: string): Promise<string[]> {

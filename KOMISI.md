@@ -2,7 +2,7 @@
 
 Dokumen ini fokus pada **aturan bisnis perhitungan komisi**.
 
-> **⚙️ Angka-angka di dokumen ini adalah nilai bawaan dan bisa diubah admin** dari menu *Summary > Aturan Komisi*: tabel rate produk (termasuk menambah produk/ServiceId baru, rate setup per produk, dan mulai kontrak berapa bulan rate 6 & 12 bulan berlaku), kategori recurring yang tidak mendapat komisi (default IP Public & Domain — diterapkan saat job import mengambil data periode tersebut), rate prorate/setup/alat/recurring/Digital Business, potongan telat bayar & gagal target, target default, batas status pencapaian, tier bonus bulanan & bonus kelebihan service, serta threshold tim, tier overriding New, dan rate overriding recurring manager.
+> **⚙️ Angka-angka di dokumen ini adalah nilai bawaan dan bisa diubah admin** dari menu *Summary > Aturan Komisi*: tabel rate produk (termasuk menambah produk/ServiceId baru, rate setup per produk, dan mulai kontrak berapa bulan rate 6 & 12 bulan berlaku), kategori recurring yang tidak mendapat komisi (default Domain — diterapkan saat job import mengambil data periode tersebut), rate prorate/setup/alat/recurring/Digital Business, potongan telat bayar & gagal target, target default, batas status pencapaian, tier bonus bulanan & bonus kelebihan service, serta threshold tim, tier overriding New, dan rate overriding recurring manager.
 >
 > Setiap perubahan disimpan sebagai **versi** (tabel `commission_rule_set`) yang **berlaku mulai periode tertentu**: periode P memakai versi terbit terbaru dengan periode berlaku ≤ P, dan periode tanpa versi apa pun memakai nilai bawaan di `src/helper/commission-rules.default.ts` (= angka di dokumen ini). Versi hanya boleh berlaku mulai periode berjalan atau sesudahnya, dan versi yang sudah terbit tidak bisa diubah/dihapus — koreksi dilakukan dengan versi baru. **Logika** perhitungan (urutan potongan, pengelompokan NusaSelecta, aturan churn, dsb.) tetap seperti dijelaskan di bawah dan tidak bisa diubah dari halaman tersebut.
 
@@ -14,7 +14,9 @@ Dokumen ini fokus pada **aturan bisnis perhitungan komisi**.
 
 ### 1. Dasar Pengenaan Komisi & Penalti (Base Commission)
 
-- **Commission Basis**: Jika tipe referral pelanggan adalah `Cashback` atau `Monthly`, dasar pengenaan komisi adalah `Subscription - Referral Fee`. Selain dari tipe itu, dasar komisi dihitung full dari `Subcription`.
+- **Sumber referral fee**: spreadsheet reseller (`GOOGLE_SPREADSHEET_ID_RESELLER`), tab per cabang per periode — *Medan*, *Bali*, *Nusa.id*, *Binjai*, *Tj Morawa* + `YYYYMM` (kolom A = nama akun, kolom B = nominal). Job `old-customer-db` membacanya langsung, sama seperti Apps Script lama; invoice prorata tidak kena referral. `CustomerServices.ResellerFee` di NIS **tidak** dipakai karena juga memuat fee yang tidak dipotong dari komisi.
+- **Input pembayaran terlambat (IS-1508)**: invoice yang dibayar ≤ tanggal 25 tetapi baru diinput finance ≥ tanggal 27 di bulan invoice yang sama masuk ke **periode berikutnya** (job `old-customer-db` memakai tanggal input untuk kasus ini).
+- **Commission Basis**: dasar pengenaan komisi adalah `Subscription - Referral Fee` untuk referral bertipe `Cashback`, `Monthly`, atau **tanpa tipe**. Hanya referral bertipe `OTC` yang dasar komisinya full dari `Subscription`.
 - **Penalti Persentase (Percentage Deductions)**: Dasar Komisi dikurangi oleh penalti berikut sebelum dikalikan rate komisi:
   1. **Late Payment Penalty (Keterlambatan Pelunasan)**:
      - Berlaku untuk **semua jenis invoice** (New, Recurring, Upgrade, Prorate, dll).
@@ -34,7 +36,7 @@ Billing kadang mencatat sebagian nilai invoice **perpanjangan** sebagai `new_sub
 - Invoice customer baru dengan **`counter > 1`** di `NewCustomerInvoiceInternetCounter` (bukan upgrade, bukan prorata, bukan alat/setup) ditandai **`is_renewal = TRUE`** oleh job `new-customer-db`. Baris tetap bertipe `new` di tabel `snapshots` (milik job customer baru), tetapi:
   - **Dihitung sebagai Recurring**: memakai rate recurring (Bagian 2.A), tampil di tab Recurring dengan label *Perpanjangan*.
   - **Tidak menambah New Achievement** dan **tidak kena penalti performa 70%**.
-  - Ikut ke dasar **Overriding Recurring** manager (Bagian 6.D).
+  - **Tidak** ikut ke dasar **Overriding Recurring** manager (Bagian 6.D), baik milik anggota tim maupun Customer Relation Officer.
   - Untuk produk NusaSelecta, sama seperti recurring NusaSelecta lainnya: **tidak dapat komisi** (Bagian 2.A).
 - Sisa nilai invoice yang sama (`dpp − new_subscription`) tetap diambil job customer lama sebagai recurring biasa.
 
@@ -98,6 +100,8 @@ Rate recurring **tidak dibedakan per kategori layanan**: berlaku sama untuk Home
 - **Recurring (Langganan Berulang)**: Persentase komisi ditentukan oleh **jenis operasional layanan** (`business_operation`), bukan oleh pencapaian target:
   - **1%**: layanan **Internal** (dioperasikan sendiri oleh Nusanet).
   - **0.5%**: layanan **Resell** (hasil resell dari pihak ketiga).
+- **IP Public** (kategori `IP Public`, tanpa `business_operation`) diperlakukan sebagai Digital Business **Internal**: recurring **1%** (kelompok "Data Center" di laporan lama). Lihat `resolveBusinessOperation`.
+- **Domain tidak mendapat komisi recurring**: layanan yang namanya diawali "Domain" (mis. *Domain International (.COM)*) dibuang dari perhitungan meskipun kategorinya `Digital Business`. Lihat `isDomainService`.
 - **⚠️ Tidak bergantung target**: rate di atas berlaku **tetap**, terlepas dari New Achievement sales sudah capai target (>= 12) atau belum, dan terlepas dari status kepegawaian (Permanent/Probation). Ini **berbeda** dari recurring kategori lain (Bagian 2.A) yang rate-nya 1.5% / 0.5% tergantung target.
 - **Sumber data**: kolom `business_operation` pada tabel `snapshots`, diisi saat crawl dari `Services.BusinessOperation` di database billing, dan **hanya** untuk baris berkategori `Digital Business`. Untuk job berbasis sheet, nilainya di-lookup dari katalog `Services` berdasarkan `Nama Service` (sheet tidak punya kolom ini).
 - **⚠️ Baris tanpa klasifikasi tidak diambil**: jika `Services.BusinessOperation` bukan `internal`/`resell` (mis. `undefined`, `access`, `setup`, `other`), baris Digital Business tersebut **tidak dimasukkan ke `snapshots`** sama sekali — karena tidak ada rate yang bisa dipakai. Kalau ada layanan yang seharusnya dapat komisi tapi hilang, perbaiki `BusinessOperation`-nya di billing lalu jalankan ulang crawl.
@@ -234,7 +238,7 @@ Semakin besar tim, semakin ringan persentase targetnya. Threshold dipilih berdas
 > Manager harus mengumpulkan **92 New Achievement** dari total timnya untuk dinyatakan **Capai Target**.
 
 **C. Komisi New (Akuisisi Pelanggan Baru dari Tim)**
-Manager mengambil komisi overriding yang diproses dari total "New Commission" uang pegawainya sebulan, dipotong berdasarkan capaian target:
+Manager mengambil komisi overriding yang diproses dari total komisi **New + Prorate + Alat** pegawainya sebulan (komisi Upgrade dan Setup tidak ikut; lihat `getManagerNewCommissionBasis`), dipotong berdasarkan capaian target:
 
 - Jika Capaian `>= 150%` = Manager dikalikan **60%** dari kue New Commission.
 - Jika Capaian `>= 125%` = Manager dikalikan **50%**.
@@ -265,7 +269,8 @@ Invoice yang kolom `sales`-nya berisi `Customer Relation Officer` **tetap dihitu
 
 Manager Area juga bisa memiliki data penjualan atas namanya sendiri (invoice dengan `sales_id` = employee ID manager), sama seperti sales biasa. Komisi ini **berdiri sendiri** di luar komisi overriding tim.
 
-- **Rate & perhitungan**: memakai aturan yang sama persis dengan Sales (Bagian 2) — tabel rate New/Upgrade, prorate 10%, recurring, setup/alat, termasuk penalti keterlambatan pembayaran.
+- **Rate & perhitungan**: memakai aturan yang sama persis dengan Sales (Bagian 2) — tabel rate New/Upgrade, prorate 10%, recurring, setup, termasuk penalti keterlambatan pembayaran.
+- **Alat tidak dihitung**: invoice kategori Alat atas nama manager tidak mendapat komisi dan tidak ditampilkan di penjualan pribadi manager.
 - **⚠️ Penentu "capai target" berbeda**: status capai / tidak capai target untuk komisi pribadi manager **diambil dari capaian target Manager** (Bagian 6.A & 6.B — persentase capaian tim terhadap ambang batas dinamis sesuai jumlah bawahan), **bukan** dari aturan sales individual `New Achievement >= 12`. Status ini menentukan:
   - **Rate recurring**: 1.5% bila capai target, 0.5% bila tidak (untuk pegawai Permanent).
   - **Penalti performa 70%** pada tipe New.

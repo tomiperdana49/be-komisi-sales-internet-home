@@ -17,7 +17,7 @@ export function deepFreeze<T>(value: T): T {
  * commission: publish a new rule set from the admin "Aturan Komisi" page.
  */
 export const DEFAULT_COMMISSION_RULES: CommissionRules = deepFreeze({
-  excludedRecurringCategories: ["IP Public", "Domain"],
+  excludedRecurringCategories: ["Domain"],
   products: [
     { name: "nusafiber 50 Mbps", serviceIds: ["BFLITE"], group: "Nusafiber", rate1: 28.38, rate6: 6.55, rate12: 5.09, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null },
     { name: "NusaSelecta Basic 30", serviceIds: ["NFSP030"], group: "NusaSelecta Basic/Prime", rate1: 20.0, rate6: 5.56, rate12: 4.44, sixMonthRateFrom: 6, twelveMonthRateFrom: 12, setupRate: null },

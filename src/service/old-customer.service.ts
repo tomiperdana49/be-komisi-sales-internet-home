@@ -97,6 +97,32 @@ function mapCategory(sg: string | null, serviceId: string | null): string {
  * paid on 22 Sep — would otherwise count in September (paid then) AND again in
  * October. Mirrors how the old Apps Script/sheet assigns rows to periods.
  */
+/**
+ * IS-1508 (old Apps Script): an invoice paid on/before the 25th but only
+ * entered by finance on/after the 27th of the same month — the invoice's own
+ * month — counts in the next period, so its input date is what places it.
+ * Otherwise the transaction date does (falling back to the input date).
+ */
+export function effectivePaymentDate(invoiceDate: unknown, transactionDate: unknown, inputDate: unknown): unknown {
+  const toDate = (v: unknown) => {
+    if (v === null || v === undefined || v === "") return null;
+    const d = new Date(v as any);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  const invoice = toDate(invoiceDate);
+  const transaction = toDate(transactionDate);
+  const input = toDate(inputDate);
+  const month = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+  if (
+    invoice && transaction && input &&
+    month(transaction) === month(invoice) && month(input) === month(invoice) &&
+    transaction.getDate() <= 25 && input.getDate() >= 27
+  ) {
+    return inputDate;
+  }
+  return transactionDate ?? inputDate;
+}
+
 export function isPaidWithinPeriod(paid: unknown, paymentDateRaw: unknown, start: Date, end: Date): boolean {
   if (Number(paid) !== 1 || paymentDateRaw === null || paymentDateRaw === undefined) return false;
   const paymentDate = new Date(paymentDateRaw as any);
@@ -148,6 +174,7 @@ export class OldCustomerService implements IOldCustomerService {
       startStr, endStr,
     ]);
     const accountRows = await this.oldCustomerRepository.findAccounts();
+    const resellerFees = await this.oldCustomerRepository.findResellerFees(period);
 
     const accountByCsid = new Map<number, OldCustomerAccountRow>();
     for (const row of accountRows) {
@@ -171,7 +198,11 @@ export class OldCustomerService implements IOldCustomerService {
         inv["Tanggal Transaksi Pembayaran"],
       );
 
-      const paymentDate = inv["Tanggal Transaksi Pembayaran"] ?? inv["Tanggal Input Pembayaran"];
+      const paymentDate = effectivePaymentDate(
+        inv["Tanggal Invoice"],
+        inv["Tanggal Transaksi Pembayaran"],
+        inv["Tanggal Input Pembayaran"],
+      );
       const paid = isPaidWithinPeriod(inv.Paid, paymentDate, start, end) ? 1 : 0;
 
       results.push({
@@ -198,7 +229,8 @@ export class OldCustomerService implements IOldCustomerService {
         paidDate: inv["Tanggal Input Pembayaran"] as any,
         bulan: inv.Bulan,
         telatBulan: late,
-        biayaReferral: null,
+        // Referral fee comes from the reseller spreadsheet, keyed by account name; prorata invoices carry none.
+        biayaReferral: Number(inv["Is Prorata"]) ? null : (resellerFees.get(account.Account?.trim() ?? "") ?? null),
         // Same source as the sheet's "Reseller" column.
         referralName: account.Reseller,
         businessOperation:
@@ -259,7 +291,7 @@ export class OldCustomerService implements IOldCustomerService {
 
   /**
    * Old-customer variant: no category allowlist (every category is kept)
-   * except the period's excluded categories (IP Public and Domain by
+   * except the period's excluded categories (Domain by
    * default, admin-configurable), which never earn commission and are
    * dropped outright. Subscription comes straight from DPP, and type is
    * always "recurring". Paid gate and sales/manager resolution stay
