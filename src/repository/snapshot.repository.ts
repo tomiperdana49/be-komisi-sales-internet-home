@@ -127,6 +127,10 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
    * ai_invoice is dropped rather than inserted alongside it — otherwise
    * the invoice would be double-counted once as the adjusted row and once
    * as the freshly re-crawled one.
+   *
+   * Admin approvals (is_approved) on the replaced rows are carried over to
+   * the re-crawled row for the same ai_invoice and type, so an hourly
+   * re-import never undoes an approval.
    */
   async replaceForPeriod(
     period: string,
@@ -139,6 +143,11 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
         [period, types],
       );
       const adjustedAiInvoices = new Set(adjustedRows.map((r) => r.ai_invoice));
+
+      const approvedRows = await txQuery<{ ai_invoice: number; type: string }[]>(
+        "SELECT ai_invoice, type FROM snapshots WHERE period = ? AND type IN (?) AND is_adjusted = FALSE AND is_approved = TRUE",
+        [period, types],
+      );
 
       await txQuery("DELETE FROM snapshots WHERE period = ? AND type IN (?) AND is_adjusted = FALSE", [
         period,
@@ -154,6 +163,14 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
           `INSERT INTO snapshots (${SNAPSHOT_COLUMNS}) VALUES ?`,
           [freshRows],
         );
+      }
+
+      for (const { ai_invoice, type } of approvedRows) {
+        await txQuery("UPDATE snapshots SET is_approved = TRUE WHERE period = ? AND ai_invoice = ? AND type = ?", [
+          period,
+          ai_invoice,
+          type,
+        ]);
       }
     });
   }

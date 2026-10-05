@@ -1,9 +1,8 @@
 import { container } from "../container";
 import { NewCustomerService } from "../service/new-customer.service";
-import { resolvePeriod } from "../helper/period.helper";
+import { resolveJobPeriods } from "./job-periods";
 
-async function run() {
-  const period = resolvePeriod();
+async function runPeriod(period: string) {
   console.log(`Mengambil data billing untuk periode "${period}"...`);
 
   const [inputs, employeeMap] = await Promise.all([
@@ -26,6 +25,10 @@ async function run() {
   await container.snapshotRepository.replaceForPeriod(period, values, NewCustomerService.TYPES);
 
   console.log(`Selesai. Ditambahkan: ${values.length}, dilewati: ${skipped}.`);
+}
+
+async function run() {
+  for (const period of await resolveJobPeriods()) await runPeriod(period);
   await container.closeConnections();
 }
 

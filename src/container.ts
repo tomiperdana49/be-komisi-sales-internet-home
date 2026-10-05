@@ -12,6 +12,7 @@ import { FeedbackRepository } from "./repository/feedback.repository";
 import { ChurnRepository } from "./repository/churn.repository";
 import { ConsistencyBonusRepository } from "./repository/consistency-bonus.repository";
 import { CommissionRuleRepository } from "./repository/commission-rule.repository";
+import { PeriodClosingRepository } from "./repository/period-closing.repository";
 
 import { EmployeeService } from "./service/employee.service";
 import { SnapshotService } from "./service/snapshot.service";
@@ -25,6 +26,7 @@ import { ChurnService } from "./service/churn.service";
 import { ConsistencyBonusService } from "./service/consistency-bonus.service";
 import { CommissionService } from "./service/commission.service";
 import { CommissionRuleService } from "./service/commission-rule.service";
+import { PeriodClosingService } from "./service/period-closing.service";
 
 import { HealthController } from "./controller/health.controller";
 import { EmployeeController } from "./controller/employee.controller";
@@ -62,6 +64,7 @@ class Container {
   readonly feedbackRepository = new FeedbackRepository();
   readonly churnRepository = new ChurnRepository(this.billingDatabase, this.appDatabase);
   readonly consistencyBonusRepository = new ConsistencyBonusRepository(this.appDatabase);
+  readonly periodClosingRepository = new PeriodClosingRepository(this.appDatabase);
   readonly commissionRuleRepository = new CommissionRuleRepository(this.appDatabase);
 
   // Services
@@ -85,6 +88,7 @@ class Container {
   readonly feedbackService = new FeedbackService(this.feedbackRepository);
   readonly churnService = new ChurnService(this.churnRepository);
   readonly consistencyBonusService = new ConsistencyBonusService(this.consistencyBonusRepository);
+  readonly periodClosingService = new PeriodClosingService(this.periodClosingRepository);
   readonly commissionRuleService = new CommissionRuleService(this.commissionRuleRepository, this.employeeService);
   readonly commissionService = new CommissionService(
     this.snapshotRepository,
@@ -105,6 +109,7 @@ class Container {
     this.churnService,
     this.employeeService,
     this.consistencyBonusService,
+    this.periodClosingService,
   );
   readonly commissionRuleController = new CommissionRuleController(
     this.commissionRuleService,

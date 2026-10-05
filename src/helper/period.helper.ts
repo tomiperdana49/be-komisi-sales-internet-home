@@ -23,7 +23,46 @@ export function resolvePeriod(): string {
   return currentPeriod();
 }
 
-/** The current calendar month as YYYYMM — the period the hourly jobs crawl by default. */
+/** True when the job was started with --force (re-crawl a closed period). */
+export function hasForceArg(): boolean {
+  return process.argv.slice(2).includes("--force");
+}
+
+/** Shifts a YYYYMM period by `months` (negative = earlier). */
+export function shiftPeriod(period: string, months: number): string {
+  const d = new Date(Number(period.slice(0, 4)), Number(period.slice(4, 6)) - 1 + months, 1);
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * The commission period running today: from the 26th a payment already
+ * belongs to next month's period (26th–25th cycle, like the Apps Script's
+ * getPeriod).
+ */
+export function currentCommissionPeriod(now = new Date()): string {
+  const base = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return now.getDate() > 25 ? shiftPeriod(base, 1) : base;
+}
+
+/**
+ * Periods an hourly job crawls when no --period is given: the running one
+ * and the one before it, so payments finance enters late (after the month
+ * turned) still land until an admin closes that period. Closed periods are
+ * filtered out by the caller.
+ */
+export function defaultJobPeriods(now = new Date()): string[] {
+  const current = currentCommissionPeriod(now);
+  return [shiftPeriod(current, -1), current];
+}
+
+/** Periods given explicitly with --period, or null when none was given. */
+export function explicitJobPeriod(): string | null {
+  const periodArg = getPeriodArg();
+  if (periodArg === null) return null;
+  return resolvePeriod();
+}
+
+/** The current calendar month as YYYYMM. */
 export function currentPeriod(): string {
   const now = new Date();
   const year = now.getFullYear();

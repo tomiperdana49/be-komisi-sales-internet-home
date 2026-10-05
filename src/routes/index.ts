@@ -67,6 +67,13 @@ router.put("/summary/consistency-bonus/:id", authMiddleware, adminMiddleware, (c
 router.delete("/summary/consistency-bonus/:id", authMiddleware, adminMiddleware, (c) =>
   container.summaryController.revokeConsistencyBonus(c),
 );
+router.get("/summary/period-closing", authMiddleware, adminMiddleware, (c) =>
+  container.summaryController.periodClosings(c),
+);
+router.put("/summary/period-closing", authMiddleware, adminMiddleware, (c) => container.summaryController.closePeriod(c));
+router.delete("/summary/period-closing", authMiddleware, adminMiddleware, (c) =>
+  container.summaryController.reopenPeriod(c),
+);
 
 // Read-only, for every signed-in user: the dashboard's term tooltips quote the period's actual rates.
 router.get("/commission-rules/effective", authMiddleware, (c) => container.commissionRuleController.effective(c));

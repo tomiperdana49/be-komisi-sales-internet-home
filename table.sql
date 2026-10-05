@@ -126,3 +126,12 @@ CREATE TABLE commission_rule_set (
 
 -- Migration for existing databases (logout revokes tokens):
 -- ALTER TABLE employee ADD COLUMN tokens_valid_after BIGINT NULL;
+
+-- Closed (frozen) commission periods: the hourly import/churn jobs skip
+-- them, so signed-off numbers can't move. Closed/reopened from the admin
+-- Summary toolbar.
+CREATE TABLE period_closing (
+    period VARCHAR(6) PRIMARY KEY,
+    closed_by VARCHAR(20) NOT NULL,
+    closed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

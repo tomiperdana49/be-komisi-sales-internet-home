@@ -8,6 +8,7 @@ import type { IChurnService } from "../interface/churn.interface";
 import type { IEmployeeService } from "../interface/employee.interface";
 import { ADJUSTABLE_FIELD_COLUMNS, type AdjustableSnapshotFields } from "../interface/adjustment.interface";
 import type { ConsistencyBonusItem, IConsistencyBonusService } from "../interface/consistency-bonus.interface";
+import type { IPeriodClosingService } from "../interface/period-closing.interface";
 
 /** Admin-only cross-employee views: every Account Manager/Manager/invoice/churn row for a period. */
 export class SummaryController {
@@ -16,6 +17,7 @@ export class SummaryController {
     private readonly churnService: IChurnService,
     private readonly employeeService: IEmployeeService,
     private readonly consistencyBonusService: IConsistencyBonusService,
+    private readonly periodClosingService: IPeriodClosingService,
   ) {}
 
   async sales(c: Context) {
@@ -173,5 +175,24 @@ export class SummaryController {
     const period = resolvePeriodFromQuery(c);
     await this.consistencyBonusService.revoke(employeeId, period);
     return c.json(successResponse("Consistency bonus revoked successfully"));
+  }
+
+  /** Closed periods (frozen: the import/churn jobs no longer re-crawl them). */
+  async periodClosings(c: Context) {
+    const rows = await this.periodClosingService.list();
+    const data = rows.map((r) => ({ period: r.period, closedBy: r.closed_by, closedAt: r.closed_at }));
+    return c.json(successResponse("Closed periods retrieved successfully", data));
+  }
+
+  async closePeriod(c: Context) {
+    const period = resolvePeriodFromQuery(c);
+    await this.periodClosingService.close(period, c.get("user").sub);
+    return c.json(successResponse("Period closed successfully"));
+  }
+
+  async reopenPeriod(c: Context) {
+    const period = resolvePeriodFromQuery(c);
+    await this.periodClosingService.reopen(period);
+    return c.json(successResponse("Period reopened successfully"));
   }
 }

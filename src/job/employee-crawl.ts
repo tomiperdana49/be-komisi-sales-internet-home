@@ -1,27 +1,33 @@
 import { container } from "../container";
-import { getDateRangeForPeriod, resolvePeriod, toSqlDate } from "../helper/period.helper";
+import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
+import { resolveJobPeriods } from "./job-periods";
 
 async function run() {
   const crawledIds: string[] = [];
-  const period = resolvePeriod();
-  const { start, end } = getDateRangeForPeriod(period);
-  const startDate = toSqlDate(start);
-  const endDate = toSqlDate(end);
   // Only Permanent staff are ever gated on target (rate/performance-penalty
   // checks all require status === 'Permanent'); everyone else starts at the
-  // probation default (0 unless an admin changed it).
-  const { targets } = await container.commissionRuleService.getForPeriod(period);
+  // probation default (0 unless an admin changed it). Closed periods keep
+  // their status rows untouched.
+  const periods = await Promise.all(
+    (await resolveJobPeriods()).map(async (period) => {
+      const { start, end } = getDateRangeForPeriod(period);
+      const { targets } = await container.commissionRuleService.getForPeriod(period);
+      return { startDate: toSqlDate(start), endDate: toSqlDate(end), targets };
+    }),
+  );
 
   const sales = await container.nusaworkService.getSalesHome();
   for (const employee of sales) {
     await container.employeeService.upsertEmployee(employee);
-    await container.employeeService.upsertStatusPeriod(
-      employee.employeeId,
-      startDate,
-      endDate,
-      employee.status,
-      employee.status === "Permanent" ? targets.permanent : targets.probation,
-    );
+    for (const { startDate, endDate, targets } of periods) {
+      await container.employeeService.upsertStatusPeriod(
+        employee.employeeId,
+        startDate,
+        endDate,
+        employee.status,
+        employee.status === "Permanent" ? targets.permanent : targets.probation,
+      );
+    }
     crawledIds.push(employee.employeeId);
     console.log("Employee inserted:", employee.employeeId);
   }

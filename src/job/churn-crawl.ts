@@ -1,8 +1,9 @@
 import { container } from "../container";
-import { getDateRangeForPeriod, resolvePeriod, toSqlDate } from "../helper/period.helper";
+import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
+import { resolveJobPeriods } from "./job-periods";
 
-async function run() {
-  const { start, end } = getDateRangeForPeriod(resolvePeriod());
+async function runPeriod(period: string) {
+  const { start, end } = getDateRangeForPeriod(period);
   const startDate = toSqlDate(start);
   const endDate = toSqlDate(end);
 
@@ -11,6 +12,10 @@ async function run() {
   const { synced, deleted } = await container.churnService.syncFromBilling(startDate, endDate);
 
   console.log(`Selesai. Disinkronkan: ${synced}, dihapus (orphan): ${deleted}.`);
+}
+
+async function run() {
+  for (const period of await resolveJobPeriods()) await runPeriod(period);
   await container.closeConnections();
 }
 
