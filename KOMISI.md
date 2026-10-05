@@ -61,7 +61,8 @@ Rate recurring **tidak dibedakan per kategori layanan**: berlaku sama untuk Home
 
 **B. Kategori Layanan "Home" — New, Upgrade & Prorate**
 
-- **Prorate (Prorata)**: Komisi flat **10%** dari Base Commission.
+- **Prorate (Prorata)**: Komisi flat **10%** dari Base Commission. Bebas dari penalti performa 70%.
+  *(Catatan: Bagi Manager Area, komisi Prorate anggota tim diperlakukan sama dengan Komisi New dalam pembentukan komisi overriding New Manager — lihat Bagian 6.C).*
 - **Upgrade**: Komisi berdasarkan rate `Service ID` dan durasi kontrak. Bebas dari penalti performa 70%.
 - **New (Pemasangan Baru)**: Persentase komisi ditentukan dari `Service ID` dan lama masa kontrak (`months`). Dikenakan penalti performa 70% jika Sales Permanent gagal target.
 
@@ -96,6 +97,7 @@ Rate recurring **tidak dibedakan per kategori layanan**: berlaku sama untuk Home
 - **Alat**:
   - Jika pembelian alat dibundel bersamaan dengan Setup pemasangan pelanggan: komisi **2%**.
   - Jika pembelian alat tersendiri (standalone): komisi **1%**.
+  - *(Catatan: Bagi Manager Area, komisi Alat anggota tim kini diperlakukan sama dengan Komisi New dalam pembentukan komisi overriding New Manager — lihat Bagian 6.C).*
 
 **D. Kategori Layanan "Digital Business"**
 
@@ -180,17 +182,17 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 
 **C. Bonus Bulanan (Dibayarkan dari total New Achievement bulanan, saat mencapai satu tier)**
 
-- `New Achievement = (20 + selisih)` : **Rp 1.500.000**
+- `New Achievement >= (20 + selisih)` : **Rp 1.500.000** (tetap dibayarkan penuh meskipun melampaui tier tertinggi)
 - `New Achievement (17 + selisih) s.d. (19 + selisih)` : **Rp 1.000.000**
 - `New Achievement (15 + selisih) s.d. (16 + selisih)` : **Rp 500.000**
-- Selain itu (termasuk saat melebihi `20 + selisih`, lihat 5.D) : Tidak ada Bonus Bulanan.
+- Selain itu (`< 15 + selisih`) : Tidak ada Bonus Bulanan (Rp 0).
 - Untuk sales dengan target default (12), selisih = 0, jadi tier tetap 15/17/20 seperti sebelumnya.
 - **Berlaku untuk semua status kepegawaian, termasuk Probation.**
 
-**D. Bonus Kelebihan Service (Dibayarkan sebagai ganti Bonus Bulanan, saat melebihi tier tertinggi)**
+**D. Bonus Kelebihan Service (Dibayarkan sebagai bonus tambahan di atas Bonus Bulanan, saat melebihi tier tertinggi)**
 
-- `New Achievement > (20 + selisih)` : **Rp 1.500.000** + _(Setiap kelipatan di atas `20 + selisih` dinilai ekstra Rp 150.000)_
-- Selain itu : Tidak ada Bonus Kelebihan Service — **Bonus Bulanan (5.C) yang berlaku**, bukan keduanya sekaligus.
+- `New Achievement > (20 + selisih)` : `(New Achievement − (20 + selisih)) x Rp 150.000` _(dihitung murni kelebihannya di atas tier tertinggi, dibayarkan berdampingan dengan Bonus Bulanan Rp 1.500.000)_
+- Selain itu (`<= 20 + selisih`) : Tidak ada Bonus Kelebihan Service (Rp 0).
 - **Berlaku untuk semua status kepegawaian, termasuk Probation.**
 
 **E. Bonus Konsistensi (Diberikan manual oleh admin, di luar New Achievement)**
@@ -239,14 +241,20 @@ Semakin besar tim, semakin ringan persentase targetnya. Threshold dipilih berdas
 >
 > Manager harus mengumpulkan **92 New Achievement** dari total timnya untuk dinyatakan **Capai Target**.
 
-**C. Komisi New (Akuisisi Pelanggan Baru dari Tim)**
-Manager mengambil komisi overriding yang diproses dari total komisi **New + Prorate + Alat** pegawainya sebulan (komisi Upgrade dan Setup tidak ikut; lihat `getManagerNewCommissionBasis`), dipotong berdasarkan capaian target:
+**C. Komisi New, Prorate & Alat (Akuisisi Pelanggan & Perangkat dari Tim)**
 
-- Jika Capaian `>= 150%` = Manager dikalikan **60%** dari kue New Commission.
+Manager mengambil komisi overriding yang diproses dari total kue komisi produk New, Prorate, dan Alat anggota timnya sebulan (komisi Upgrade dan Setup tidak ikut; lihat `getManagerNewCommissionBasis`), dipotong berdasarkan capaian target:
+
+> **⚠️ Komisi Prorate & Alat kini diperlakukan sama dengan Komisi New**:
+> Transaksi Prorate (penyesuaian tagihan masa aktif awal pelanggan baru) dan Alat (penjualan perangkat keras pelanggan) ikut menyumbang ke komisi overriding New Manager bersama dengan transaksi New. Dasar pengenaan overriding New Manager dihitung dari:
+> `Dasar Overriding New Manager = Total Komisi New Tim + Total Komisi Prorate Tim + Total Komisi Alat Tim`.
+> Pada tampilan laporan summary, komisi Prorate dan Alat juga digabungkan ke kolom New Commission.
+
+- Jika Capaian `>= 150%` = Manager dikalikan **60%** dari kue New, Prorate & Alat Commission.
 - Jika Capaian `>= 125%` = Manager dikalikan **50%**.
 - Jika Capaian `>= 100%` = Manager dikalikan **40%**.
 - Jika Capaian `>= 50%` = Manager dikalikan **25%**.
-- Jika Capaian `< 50%` = Manager mendapatkan **0%** bagian dari produk New.
+- Jika Capaian `< 50%` = Manager mendapatkan **0%** bagian dari produk New, Prorate & Alat.
 
 **D. Komisi Recurring (Pemasukan Berulang dari Tim)**
 Dihitung flat bulanan sebagai overriding insentif pendapatan pasif:
@@ -278,7 +286,7 @@ Manager Area juga bisa memiliki data penjualan atas namanya sendiri (invoice den
   - **Penalti performa 70%** pada tipe New.
 - **Tidak ada sirkularitas**: penjualan pribadi manager **tidak** ikut dihitung sebagai aktivitas tim. Perhitungan tim memakai `getHierarchy(..., isSelf = false)` yang menarik mulai dari bawahan langsung, sehingga manager sendiri **tidak** termasuk anggota tim yang dijumlahkan pada Bagian 6.A.
 
-_Total Komisi Manager akhir bulan = `Komisi Penjualan Pribadi` (F) + `Overriding Komisi New` (C) + `Overriding Komisi Recurring` (D)._
+_Total Komisi Manager akhir bulan = `Komisi Penjualan Pribadi` (F) + `Overriding Komisi New, Prorate & Alat` (C) + `Overriding Komisi Recurring` (D)._
 _Semua perhitungan Manager menggunakan angka **NET** (setelah dikurangi churn dan penalti masing-masing anggota tim)._
 
 ---

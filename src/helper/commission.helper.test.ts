@@ -56,7 +56,10 @@ describe("default rules", () => {
     expect(calculateMonthlyBonus(rules, 15, 12, "Permanent")).toBe(500_000);
     expect(calculateMonthlyBonus(rules, 15, 13, "Permanent")).toBe(0);
     expect(calculateMonthlyBonus(rules, 20, 12, "Permanent")).toBe(1_500_000);
-    expect(calculateExcessServiceBonus(rules, 22, 12, "Permanent")).toBe(1_800_000);
+    // Past the last tier: Bonus Bulanan stays at the top amount, and Bonus
+    // Kelebihan Service adds only the excess units on top of it.
+    expect(calculateMonthlyBonus(rules, 22, 12, "Permanent")).toBe(1_500_000);
+    expect(calculateExcessServiceBonus(rules, 22, 12, "Permanent")).toBe(300_000);
   });
 
   test("team threshold falls back to the last entry for large teams", () => {

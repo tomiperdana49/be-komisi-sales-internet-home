@@ -364,9 +364,8 @@ function getBonusTiers(rules: CommissionRules, target: number, status: string | 
 
 /**
  * Bonus Bulanan — flat monthly cash bonus for reaching a New Achievement
- * tier, paid on top of commission. Only covers up to the last tier
- * (inclusive); exceeding it is Bonus Kelebihan Service instead (see below),
- * not an extra Bonus Bulanan on top of it.
+ * tier, paid on top of commission. Reaching or exceeding the last tier
+ * pays that tier's amount (Bonus Kelebihan Service comes on top, below).
  */
 export function calculateMonthlyBonus(
   rules: CommissionRules,
@@ -375,9 +374,6 @@ export function calculateMonthlyBonus(
   status: string | null | undefined,
 ): number {
   const tiers = getBonusTiers(rules, target, status);
-  const last = tiers[tiers.length - 1]!;
-
-  if (activityCount > last.at) return 0; // exceeding the last tier is Bonus Kelebihan Service instead
   for (let i = tiers.length - 1; i >= 0; i--) {
     if (activityCount >= tiers[i]!.at) return tiers[i]!.amount;
   }
@@ -385,9 +381,8 @@ export function calculateMonthlyBonus(
 }
 
 /**
- * Bonus Kelebihan Service — paid instead of Bonus Bulanan once New
- * Achievement exceeds the last tier: that tier's amount plus a fixed
- * amount for every unit above it.
+ * Bonus Kelebihan Service — paid on top of Bonus Bulanan once New
+ * Achievement exceeds the last tier: a fixed amount for every unit above it.
  */
 export function calculateExcessServiceBonus(
   rules: CommissionRules,
@@ -398,7 +393,7 @@ export function calculateExcessServiceBonus(
   const tiers = getBonusTiers(rules, target, status);
   const last = tiers[tiers.length - 1]!;
   if (activityCount <= last.at) return 0;
-  return last.amount + (activityCount - last.at) * rules.bonus.excessPerUnit;
+  return (activityCount - last.at) * rules.bonus.excessPerUnit;
 }
 
 /**
