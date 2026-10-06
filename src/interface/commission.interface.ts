@@ -206,17 +206,9 @@ export type ManagerCommissionResult = {
      * Business are recurring-only groups (KOMISI.md 3), so their new*
      * fields always stay 0.
      */
-    byServiceGroup: Record<
-      "Home" | "Nusafiber" | "NusaSelecta" | "Digital Business" | "Access Business",
-      {
-        newCount: number;
-        newSubscription: number;
-        newMrc: number;
-        newCommission: number;
-        recurringSubscription: number;
-        recurringCommission: number;
-      }
-    >;
+    byServiceGroup: Record<ManagerServiceGroup, ManagerServiceGroupTotal>;
+    /** The manager's own personal sales (KOMISI.md 6.F), same grouping — kept apart so byServiceGroup's new count matches team activity. */
+    personalByServiceGroup: Record<ManagerServiceGroup, ManagerServiceGroupTotal>;
   };
   /** The manager's own personal-sales commission (KOMISI.md 6.F) — same shape as a regular salesperson's, invoice items included. */
   personal: SalesCommissionResult;
@@ -275,4 +267,15 @@ export type ManagerSummaryItem = {
 export type InvoiceSummaryItem = CommissionLineItem & {
   sales: { employeeId: string; name: string; photoProfile: string } | null;
   managerEmployee: { employeeId: string; name: string; photoProfile: string } | null;
+};
+
+export type ManagerServiceGroup = "Home" | "Nusafiber" | "NusaSelecta" | "Digital Business" | "Access Business";
+
+export type ManagerServiceGroupTotal = {
+  newCount: number;
+  newSubscription: number;
+  newMrc: number;
+  newCommission: number;
+  recurringSubscription: number;
+  recurringCommission: number;
 };

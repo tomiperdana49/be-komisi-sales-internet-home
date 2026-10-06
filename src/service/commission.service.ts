@@ -285,31 +285,21 @@ export class CommissionService {
       recurringCommission: 0,
     });
 
-    const teamTotals = {
-      newCommission: 0,
-      recurringCommission: 0,
-      newSubscription: 0,
-      newMrc: 0,
-      recurringSubscription: 0,
-      byServiceGroup: {
-        Home: emptyGroupTotal(),
-        Nusafiber: emptyGroupTotal(),
-        NusaSelecta: emptyGroupTotal(),
-        "Digital Business": emptyGroupTotal(),
-        "Access Business": emptyGroupTotal(),
-      },
-    };
-    for (const r of memberResults) {
-      teamTotals.newCommission += getManagerNewCommissionBasis(r.breakdown);
-      teamTotals.recurringCommission += r.breakdown.recurring.commission;
-      teamTotals.newSubscription += r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.alat.subscription;
-      teamTotals.newMrc += r.breakdown.new.mrc + r.breakdown.prorate.mrc + r.breakdown.alat.mrc;
-      teamTotals.recurringSubscription += r.breakdown.recurring.subscription;
-
+    const emptyGroupTotals = () => ({
+      Home: emptyGroupTotal(),
+      Nusafiber: emptyGroupTotal(),
+      NusaSelecta: emptyGroupTotal(),
+      "Digital Business": emptyGroupTotal(),
+      "Access Business": emptyGroupTotal(),
+    });
+    const addGroupTotals = (
+      totals: ReturnType<typeof emptyGroupTotals>,
+      source: Record<string, CommissionBreakdown>,
+    ) => {
       for (const group of teamServiceGroups) {
-        const g = r.byServiceGroup[group];
+        const g = source[group];
         if (!g) continue;
-        const target = teamTotals.byServiceGroup[group];
+        const target = totals[group];
         target.newCount += g.new.count;
         target.newSubscription += g.new.subscription + (g.prorate?.subscription ?? 0) + (g.alat?.subscription ?? 0);
         target.newMrc += g.new.mrc + (g.prorate?.mrc ?? 0) + (g.alat?.mrc ?? 0);
@@ -317,6 +307,24 @@ export class CommissionService {
         target.recurringSubscription += g.recurring.subscription;
         target.recurringCommission += g.recurring.commission;
       }
+    };
+
+    const teamTotals = {
+      newCommission: 0,
+      recurringCommission: 0,
+      newSubscription: 0,
+      newMrc: 0,
+      recurringSubscription: 0,
+      byServiceGroup: emptyGroupTotals(),
+      personalByServiceGroup: emptyGroupTotals(),
+    };
+    for (const r of memberResults) {
+      teamTotals.newCommission += getManagerNewCommissionBasis(r.breakdown);
+      teamTotals.recurringCommission += r.breakdown.recurring.commission;
+      teamTotals.newSubscription += r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.alat.subscription;
+      teamTotals.newMrc += r.breakdown.new.mrc + r.breakdown.prorate.mrc + r.breakdown.alat.mrc;
+      teamTotals.recurringSubscription += r.breakdown.recurring.subscription;
+      addGroupTotals(teamTotals.byServiceGroup, r.byServiceGroup);
     }
 
     const newCommissionRate = getManagerNewCommissionRate(rules, performance.achievementPercentage);
@@ -347,24 +355,14 @@ export class CommissionService {
       .filter((row) => row.sales === CRO_PLACEHOLDER)
       .map((row) => this.valueManagerRecurringRow(rules, row, recurringCommissionRate));
 
-    // Team Production by Service is meant to show the manager area's FULL
-    // production, so it also folds in the manager's own personal sales
-    // (KOMISI.md 6.F) and Customer Relation Officer recurring rows (6.D) —
-    // neither of which memberResults covers. Scoped to byServiceGroup only:
-    // the top-level teamTotals.* fields above stay team-members-only, since
+    // Team Production by Service shows the manager area's FULL production:
+    // Customer Relation Officer recurring rows (6.D) fold into byServiceGroup,
+    // while the manager's own personal sales (6.F) stay in
+    // personalByServiceGroup so the team total keeps matching team activity.
+    // The top-level teamTotals.* fields above stay team-members-only, since
     // they feed the override commission calculation (6.C/6.D), which must
     // never include the manager's own sales or CRO rows.
-    for (const group of teamServiceGroups) {
-      const g = personal.byServiceGroup[group];
-      if (!g) continue;
-      const target = teamTotals.byServiceGroup[group];
-      target.newCount += g.new.count;
-      target.newSubscription += g.new.subscription + (g.prorate?.subscription ?? 0) + (g.alat?.subscription ?? 0);
-      target.newMrc += g.new.mrc + (g.prorate?.mrc ?? 0) + (g.alat?.mrc ?? 0);
-      target.newCommission += g.new.commission + (g.prorate?.commission ?? 0) + (g.alat?.commission ?? 0);
-      target.recurringSubscription += g.recurring.subscription;
-      target.recurringCommission += g.recurring.commission;
-    }
+    addGroupTotals(teamTotals.personalByServiceGroup, personal.byServiceGroup);
     for (const item of croRecurring) {
       const group = getRecurringServiceGroupLabel(rules, item.category, item.serviceId);
       const target = teamTotals.byServiceGroup[group];
@@ -706,10 +704,9 @@ export class CommissionService {
       else netStandard--;
     }
 
-    const activityCount = Math.max(
-      0,
-      netStandard + calculateNusaSelectaActivity(netBasicPrime, netUltra),
-    );
+    // Not floored at 0: churn beyond a person's own sales still reduces team
+    // achievement, matching the per-product team totals.
+    const activityCount = netStandard + calculateNusaSelectaActivity(netBasicPrime, netUltra);
 
     return { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra } };
   }
