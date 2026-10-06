@@ -61,6 +61,8 @@ export type EmployeeUpsertInput = {
   status: string;
   managerId?: string | null;
   hasDashboard?: boolean;
+  /** Summary dashboard access — recomputed on every crawl, so manual flags don't stick. */
+  isAdmin: boolean;
 };
 
 export interface IEmployeeRepository {

@@ -22,9 +22,9 @@ export class EmployeeRepository implements IEmployeeRepository {
       INSERT INTO employee (
         id, employee_id, name, email, photo_profile, job_position,
         organization_name, job_level, branch, status, manager_id,
-        has_dashboard, is_active
+        has_dashboard, is_admin, is_active
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true)
       ON DUPLICATE KEY UPDATE
         employee_id = VALUES(employee_id),
         name = VALUES(name),
@@ -36,6 +36,7 @@ export class EmployeeRepository implements IEmployeeRepository {
         branch = VALUES(branch),
         manager_id = VALUES(manager_id),
         has_dashboard = VALUES(has_dashboard),
+        is_admin = VALUES(is_admin),
         is_active = true
       `,
       [
@@ -51,6 +52,7 @@ export class EmployeeRepository implements IEmployeeRepository {
         data.status,
         data.managerId ?? null,
         data.hasDashboard ?? false,
+        data.isAdmin,
       ],
     );
   }

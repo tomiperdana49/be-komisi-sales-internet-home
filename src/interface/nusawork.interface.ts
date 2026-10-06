@@ -28,6 +28,7 @@ export type CrawledEmployee = {
   managerId: string | null;
   status: string;
   hasDashboard?: boolean;
+  isAdmin: boolean;
 };
 
 export interface INusaworkClient {

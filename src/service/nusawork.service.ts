@@ -20,6 +20,26 @@ const ADMIN_EMPLOYEE_IDS = new Set([
   "0201204",
 ]);
 
+/** Kept as an admin record outside the sales hierarchy (getEmployeeAdmin). */
+function isListedAdmin(emp: NusaworkEmployeeRaw): boolean {
+  return (
+    ADMIN_EMPLOYEE_IDS.has(emp.employee_id) ||
+    emp.organization_name === "Finance" ||
+    emp.organization_name === "BIS" ||
+    emp.job_level === "VP" ||
+    emp.job_level === "Direksi"
+  );
+}
+
+/**
+ * Who may open the Summary dashboard. Branch Managers sit inside the sales
+ * hierarchy, so they're flagged on their sales record rather than being
+ * re-upserted as admins (that would null their manager_id).
+ */
+function isAdminEmployee(emp: NusaworkEmployeeRaw): boolean {
+  return isListedAdmin(emp) || emp.job_position === "Branch Manager";
+}
+
 export class NusaworkService implements INusaworkService {
   constructor(private readonly nusaworkClient: INusaworkClient) {}
 
@@ -77,20 +97,14 @@ export class NusaworkService implements INusaworkService {
       managerId: emp.id_report_to_value,
       status: emp.status_join,
       hasDashboard: emp.job_level !== "General Manager",
+      isAdmin: isAdminEmployee(emp),
     }));
   }
 
   async getEmployeeAdmin(): Promise<CrawledEmployee[]> {
     const employees = await this.nusaworkClient.getEmployees();
 
-    const admins = employees.filter(
-      (emp) =>
-        ADMIN_EMPLOYEE_IDS.has(emp.employee_id) ||
-        emp.organization_name === "Finance" ||
-        emp.organization_name === "BIS" ||
-        emp.job_level === "VP" ||
-        emp.job_level === "Direksi",
-    );
+    const admins = employees.filter(isListedAdmin);
 
     return admins.map((emp) => ({
       userId: emp.user_id,
@@ -104,6 +118,7 @@ export class NusaworkService implements INusaworkService {
       branch: emp.branch_name,
       managerId: null,
       status: emp.status_join,
+      isAdmin: true,
     }));
   }
 }
