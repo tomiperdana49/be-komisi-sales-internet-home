@@ -299,8 +299,19 @@ export function calculateAchievement(
   rules: CommissionRules,
   status: string | null | undefined,
   activityCount: number,
+  /**
+   * An admin-set target for this Account Manager (Target AM page). The
+   * Permanent "Capai target" and "Capai target Bonus" thresholds shift by
+   * the same amount it differs from the default target, like the bonus tiers.
+   */
+  manualTarget?: number | null,
 ): AchievementResult {
-  const a = rules.achievement;
+  const shift = manualTarget == null ? 0 : manualTarget - rules.targets.permanent;
+  const a = {
+    ...rules.achievement,
+    permanentBonus: rules.achievement.permanentBonus + shift,
+    permanentOnTarget: rules.achievement.permanentOnTarget + shift,
+  };
 
   if (status === "Permanent") {
     if (activityCount >= a.permanentBonus) {

@@ -47,6 +47,7 @@ import {
 } from "../interface/adjustment.interface";
 import { NotFoundException } from "../exception/http.exception";
 import type { IConsistencyBonusService } from "../interface/consistency-bonus.interface";
+import type { ITargetOverrideReader } from "../interface/target-override.interface";
 import { CRO_PLACEHOLDER } from "./employee.service";
 
 function emptyStats(): CommissionStats {
@@ -122,6 +123,7 @@ export class CommissionService {
     private readonly employeeService: IEmployeeService,
     private readonly consistencyBonusService: IConsistencyBonusService,
     private readonly rulesProvider: ICommissionRulesProvider,
+    private readonly targetOverrides: ITargetOverrideReader,
   ) {}
 
   /** Same engine with a different rules source — used to preview a draft rule set without publishing it. */
@@ -132,6 +134,7 @@ export class CommissionService {
       this.employeeService,
       this.consistencyBonusService,
       rulesProvider,
+      this.targetOverrides,
     );
   }
 
@@ -144,13 +147,14 @@ export class CommissionService {
     const startDate = toSqlDate(start);
     const endDate = toSqlDate(end);
 
-    const [rows, statusPeriod, rules] = await Promise.all([
+    const [rows, statusPeriod, rules, manualTarget] = await Promise.all([
       this.churnService.getByEmployeeId(employeeId, startDate, endDate),
       this.employeeService.getStatusByPeriod(employeeId, startDate, endDate),
       this.rulesProvider.getForPeriod(period),
+      this.targetOverrides.getActive(employeeId, period),
     ]);
     const status = statusPeriod?.status ?? null;
-    const target = resolveTarget(rules, period, status, statusPeriod?.target);
+    const target = manualTarget?.target ?? resolveTarget(rules, period, status, statusPeriod?.target);
 
     return rows.map((churn) => {
       const { mrc, commission, commissionPercentage } = this.valueChurn(rules, churn, status, target);
@@ -232,11 +236,14 @@ export class CommissionService {
 
     const memberResults = await Promise.all(
       coveredTeam.map((e) =>
+        // Target left to getSalesCommission so an AM's manual target (Target
+        // AM page) applies to their own commission; the team target below
+        // keeps the default, so a manual target never moves the manager's.
         this.getSalesCommission(
           e.employee_id,
           period,
           undefined,
-          targetByEmployeeId.get(e.employee_id),
+          undefined,
           consistencyBonusByEmployeeId.get(e.employee_id),
         ),
       ),
@@ -505,7 +512,7 @@ export class CommissionService {
      * their personal New Achievement.
      */
     rateActivityCountOverride?: number,
-    /** This employee's New Achievement target for the period. Defaults to their configured/default target when omitted. */
+    /** This employee's New Achievement target for the period. Defaults to their manual (Target AM page) or rules target when omitted. */
     targetOverride?: number,
     /** This employee's Bonus Konsistensi amount for the period. Defaults to a fresh lookup (0 if never granted) when omitted. */
     consistencyBonusOverride?: number,
@@ -516,7 +523,7 @@ export class CommissionService {
     const startDate = toSqlDate(start);
     const endDate = toSqlDate(end);
 
-    const [allRows, churnRows, statusPeriod, consistencyBonus, rules] = await Promise.all([
+    const [allRows, churnRows, statusPeriod, consistencyBonus, rules, manualTarget] = await Promise.all([
       this.snapshotRepository.findBySales(employeeId, period),
       this.churnService.getByEmployeeId(employeeId, startDate, endDate),
       this.employeeService.getStatusByPeriod(employeeId, startDate, endDate),
@@ -524,9 +531,10 @@ export class CommissionService {
         ? Promise.resolve(consistencyBonusOverride)
         : this.consistencyBonusService.getAmount(employeeId, period),
       this.rulesProvider.getForPeriod(period),
+      targetOverride !== undefined ? Promise.resolve(null) : this.targetOverrides.getActive(employeeId, period),
     ]);
     const status = statusPeriod?.status ?? null;
-    const target = targetOverride ?? resolveTarget(rules, period, status, statusPeriod?.target);
+    const target = targetOverride ?? manualTarget?.target ?? resolveTarget(rules, period, status, statusPeriod?.target);
 
     const rows = allRows.filter(
       (row) =>
@@ -647,7 +655,7 @@ export class CommissionService {
       byServiceGroup,
     );
 
-    const { achievementStatus, motivation } = calculateAchievement(rules, status, activityCount);
+    const { achievementStatus, motivation } = calculateAchievement(rules, status, activityCount, manualTarget?.target);
 
     return {
       period,
@@ -656,6 +664,8 @@ export class CommissionService {
       employeeId,
       status,
       activityCount,
+      target,
+      manualTarget,
       nusaSelectaNewUnits,
       achievementStatus,
       motivation,

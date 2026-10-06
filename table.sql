@@ -135,3 +135,22 @@ CREATE TABLE period_closing (
     closed_by VARCHAR(20) NOT NULL,
     closed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Manual New Achievement target for one Account Manager over a period
+-- range (admin "Target AM" page). Outside the range the commission rules'
+-- default target applies. Ranges of one AM never overlap (enforced in
+-- TargetOverrideService). Only the AM's own commission uses it; their Sales
+-- Manager's team target keeps the default.
+CREATE TABLE target_override (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id VARCHAR(20) NOT NULL,
+    target INT NOT NULL,
+    start_period VARCHAR(6) NOT NULL,
+    end_period VARCHAR(6) NOT NULL,
+    note TEXT NULL,
+    created_by VARCHAR(20) NOT NULL,
+    updated_by VARCHAR(20) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL,
+    INDEX idx_target_override_lookup (employee_id, start_period, end_period)
+);

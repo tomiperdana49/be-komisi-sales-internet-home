@@ -32,15 +32,39 @@ const row = (overrides: Partial<CommissionSnapshotRow>): CommissionSnapshotRow =
   ...overrides,
 } as CommissionSnapshotRow);
 
-function engine(rows: CommissionSnapshotRow[], status = "Permanent") {
+function engine(rows: CommissionSnapshotRow[], status = "Permanent", manualTarget: number | null = null) {
+  const manual = manualTarget === null ? null : { target: manualTarget, startPeriod: "202610", endPeriod: "202612" };
   return new CommissionService(
     { findBySales: async () => rows, findRecurringByManager: async () => [] } as any,
     { getByEmployeeId: async () => [] } as any,
     { getStatusByPeriod: async () => ({ status, target: 12 }) } as any,
     { getAmount: async () => 0 } as any,
     { getForPeriod: async () => DEFAULT_COMMISSION_RULES },
+    { getActive: async () => manual },
   );
 }
+
+describe("manual Account Manager target (Target AM page)", () => {
+  const twelveNew = Array.from({ length: 12 }, (_, i) => row({ ai_invoice: i + 1, customer_id: `C${i}` }));
+
+  test("12 New is on target by default but misses a manual target of 13", async () => {
+    const plain = await engine(twelveNew).getSalesCommission("S1", "202610");
+    expect(plain.achievementStatus).toBe("Capai target");
+    expect(plain.target).toBe(12);
+    expect(plain.manualTarget).toBeNull();
+
+    const manual = await engine(twelveNew, "Permanent", 13).getSalesCommission("S1", "202610");
+    expect(manual.achievementStatus).toBe("Tidak Capai target");
+    expect(manual.target).toBe(13);
+    expect(manual.manualTarget).toEqual({ target: 13, startPeriod: "202610", endPeriod: "202612" });
+  });
+
+  test("an explicit target passed by the caller wins over the manual one", async () => {
+    const withManual = await engine(twelveNew, "Permanent", 13).getSalesCommission("S1", "202610", undefined, 12);
+    const plain = await engine(twelveNew).getSalesCommission("S1", "202610");
+    expect(withManual.total.commission).toBe(plain.total.commission);
+  });
+});
 
 describe("renewal price increases (is_renewal)", () => {
   test("are commissioned as recurring, not counted as New Achievement", async () => {

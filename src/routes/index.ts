@@ -74,6 +74,18 @@ router.put("/summary/period-closing", authMiddleware, adminMiddleware, (c) => co
 router.delete("/summary/period-closing", authMiddleware, adminMiddleware, (c) =>
   container.summaryController.reopenPeriod(c),
 );
+router.get("/summary/target-override", authMiddleware, adminMiddleware, (c) =>
+  container.targetOverrideController.list(c),
+);
+router.post("/summary/target-override", authMiddleware, adminMiddleware, (c) =>
+  container.targetOverrideController.create(c),
+);
+router.put("/summary/target-override/:id", authMiddleware, adminMiddleware, (c) =>
+  container.targetOverrideController.update(c),
+);
+router.delete("/summary/target-override/:id", authMiddleware, adminMiddleware, (c) =>
+  container.targetOverrideController.remove(c),
+);
 
 // Read-only, for every signed-in user: the dashboard's term tooltips quote the period's actual rates.
 router.get("/commission-rules/effective", authMiddleware, (c) => container.commissionRuleController.effective(c));

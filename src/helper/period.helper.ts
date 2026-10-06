@@ -55,6 +55,13 @@ export function defaultJobPeriods(now = new Date()): string[] {
   return [shiftPeriod(current, -1), current];
 }
 
+/** Every YYYYMM period from `start` through `end`, inclusive (empty when end < start). */
+export function periodsBetween(start: string, end: string): string[] {
+  const periods: string[] = [];
+  for (let p = start; p <= end; p = shiftPeriod(p, 1)) periods.push(p);
+  return periods;
+}
+
 /** Periods given explicitly with --period, or null when none was given. */
 export function explicitJobPeriod(): string | null {
   const periodArg = getPeriodArg();

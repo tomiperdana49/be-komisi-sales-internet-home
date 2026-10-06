@@ -13,6 +13,7 @@ import { ChurnRepository } from "./repository/churn.repository";
 import { ConsistencyBonusRepository } from "./repository/consistency-bonus.repository";
 import { CommissionRuleRepository } from "./repository/commission-rule.repository";
 import { PeriodClosingRepository } from "./repository/period-closing.repository";
+import { TargetOverrideRepository } from "./repository/target-override.repository";
 
 import { EmployeeService } from "./service/employee.service";
 import { SnapshotService } from "./service/snapshot.service";
@@ -27,6 +28,7 @@ import { ConsistencyBonusService } from "./service/consistency-bonus.service";
 import { CommissionService } from "./service/commission.service";
 import { CommissionRuleService } from "./service/commission-rule.service";
 import { PeriodClosingService } from "./service/period-closing.service";
+import { TargetOverrideService } from "./service/target-override.service";
 
 import { HealthController } from "./controller/health.controller";
 import { EmployeeController } from "./controller/employee.controller";
@@ -35,6 +37,7 @@ import { FeedbackController } from "./controller/feedback.controller";
 import { CommissionController } from "./controller/commission.controller";
 import { SummaryController } from "./controller/summary.controller";
 import { CommissionRuleController } from "./controller/commission-rule.controller";
+import { TargetOverrideController } from "./controller/target-override.controller";
 
 /**
  * Composition root: the one place the full dependency graph gets wired
@@ -66,6 +69,7 @@ class Container {
   readonly consistencyBonusRepository = new ConsistencyBonusRepository(this.appDatabase);
   readonly periodClosingRepository = new PeriodClosingRepository(this.appDatabase);
   readonly commissionRuleRepository = new CommissionRuleRepository(this.appDatabase);
+  readonly targetOverrideRepository = new TargetOverrideRepository(this.appDatabase);
 
   // Services
   readonly employeeService = new EmployeeService(this.employeeRepository);
@@ -90,12 +94,18 @@ class Container {
   readonly consistencyBonusService = new ConsistencyBonusService(this.consistencyBonusRepository);
   readonly periodClosingService = new PeriodClosingService(this.periodClosingRepository);
   readonly commissionRuleService = new CommissionRuleService(this.commissionRuleRepository, this.employeeService);
+  readonly targetOverrideService = new TargetOverrideService(
+    this.targetOverrideRepository,
+    this.employeeService,
+    this.periodClosingService,
+  );
   readonly commissionService = new CommissionService(
     this.snapshotRepository,
     this.churnService,
     this.employeeService,
     this.consistencyBonusService,
     this.commissionRuleService,
+    this.targetOverrideService,
   );
 
   // Controllers
@@ -114,6 +124,11 @@ class Container {
   readonly commissionRuleController = new CommissionRuleController(
     this.commissionRuleService,
     this.commissionService,
+  );
+  readonly targetOverrideController = new TargetOverrideController(
+    this.targetOverrideService,
+    this.employeeService,
+    this.commissionRuleService,
   );
 
   /** Closes every open DB connection pool — call before a job/process exits. */

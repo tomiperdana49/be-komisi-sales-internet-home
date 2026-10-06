@@ -1,4 +1,5 @@
 import type { SnapshotType } from "../helper/commission.helper";
+import type { ManualTarget } from "./target-override.interface";
 import type { AdjustableSnapshotFields, SnapshotAdjustmentRow } from "./adjustment.interface";
 
 /** A snapshots row as the commission engine consumes it. */
@@ -106,6 +107,10 @@ export type SalesCommissionResult = {
   employeeId: string;
   status: string | null;
   activityCount: number;
+  /** New Achievement target used this period: the manual one (Target AM page) when set, else the rules' default. */
+  target: number;
+  /** The admin-set target and its period range, when one covers this period. */
+  manualTarget: ManualTarget | null;
   /**
    * NusaSelecta New units sold (before churn), by group. They earn commission per unit
    * but only count toward New Achievement in groups (3 Basic/Prime or 2 Ultra = 1).
