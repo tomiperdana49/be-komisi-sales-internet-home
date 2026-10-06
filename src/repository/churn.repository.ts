@@ -140,9 +140,11 @@ export class ChurnRepository implements IChurnRepository {
   findSummary(startDate: string, endDate: string, search?: string): Promise<ChurnSummaryRow[]> {
     let query = `
       SELECT c.*,
-             e.name AS employee_name, e.employee_id AS employee_eid, e.photo_profile AS employee_photo
+             e.name AS employee_name, e.employee_id AS employee_eid, e.photo_profile AS employee_photo,
+             ap.name AS approved_by_name
       FROM churn c
       LEFT JOIN employee e ON c.sales_id = e.employee_id
+      LEFT JOIN employee ap ON c.approved_by = ap.employee_id
       WHERE c.unregistration_date BETWEEN ? AND ?
     `;
     const params: any[] = [startDate, endDate];
@@ -166,10 +168,14 @@ export class ChurnRepository implements IChurnRepository {
     return this.appDb.query<ChurnSummaryRow[]>(query, params);
   }
 
-  async updateApproval(customerServiceId: string, isApproved: boolean): Promise<void> {
-    await this.appDb.query(`UPDATE churn SET is_approved = ? WHERE customer_service_id = ?`, [
-      isApproved ? 1 : 0,
-      customerServiceId,
-    ]);
+  async updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void> {
+    await this.appDb.query(
+      isApproved
+        ? `UPDATE churn SET is_approved = 1, approval_note = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP
+           WHERE customer_service_id = ?`
+        : `UPDATE churn SET is_approved = 0, approval_note = NULL, approved_by = NULL, approved_at = NULL
+           WHERE customer_service_id = ?`,
+      isApproved ? [note, approvedBy, customerServiceId] : [customerServiceId],
+    );
   }
 }

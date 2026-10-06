@@ -58,7 +58,7 @@ export class ChurnService implements IChurnService {
     return this.churnRepository.findSummary(startDate, endDate, search);
   }
 
-  updateApproval(customerServiceId: string, isApproved: boolean): Promise<void> {
-    return this.churnRepository.updateApproval(customerServiceId, isApproved);
+  updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void> {
+    return this.churnRepository.updateApproval(customerServiceId, isApproved, note, approvedBy);
   }
 }

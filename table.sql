@@ -99,6 +99,10 @@ CREATE TABLE churn (
     sales_id VARCHAR(20) NULL,
     manager_id VARCHAR(20) NULL,
     is_approved BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Why an admin waived (approved) this churn, who did it and when; NULL while not approved.
+    approval_note TEXT NULL,
+    approved_by VARCHAR(20) NULL,
+    approved_at TIMESTAMP NULL,
     INDEX idx_churn_unregistration_date (unregistration_date),
     INDEX idx_churn_sales_id (sales_id)
 );
@@ -123,6 +127,11 @@ CREATE TABLE commission_rule_set (
 
 -- Migration for existing databases (snapshots.is_renewal):
 -- ALTER TABLE snapshots ADD COLUMN is_renewal BOOLEAN NOT NULL DEFAULT FALSE AFTER type;
+
+-- Migration for existing databases (churn waiver reason):
+-- ALTER TABLE churn ADD COLUMN approval_note TEXT NULL AFTER is_approved,
+--   ADD COLUMN approved_by VARCHAR(20) NULL AFTER approval_note,
+--   ADD COLUMN approved_at TIMESTAMP NULL AFTER approved_by;
 
 -- Migration for existing databases (logout revokes tokens):
 -- ALTER TABLE employee ADD COLUMN tokens_valid_after BIGINT NULL;

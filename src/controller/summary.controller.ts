@@ -94,10 +94,16 @@ export class SummaryController {
     return c.json(successResponse("Churn summary retrieved successfully", data));
   }
 
+  /** Waive (approve) a churn so it no longer cuts the AM's commission — a reason is required for the audit trail. */
   async approveChurn(c: Context) {
     const customerServiceId = c.req.param("id")!;
     const body = await c.req.json();
-    await this.churnService.updateApproval(customerServiceId, Boolean(body.isApproved));
+    const isApproved = Boolean(body.isApproved);
+    const note = typeof body.note === "string" ? body.note.trim() : "";
+    if (isApproved && !note) {
+      throw new BadRequestException("Alasan pembebasan churn wajib diisi");
+    }
+    await this.churnService.updateApproval(customerServiceId, isApproved, isApproved ? note : null, c.get("user").sub);
     return c.json(successResponse("Churn approval updated successfully"));
   }
 

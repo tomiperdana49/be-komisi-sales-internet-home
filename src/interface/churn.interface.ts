@@ -49,12 +49,17 @@ export type ChurnRow = {
   sales_id: string | null;
   manager_id: string | null;
   is_approved: boolean;
+  /** Why an admin waived this churn; null while not approved (or approved before reasons were recorded). */
+  approval_note: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
 };
 
 export type ChurnSummaryRow = ChurnRow & {
   employee_name: string | null;
   employee_eid: string | null;
   employee_photo: string | null;
+  approved_by_name: string | null;
 };
 
 export interface IChurnRepository {
@@ -69,7 +74,7 @@ export interface IChurnRepository {
     endDate: string,
   ): Promise<ChurnRow[]>;
   findSummary(startDate: string, endDate: string, search?: string): Promise<ChurnSummaryRow[]>;
-  updateApproval(customerServiceId: string, isApproved: boolean): Promise<void>;
+  updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void>;
 }
 
 export interface IChurnService {
@@ -82,5 +87,6 @@ export interface IChurnService {
     endDate: string,
   ): Promise<ChurnRow[]>;
   getSummary(startDate: string, endDate: string, search?: string): Promise<ChurnSummaryRow[]>;
-  updateApproval(customerServiceId: string, isApproved: boolean): Promise<void>;
+  /** Waives (isApproved) a churn with the admin's reason, or reinstates it and clears the reason. */
+  updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void>;
 }
