@@ -150,6 +150,7 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 2. Tanggal berhenti (`CustUnregDate`) berada dalam **periode berjalan**.
 3. **Berhenti ≤ 1 tahun sejak registrasi** (`CustUnregDate <= CustRegDate + 1 tahun`). Pelanggan yang berhenti setelah > 1 tahun **tidak** dihitung sebagai churn.
 4. Pelanggan **pernah memiliki minimal 1 invoice** (`HAVING TotalInvoice > 0`).
+   - **Kecuali sudah membayar 12 bulan**: bila invoice non-prorata yang tidak di-reverse dan **sudah dibayar** menagih total **≥ 12 bulan** (bulanan maupun prepaid) dan tanggal berhenti ≥ akhir bulan ke-12 sejak bulan tagihan pertama, pelanggan dianggap sudah berlangganan setahun dan tidak memperpanjang — **bukan churn**. Contoh: bulanan registrasi 9 Jul 2025, membayar Jul 2025–Jun 2026, berhenti 1 Jul 2026; atau prepaid tahunan Okt 2025–Sep 2026 berhenti 1 Okt 2026. Pelanggan tahunan yang berhenti di tengah kontrak, atau bulanan yang menunggak sehingga belum lunas 12 bulan, tetap churn.
 5. Berada dalam cakupan cabang yang valid (lihat _Cakupan Data_ di bawah).
 
 **Perhitungan nominal churn per record:**

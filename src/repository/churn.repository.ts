@@ -10,7 +10,8 @@ import type {
 
 // A customer service counts as churned if it unregistered within the
 // window, only lasted up to a year, and the customer had at least one
-// real invoice (excludes services that never actually billed).
+// real invoice (excludes services that never actually billed). One that
+// already paid for a full year and stopped after it is not a churn.
 const SQL_CHURN_FROM_BILLING = `
   SELECT
       cs.CustId AS customer_id,
@@ -50,6 +51,21 @@ const SQL_CHURN_FROM_BILLING = `
         AND cs.SalesId NOT IN ('0208801')
       )
     )
+    -- Not a churn once 12 full months were paid (monthly or prepaid) and it
+    -- stopped after the 12th: the customer finished a year and didn't renew.
+    AND NOT IFNULL((
+      SELECT SUM(PERIOD_DIFF(cit.AkhirPeriode, cit.AwalPeriode) + 1) >= 12
+        AND cs.CustUnregDate >= LAST_DAY(STR_TO_DATE(CONCAT(PERIOD_ADD(MIN(cit.AwalPeriode), 11), '01'), '%Y%m%d'))
+      FROM CustomerInvoiceTemp cit
+      WHERE cit.CustServId = cs.CustServId
+        AND cit.Reverse = 0 AND cit.RInvoiceNum = 0 AND cit.InvProrata = 0
+        AND EXISTS (
+          SELECT 1
+          FROM NewCustomerInvoice nci
+          JOIN NewCustomerInvoiceBatch ncib ON ncib.AI = nci.AI
+          WHERE nci.Id = cit.InvoiceNum AND nci.No = cit.Urut AND nci.Type = 'internet'
+        )
+    ), FALSE)
   HAVING i.TotalInvoice > 0
 `;
 
