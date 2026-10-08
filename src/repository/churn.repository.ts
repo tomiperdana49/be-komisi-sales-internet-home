@@ -40,7 +40,7 @@ const SQL_CHURN_FROM_BILLING = `
     WHERE Reverse = 0 AND RInvoiceNum = 0
     GROUP BY CustServId
   ) AS i ON i.CustServId = cs.CustServId
-  WHERE cs.ServiceId IN ('BFLITE', 'CBSHM', 'HOME30', 'HOME50', 'HOME100', 'HOME300', 'HOMESTD100', 'HOMEADV', 'HOMEADV200', 'HOMEPREM300', 'BOOSTER100', 'BOOSTER200', 'BOOSTER300')
+  WHERE cs.ServiceId IN (?)
     AND cs.CustStatus = 'NA'
     AND cs.CustUnregDate BETWEEN ? AND ?
     AND cs.CustUnregDate <= DATE_ADD(cs.CustRegDate, INTERVAL 1 YEAR)
@@ -75,8 +75,9 @@ export class ChurnRepository implements IChurnRepository {
     private readonly appDb: AppDatabase,
   ) {}
 
-  findFromBilling(startDate: string, endDate: string): Promise<RawChurnRow[]> {
-    return this.billingDb.query<RawChurnRow[]>(SQL_CHURN_FROM_BILLING, [startDate, endDate]);
+  findFromBilling(serviceIds: string[], startDate: string, endDate: string): Promise<RawChurnRow[]> {
+    if (serviceIds.length === 0) return Promise.resolve([]);
+    return this.billingDb.query<RawChurnRow[]>(SQL_CHURN_FROM_BILLING, [serviceIds, startDate, endDate]);
   }
 
   async upsert(data: ChurnUpsertInput): Promise<void> {

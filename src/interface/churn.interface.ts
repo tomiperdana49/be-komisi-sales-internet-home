@@ -63,7 +63,7 @@ export type ChurnSummaryRow = ChurnRow & {
 };
 
 export interface IChurnRepository {
-  findFromBilling(startDate: string, endDate: string): Promise<RawChurnRow[]>;
+  findFromBilling(serviceIds: string[], startDate: string, endDate: string): Promise<RawChurnRow[]>;
   upsert(data: ChurnUpsertInput): Promise<void>;
   findLocalCsIdsInRange(startDate: string, endDate: string): Promise<number[]>;
   deleteByCsIds(csIds: number[]): Promise<void>;
@@ -78,8 +78,8 @@ export interface IChurnRepository {
 }
 
 export interface IChurnService {
-  /** Fetches churns from billing, upserts them, and deletes local rows no longer in range. */
-  syncFromBilling(startDate: string, endDate: string): Promise<{ synced: number; deleted: number }>;
+  /** Fetches churns of the given ServiceIds from billing, upserts them, and deletes local rows no longer in range. */
+  syncFromBilling(serviceIds: string[], startDate: string, endDate: string): Promise<{ synced: number; deleted: number }>;
   getByEmployeeId(employeeId: string, startDate: string, endDate: string): Promise<ChurnRow[]>;
   getByEmployeeIds(
     employeeIds: string[],

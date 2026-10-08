@@ -6,6 +6,9 @@ const amount = z.number().min(0);
 
 export const PRODUCT_GROUPS = ["Home", "Nusafiber", "NusaSelecta Basic/Prime", "NusaSelecta Ultra"] as const;
 
+/** ServiceIds the churn query used to hardcode — rule sets saved before `churn` existed keep counting exactly these. */
+const LEGACY_CHURN_SERVICE_IDS = ["BFLITE", "CBSHM", "HOME30", "HOME50", "HOME100", "HOME300", "HOMESTD100", "HOMEADV", "HOMEADV200", "HOMEPREM300", "BOOSTER100", "BOOSTER200", "BOOSTER300"];
+
 const productSchema = z.object({
   name: z.string().trim().min(1),
   /** Billing ServiceIds sharing this rate — several products carry two aliases. */
@@ -20,7 +23,12 @@ const productSchema = z.object({
   twelveMonthRateFrom: z.number().int().min(3).max(36).default(12),
   /** Setup commission for this product; null falls back to rates.setup. */
   setupRate: percent.nullable(),
-});
+  /** Whether a stopped service of this product is pulled in as a churn. */
+  churn: z.boolean().optional(),
+}).transform((p) => ({
+  ...p,
+  churn: p.churn ?? p.serviceIds.some((id) => LEGACY_CHURN_SERVICE_IDS.includes(id)),
+}));
 
 const tier = <T extends z.ZodRawShape>(shape: T) => z.array(z.object(shape)).min(1);
 

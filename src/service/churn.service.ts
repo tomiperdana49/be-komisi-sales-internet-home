@@ -9,10 +9,11 @@ export class ChurnService implements IChurnService {
   constructor(private readonly churnRepository: IChurnRepository) {}
 
   async syncFromBilling(
+    serviceIds: string[],
     startDate: string,
     endDate: string,
   ): Promise<{ synced: number; deleted: number }> {
-    const rows = await this.churnRepository.findFromBilling(startDate, endDate);
+    const rows = await this.churnRepository.findFromBilling(serviceIds, startDate, endDate);
 
     const validCsIds: number[] = [];
     for (const row of rows) {

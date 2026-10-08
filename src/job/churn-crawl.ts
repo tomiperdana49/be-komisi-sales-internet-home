@@ -7,9 +7,13 @@ async function runPeriod(period: string) {
   const startDate = toSqlDate(start);
   const endDate = toSqlDate(end);
 
-  console.log(`Mengambil data churn untuk periode ${startDate} s.d. ${endDate}...`);
+  // Products flagged "churn" in that period's Aturan Komisi decide which services count.
+  const rules = await container.commissionRuleService.getForPeriod(period);
+  const serviceIds = rules.products.filter((p) => p.churn).flatMap((p) => p.serviceIds);
 
-  const { synced, deleted } = await container.churnService.syncFromBilling(startDate, endDate);
+  console.log(`Mengambil data churn untuk periode ${startDate} s.d. ${endDate} (ServiceId: ${serviceIds.join(", ") || "-"})...`);
+
+  const { synced, deleted } = await container.churnService.syncFromBilling(serviceIds, startDate, endDate);
 
   console.log(`Selesai. Disinkronkan: ${synced}, dihapus (orphan): ${deleted}.`);
 }

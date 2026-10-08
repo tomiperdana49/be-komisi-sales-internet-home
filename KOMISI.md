@@ -144,8 +144,9 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 - **Commission**: Mengurangi total komisi (Dihitung setara rate 'New' pada target 12).
 - **Subscription**: Mengurangi total volume penjualan.
 
-**⚠️ Syarat eligibilitas Churn** (difilter di query `getChurnbyDateRange`, `is.service.ts`) — tidak semua pelanggan berhenti dihitung sebagai churn. Sebuah record baru dianggap churn bila memenuhi **semua** syarat berikut:
+**⚠️ Syarat eligibilitas Churn** (difilter di query `SQL_CHURN_FROM_BILLING`, `churn.repository.ts`) — tidak semua pelanggan berhenti dihitung sebagai churn. Sebuah record baru dianggap churn bila memenuhi **semua** syarat berikut:
 
+0. ServiceId layanan termasuk produk yang **dicentang Churn** di *Aturan Komisi > Produk & Rate* (aturan yang berlaku untuk periode tersebut). Aturan yang disimpan sebelum kolom ini ada otomatis mencentang produk yang dulu ada di daftar hardcode (BFLITE, HOME100/HOMESTD100, HOMEADV/HOMEADV200, HOME300/HOMEPREM300). Produk yang tidak ada di tabel (mis. CBSHM, HOME30, HOME50, BOOSTER) tidak lagi dihitung churn sampai ditambahkan admin.
 1. Status pelanggan `CustStatus = 'NA'` (non-aktif).
 2. Tanggal berhenti (`CustUnregDate`) berada dalam **periode berjalan**.
 3. **Berhenti ≤ 1 tahun sejak registrasi** (`CustUnregDate <= CustRegDate + 1 tahun`). Pelanggan yang berhenti setelah > 1 tahun **tidak** dihitung sebagai churn.

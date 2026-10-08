@@ -94,6 +94,7 @@ describe("edited rules are what the math uses", () => {
       sixMonthRateFrom: 6,
       twelveMonthRateFrom: 12,
       setupRate: 0,
+      churn: false,
     });
     expect(hasCommissionRate(edited, "nfspfree30")).toBe(true);
     expect(calculateCommission(edited, 100, 0, false, newSale({ serviceId: "NFSPFREE30", months: 1 })).commissionPercentage).toBe(20);
@@ -188,6 +189,14 @@ describe("rule sets saved before newer settings existed", () => {
     const parsed = commissionRulesSchema.parse(old);
     expect(parsed.excludedRecurringCategories).toEqual(["Domain"]);
     expect(parsed.products.every((p) => p.twelveMonthRateFrom === 12)).toBe(true);
+  });
+
+  test("count as churn only the products the old hardcoded churn list had", () => {
+    const old = JSON.parse(JSON.stringify(DEFAULT_COMMISSION_RULES));
+    for (const p of old.products) delete p.churn;
+
+    const churnIds = commissionRulesSchema.parse(old).products.filter((p) => p.churn).flatMap((p) => p.serviceIds);
+    expect(churnIds.sort()).toEqual(["BFLITE", "HOME100", "HOME300", "HOMEADV", "HOMEADV200", "HOMEPREM300", "HOMESTD100"]);
   });
 });
 
