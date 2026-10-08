@@ -1,4 +1,4 @@
-import type { SnapshotType } from "../helper/commission.helper";
+import type { RecurringServiceGroupLabel, SnapshotType } from "../helper/commission.helper";
 import type { ManualTarget } from "./target-override.interface";
 import type { AdjustableSnapshotFields, SnapshotAdjustmentRow } from "./adjustment.interface";
 
@@ -80,6 +80,8 @@ export type CommissionLineItem = {
   serviceId: string | null;
   serviceName: string | null;
   category: string | null;
+  /** Product label from the period's Aturan Komisi (Home/Nusafiber/NusaSelecta), or Digital/Access Business. */
+  serviceGroup: RecurringServiceGroupLabel;
   businessOperation: string | null;
   /** Employee ID of the Sales Manager credited for this row (raw snapshots.manager column). */
   manager: string | null;
