@@ -428,13 +428,23 @@ export type ManagerPerformance = {
   thresholdPercentage: number;
   /** baseTarget x threshold, rounded — the absolute number the team must hit. */
   finalTarget: number;
-  /** activity / baseTarget x 100, used for the New commission tiers. */
+  /** Divisor of achievementPercentage: finalTarget, or baseTarget before ACHIEVEMENT_VS_FINAL_TARGET_SINCE. */
+  achievementTarget: number;
+  /** activity / achievementTarget x 100, used for the New commission tiers. */
   achievementPercentage: number;
   isTargetAchieved: boolean;
 };
 
+/**
+ * First period whose team achievement % (and so the Overriding New tier) is
+ * measured against the Target Akhir instead of the Target Dasar. Earlier
+ * periods keep the old divisor so already-reported commission never changes.
+ */
+export const ACHIEVEMENT_VS_FINAL_TARGET_SINCE = "202610";
+
 export function calculateManagerPerformance(
   rules: CommissionRules,
+  period: string,
   permanentCount: number,
   probationCount: number,
   teamActivity: number,
@@ -451,6 +461,7 @@ export function calculateManagerPerformance(
       baseTarget: 0,
       thresholdPercentage,
       finalTarget: 0,
+      achievementTarget: 0,
       achievementPercentage: totalTeamSize === 0 ? 0 : 100,
       isTargetAchieved: totalTeamSize > 0,
     };
@@ -458,12 +469,14 @@ export function calculateManagerPerformance(
 
   const baseTarget = permanentTargetSum;
   const finalTarget = Math.round(baseTarget * (thresholdPercentage / 100));
+  const achievementTarget = period < ACHIEVEMENT_VS_FINAL_TARGET_SINCE || finalTarget <= 0 ? baseTarget : finalTarget;
 
   return {
     baseTarget,
     thresholdPercentage,
     finalTarget,
-    achievementPercentage: (teamActivity / baseTarget) * 100,
+    achievementTarget,
+    achievementPercentage: (teamActivity / achievementTarget) * 100,
     isTargetAchieved: teamActivity >= finalTarget,
   };
 }

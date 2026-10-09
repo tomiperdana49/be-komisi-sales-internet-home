@@ -215,7 +215,7 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 - **Target Dasar Tim** = jumlah Target Aktivitas masing-masing anggota **Permanent** di tim tersebut (bawaan 12/orang dari Aturan Komisi — lihat catatan di awal dokumen). Pegawai **Probation tidak menambah** target dasar.
 - **Target Akhir Manager** = `Target Dasar Tim x Threshold%`, **dibulatkan** ke bilangan bulat terdekat.
 - **Status Capai Target** = `Total New Achievement seluruh anggota tim >= Target Akhir Manager`. Status inilah yang dipakai untuk rate recurring (Bagian 6.D) dan komisi penjualan pribadi manager (Bagian 6.F).
-- **Persentase Capaian** = `(Total New Achievement Tim / Target Dasar Tim) x 100%`. Angka ini dipakai untuk tier komisi New di Bagian 6.C — perhatikan pembaginya adalah **Target Dasar**, bukan Target Akhir.
+- **Persentase Capaian** = `(Total New Achievement Tim / Target Akhir Manager) x 100%`. Angka ini dipakai untuk tier komisi New di Bagian 6.C. Untuk periode **sebelum Oktober 2026** pembaginya masih **Target Dasar Tim**, supaya komisi yang sudah dilaporkan tidak berubah (lihat `ACHIEVEMENT_VS_FINAL_TARGET_SINCE` di `commission.helper.ts`).
 - Jika tidak ada pegawai Permanent satupun dalam tim: Target dianggap 100% (kalau ada tim probation) atau 0% (kalau tim kosong).
 
 **B. Ambang Batas Target (Target Threshold)**

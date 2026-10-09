@@ -178,6 +178,8 @@ export type ManagerTeamPerformance = {
   baseTarget: number;
   thresholdPercentage: number;
   finalTarget: number;
+  /** Divisor of achievementPercentage: finalTarget from 202610, baseTarget before. */
+  achievementTarget: number;
   achievementPercentage: number;
   isTargetAchieved: boolean;
 };

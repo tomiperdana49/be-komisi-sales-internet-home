@@ -259,6 +259,7 @@ export class CommissionService {
 
     const performance = calculateManagerPerformance(
       rules,
+      period,
       permanentCount,
       coveredTeam.length - permanentCount,
       teamActivity,
@@ -425,6 +426,7 @@ export class CommissionService {
         baseTarget: performance.baseTarget,
         thresholdPercentage: performance.thresholdPercentage,
         finalTarget: performance.finalTarget,
+        achievementTarget: performance.achievementTarget,
         achievementPercentage: performance.achievementPercentage,
         isTargetAchieved: performance.isTargetAchieved,
       },
