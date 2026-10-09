@@ -113,7 +113,7 @@ class Container {
   readonly employeeController = new EmployeeController(this.employeeService);
   readonly authController = new AuthController(this.authService, this.employeeService);
   readonly feedbackController = new FeedbackController(this.feedbackService, this.employeeService);
-  readonly commissionController = new CommissionController(this.commissionService);
+  readonly commissionController = new CommissionController(this.commissionService, this.periodClosingService);
   readonly summaryController = new SummaryController(
     this.commissionService,
     this.churnService,

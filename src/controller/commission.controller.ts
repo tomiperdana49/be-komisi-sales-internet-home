@@ -1,20 +1,33 @@
 import type { Context } from "hono";
 import { successResponse } from "../helper/api-response.helper";
 import { resolvePeriodFromQuery, resolveYearFromQuery } from "../helper/period-query.helper";
+import type { IPeriodClosingService } from "../interface/period-closing.interface";
 import type { CommissionService } from "../service/commission.service";
 
 export class CommissionController {
-  constructor(private readonly commissionService: CommissionService) {}
+  constructor(
+    private readonly commissionService: CommissionService,
+    private readonly periodClosingService: IPeriodClosingService,
+  ) {}
+
+  /** When the period was closed (frozen) by an admin, or null while it is still open. */
+  private async closedAt(period: string): Promise<string | null> {
+    const rows = await this.periodClosingService.list();
+    return rows.find((r) => r.period === period)?.closed_at ?? null;
+  }
 
   /** Commission summary for one salesperson: totals, breakdown, achievement, bonus. */
   async salesCommission(c: Context) {
     const employeeId = c.req.param("id")!;
     const period = resolvePeriodFromQuery(c);
 
-    const result = await this.commissionService.getSalesCommission(employeeId, period);
+    const [result, closedAt] = await Promise.all([
+      this.commissionService.getSalesCommission(employeeId, period),
+      this.closedAt(period),
+    ]);
     const { items, ...summary } = result;
 
-    return c.json(successResponse("Commission retrieved successfully", summary));
+    return c.json(successResponse("Commission retrieved successfully", { ...summary, closedAt }));
   }
 
   /** Per-month totals for a whole year, for the dashboard's yearly chart. */
@@ -58,8 +71,11 @@ export class CommissionController {
     const managerId = c.req.param("id")!;
     const period = resolvePeriodFromQuery(c);
 
-    const result = await this.commissionService.getManagerCommission(managerId, period);
-    return c.json(successResponse("Manager commission retrieved successfully", result));
+    const [result, closedAt] = await Promise.all([
+      this.commissionService.getManagerCommission(managerId, period),
+      this.closedAt(period),
+    ]);
+    return c.json(successResponse("Manager commission retrieved successfully", { ...result, closedAt }));
   }
 
   /** Per-month manager commission for a whole year, for the dashboard's yearly charts. */
