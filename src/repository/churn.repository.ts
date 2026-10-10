@@ -12,6 +12,11 @@ import type {
 // window, only lasted up to a year, and the customer had at least one
 // real invoice (excludes services that never actually billed). One that
 // already paid for a full year and stopped after it is not a churn.
+//
+// The close reason (latest ServiceCloseCategoryDetails row) must also count:
+// closed while Active (2) or at Renewal (3) always does; at New Installation
+// (1) only "Paid not yet to install"; SYSTEM (4) never. Services with no
+// close-category row (legacy closings) still count.
 const SQL_CHURN_FROM_BILLING = `
   SELECT
       cs.CustId AS customer_id,
@@ -40,10 +45,19 @@ const SQL_CHURN_FROM_BILLING = `
     WHERE Reverse = 0 AND RInvoiceNum = 0
     GROUP BY CustServId
   ) AS i ON i.CustServId = cs.CustServId
+  LEFT JOIN ServiceCloseCategoryDetails scd ON scd.id = (
+    SELECT MAX(x.id) FROM ServiceCloseCategoryDetails x WHERE x.custServId = cs.CustServId
+  )
+  LEFT JOIN ServiceCloseCategoryDetail scdd ON scdd.id = scd.closeCategoryDetail
   WHERE cs.ServiceId IN (?)
     AND cs.CustStatus = 'NA'
     AND cs.CustUnregDate BETWEEN ? AND ?
     AND cs.CustUnregDate <= DATE_ADD(cs.CustRegDate, INTERVAL 1 YEAR)
+    AND (
+      scd.id IS NULL
+      OR scd.closeCatExistingStatus IN (2, 3)
+      OR (scd.closeCatExistingStatus = 1 AND TRIM(scdd.name) = 'Paid not yet to install')
+    )
     AND (
       IFNULL(c.DisplayBranchId, c.BranchId) IN ('020', '062', '025', '027', '029')
       OR (

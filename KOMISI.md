@@ -150,6 +150,17 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 1. Status pelanggan `CustStatus = 'NA'` (non-aktif).
 2. Tanggal berhenti (`CustUnregDate`) berada dalam **periode berjalan**.
 3. **Berhenti ≤ 1 tahun sejak registrasi** (`CustUnregDate <= CustRegDate + 1 tahun`). Pelanggan yang berhenti setelah > 1 tahun **tidak** dihitung sebagai churn.
+3a. **Alasan berhenti (Close Category NIS)** termasuk yang berefek churn. Dibaca dari baris terakhir `ServiceCloseCategoryDetails` layanan tersebut, dikelompokkan menurut status saat ditutup (`closeCatExistingStatus`):
+
+   | Status saat ditutup | Alasan | Churn? |
+   |---|---|---|
+   | **New Installation** (1) | *Paid not yet to install* | **Ya** |
+   | **New Installation** (1) | Unreachable area, Slow Installation, Budget not enough (deal batal sebelum aktif), Get best offering from Competitor (sebelum aktif), Lose Contact, Event sudah selesai | Tidak |
+   | **Active to NA** (2) | Semua alasan (Poor Quality Product, Bad Communication Service, Solving Problem too long & slow, Customer Issue, Unreachable area (migrasi tidak cover), Budget not enough, Get best offering from Competitor, Product Unavailable, All fine but benefits not needed, Lose Contact, Merger Services) | **Ya** |
+   | **Renewal** (3) | Semua alasan (Poor Quality Product, Bad Communication Service, Customer Issue, Decision from the Head Office, Product Unavailable, Budget not enough, Get best offering from Competitor, All fine but benefits not needed, Lose Contact) | **Ya** |
+   | **SYSTEM** (4) | WHMCS, System Error | Tidak |
+
+   Layanan yang ditutup sebelum ada Close Category (tidak punya baris `ServiceCloseCategoryDetails`) tetap dihitung churn bila syarat lain terpenuhi.
 4. Pelanggan **pernah memiliki minimal 1 invoice** (`HAVING TotalInvoice > 0`).
    - **Kecuali sudah membayar 12 bulan**: bila invoice non-prorata yang tidak di-reverse dan **sudah dibayar** menagih total **≥ 12 bulan** (bulanan maupun prepaid) dan tanggal berhenti ≥ akhir bulan ke-12 sejak bulan tagihan pertama, pelanggan dianggap sudah berlangganan setahun dan tidak memperpanjang — **bukan churn**. Contoh: bulanan registrasi 9 Jul 2025, membayar Jul 2025–Jun 2026, berhenti 1 Jul 2026; atau prepaid tahunan Okt 2025–Sep 2026 berhenti 1 Okt 2026. Pelanggan tahunan yang berhenti di tengah kontrak, atau bulanan yang menunggak sehingga belum lunas 12 bulan, tetap churn.
 5. Berada dalam cakupan cabang yang valid (lihat _Cakupan Data_ di bawah).
