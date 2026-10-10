@@ -165,18 +165,15 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
    - **Kecuali sudah membayar 12 bulan**: bila invoice non-prorata yang tidak di-reverse dan **sudah dibayar** menagih total **≥ 12 bulan** (bulanan maupun prepaid) dan tanggal berhenti ≥ akhir bulan ke-12 sejak bulan tagihan pertama, pelanggan dianggap sudah berlangganan setahun dan tidak memperpanjang — **bukan churn**. Contoh: bulanan registrasi 9 Jul 2025, membayar Jul 2025–Jun 2026, berhenti 1 Jul 2026; atau prepaid tahunan Okt 2025–Sep 2026 berhenti 1 Okt 2026. Pelanggan tahunan yang berhenti di tengah kontrak, atau bulanan yang menunggak sehingga belum lunas 12 bulan, tetap churn.
 5. Berada dalam cakupan cabang yang valid (lihat _Cakupan Data_ di bawah).
 
-**Pembebasan churn lewat Log Call NIS:** churn bisa dibebaskan (`is_approved`) secara manual oleh admin di *Summary > Churn*, atau otomatis oleh job `churn-crawl` dari Customer Log Call NIS bila approver menulis blok berikut **di bagian Acc-nya sendiri** (di atas baris `Subject` / `Description` pengajuan AM):
+**Pembebasan churn lewat Log Call NIS:** churn bisa dibebaskan (`is_approved`) secara manual oleh admin di *Summary > Churn*, atau otomatis oleh job `churn-crawl` dari Customer Log Call NIS bila approver menulis satu baris berikut **di bagian Acc-nya sendiri** (di atas baris `Subject` / `Description` pengajuan AM):
 
 ```
-detail:
-    Service ID 72879
-    Account Name pujifre
-    Churn = false
+Churn = false
 ```
 
-- Hanya log call dari approver di `CHURN_WAIVER_APPROVERS` (`src/helper/churn-waiver.helper.ts`, saat ini **0200925**) yang dibaca; blok yang ada di teks pengajuan AM diabaikan.
-- **Service ID** (CustServId) dan **Account Name** harus cocok dengan churn tersebut; bila Account Name berbeda, blok diabaikan. Satu log call boleh memuat beberapa blok `detail:`.
-- Blok terbaru per layanan yang berlaku: `Churn = true` di log call berikutnya membatalkan pembebasan. Alasan pembebasan tercatat sebagai `Log Call #<id>: <baris Acc>` (`approval_log_call_id`).
+- Berlaku untuk churn milik **pelanggan tempat log call dibuat** (CustId log call). Bila pelanggan punya lebih dari satu layanan churn dan hanya sebagian yang dibebaskan, tulis nama akunnya: `Churn = false pujifre` (beberapa akun dipisah koma/spasi). Akun milik pelanggan lain diabaikan.
+- Hanya log call dari approver di `CHURN_WAIVER_APPROVERS` (`src/helper/churn-waiver.helper.ts`, saat ini **0200925**) yang dibaca; baris yang ada di teks pengajuan AM diabaikan.
+- Log call terbaru per layanan yang berlaku: `Churn = true` di log call berikutnya membatalkan pembebasan. Alasan pembebasan tercatat sebagai `Log Call #<id>: <baris Acc>` (`approval_log_call_id`).
 - Pembebasan manual admin tidak pernah diubah oleh job. Periode yang sudah ditutup tidak ditarik lagi, jadi log call baru tidak berpengaruh ke periode tersebut.
 
 **Perhitungan nominal churn per record:**

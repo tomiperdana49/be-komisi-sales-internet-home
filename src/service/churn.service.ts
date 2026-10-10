@@ -1,4 +1,4 @@
-import { CHURN_WAIVER_APPROVERS, approverSection, parseChurnWaiverBlocks } from "../helper/churn-waiver.helper";
+import { CHURN_WAIVER_APPROVERS, approverSection, parseChurnDirectives } from "../helper/churn-waiver.helper";
 import type {
   ChurnRow,
   ChurnSummaryRow,
@@ -50,10 +50,11 @@ export class ChurnService implements IChurnService {
   }
 
   /**
-   * Applies "detail: Service ID … / Account Name … / Churn = false" blocks
-   * an approver wrote in an NIS log call: the latest block per service wins.
-   * Waivers made by hand in the dashboard are never touched; a log-call
-   * waiver is lifted again once no block (or "Churn = true") backs it.
+   * Applies "Churn = false" / "Churn = true" lines an approver wrote in an
+   * NIS log call to that customer's churns (or only the accounts named after
+   * the value): the latest line per service wins. Waivers made by hand in the
+   * dashboard are never touched; a log-call waiver is lifted again once no
+   * line (or "Churn = true") backs it.
    */
   private async syncLogCallWaivers(startDate: string, endDate: string) {
     // Approvals usually follow the churn, but allow ones written up to a year before it.
@@ -65,21 +66,30 @@ export class ChurnService implements IChurnService {
       this.churnRepository.findApprovalStatesInRange(startDate, endDate),
     ]);
 
-    const latest = new Map<number, { churn: boolean; accountName: string; waiver: LogCallWaiver }>();
+    const latest = new Map<number, { churn: boolean; waiver: LogCallWaiver }>();
     for (const logCall of logCalls) {
       const text = logCall.text ?? "";
-      for (const block of parseChurnWaiverBlocks(text)) {
-        const firstLine = approverSection(text).split("\n").map((line) => line.trim()).find(Boolean) ?? "";
-        latest.set(block.customerServiceId, {
-          churn: block.churn,
-          accountName: block.accountName,
-          waiver: {
-            logCallId: logCall.log_call_id,
-            empId: logCall.emp_id,
-            posted: logCall.posted,
-            note: `Log Call #${logCall.log_call_id}: ${firstLine}`.slice(0, 500),
-          },
-        });
+      const directives = parseChurnDirectives(text);
+      if (directives.length === 0) continue;
+
+      const firstLine = approverSection(text).split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+      const waiver: LogCallWaiver = {
+        logCallId: logCall.log_call_id,
+        empId: logCall.emp_id,
+        posted: logCall.posted,
+        note: `Log Call #${logCall.log_call_id}: ${firstLine}`.slice(0, 500),
+      };
+      const customerRows = rows.filter((row) => row.customer_id === logCall.customer_id);
+
+      for (const directive of directives) {
+        const accounts = directive.accounts.map((account) => account.toLowerCase());
+        const targets = accounts.length
+          ? customerRows.filter((row) => accounts.includes((row.customer_service_account ?? "").toLowerCase()))
+          : customerRows;
+        if (accounts.length && targets.length < accounts.length) {
+          console.warn(`Log Call #${logCall.log_call_id}: sebagian akun (${directive.accounts.join(", ")}) bukan churn pelanggan ${logCall.customer_id} — diabaikan.`);
+        }
+        for (const row of targets) latest.set(Number(row.customer_service_id), { churn: directive.churn, waiver });
       }
     }
 
@@ -90,19 +100,10 @@ export class ChurnService implements IChurnService {
       const logCallId = row.approval_log_call_id === null ? null : Number(row.approval_log_call_id);
       if (row.is_approved && logCallId === null) continue; // waived by hand
 
-      const block = latest.get(csId);
-      const matches =
-        block !== undefined &&
-        block.accountName.toLowerCase() === (row.customer_service_account ?? "").toLowerCase();
-      if (block && !matches) {
-        console.warn(
-          `Log Call #${block.waiver.logCallId}: Account Name "${block.accountName}" tidak cocok dengan Service ID ${csId} (${row.customer_service_account}) — diabaikan.`,
-        );
-      }
-
-      if (matches && !block.churn) {
-        if (logCallId !== block.waiver.logCallId) {
-          await this.churnRepository.setLogCallWaiver(csId, block.waiver);
+      const decision = latest.get(csId);
+      if (decision && !decision.churn) {
+        if (logCallId !== decision.waiver.logCallId) {
+          await this.churnRepository.setLogCallWaiver(csId, decision.waiver);
           waived++;
         }
       } else if (logCallId !== null) {

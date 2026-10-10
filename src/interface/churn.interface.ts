@@ -77,12 +77,14 @@ export type ChurnSummaryRow = ChurnRow & {
 export type WaiverLogCallRow = {
   log_call_id: number;
   emp_id: string;
+  customer_id: string | null;
   posted: Date;
   text: string | null;
 };
 
 export type ChurnApprovalState = {
   customer_service_id: number;
+  customer_id: string;
   customer_service_account: string | null;
   is_approved: boolean | number;
   approval_log_call_id: number | null;

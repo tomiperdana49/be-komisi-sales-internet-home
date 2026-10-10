@@ -226,7 +226,7 @@ export class ChurnRepository implements IChurnRepository {
   findWaiverLogCalls(approverIds: string[], since: string): Promise<WaiverLogCallRow[]> {
     if (approverIds.length === 0) return Promise.resolve([]);
     return this.billingDb.query<WaiverLogCallRow[]>(
-      `SELECT LogCallId AS log_call_id, EmpId AS emp_id, Posted AS posted, Subject AS text
+      `SELECT LogCallId AS log_call_id, EmpId AS emp_id, CustId AS customer_id, Posted AS posted, Subject AS text
        FROM CustomerLogCall
        WHERE EmpId IN (?) AND Posted >= ? AND Subject LIKE '%churn%'
        ORDER BY LogCallId`,
@@ -236,7 +236,7 @@ export class ChurnRepository implements IChurnRepository {
 
   findApprovalStatesInRange(startDate: string, endDate: string): Promise<ChurnApprovalState[]> {
     return this.appDb.query<ChurnApprovalState[]>(
-      `SELECT customer_service_id, customer_service_account, is_approved, approval_log_call_id
+      `SELECT customer_service_id, customer_id, customer_service_account, is_approved, approval_log_call_id
        FROM churn WHERE unregistration_date BETWEEN ? AND ?`,
       [startDate, endDate],
     );
