@@ -11,24 +11,12 @@ export type ChurnDirective = {
 };
 
 /**
- * The approver's own part of a log call: everything before the quoted
- * request, which starts at a line reading just "Subject" (or "Description"
- * when the request has no subject). A line an AM writes inside their
- * request must not waive anything on its own.
- */
-export function approverSection(text: string): string {
-  const lines = text.replace(/<[^>]+>/g, "\n").split(/\r?\n/);
-  const end = lines.findIndex((line) => /^\s*(subject|description)\s*:?\s*$/i.test(line));
-  return (end === -1 ? lines : lines.slice(0, end)).join("\n");
-}
-
-/**
  * Parses lines like "Churn = false", "Churn = false pujifre" or
- * "churn: true pujifre, pujifre2" from the approver's section of a log call.
+ * "churn: true pujifre, pujifre2" anywhere in a log call.
  */
 export function parseChurnDirectives(text: string): ChurnDirective[] {
   const directives: ChurnDirective[] = [];
-  for (const line of approverSection(text).split("\n")) {
+  for (const line of text.replace(/<[^>]+>/g, "\n").split(/\r?\n/)) {
     const match = line.match(/^\s*churn\s*[:=]\s*(true|false)\b(.*)$/i);
     if (!match) continue;
     directives.push({

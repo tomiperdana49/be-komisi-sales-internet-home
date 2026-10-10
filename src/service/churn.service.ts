@@ -1,4 +1,4 @@
-import { CHURN_WAIVER_APPROVERS, approverSection, parseChurnDirectives } from "../helper/churn-waiver.helper";
+import { CHURN_WAIVER_APPROVERS, parseChurnDirectives } from "../helper/churn-waiver.helper";
 import type {
   ChurnRow,
   ChurnSummaryRow,
@@ -72,7 +72,7 @@ export class ChurnService implements IChurnService {
       const directives = parseChurnDirectives(text);
       if (directives.length === 0) continue;
 
-      const firstLine = approverSection(text).split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+      const firstLine = text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "";
       const waiver: LogCallWaiver = {
         logCallId: logCall.log_call_id,
         empId: logCall.emp_id,

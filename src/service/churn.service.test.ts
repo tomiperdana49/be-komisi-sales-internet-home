@@ -71,13 +71,13 @@ describe("ChurnService log-call waivers", () => {
     expect(calls).toEqual([]);
   });
 
-  test("a line in the AM's request is ignored", async () => {
+  test("a line in the AM's quoted request also counts", async () => {
     const { service, calls } = setup(
-      [{ ...logCall(1, "0200397826", "Acc Form reverse"), text: "Acc Form reverse\nSubject\nChurn = false" }],
+      [{ ...logCall(1, "0200397826", "Acc Form reverse"), text: "Acc Form reverse\nSubject\nChurn = false pujifre" }],
       [state(72879, "0200397826", "pujifre")],
     );
     await sync(service);
-    expect(calls).toEqual([]);
+    expect(calls).toEqual(["set 72879 #1 Log Call #1: Acc Form reverse"]);
   });
 
   test("never touches a waiver made by hand", async () => {
