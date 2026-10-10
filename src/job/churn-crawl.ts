@@ -13,9 +13,11 @@ async function runPeriod(period: string) {
 
   console.log(`Mengambil data churn untuk periode ${startDate} s.d. ${endDate} (ServiceId: ${serviceIds.join(", ") || "-"})...`);
 
-  const { synced, deleted } = await container.churnService.syncFromBilling(serviceIds, startDate, endDate);
+  const { synced, deleted, waived, reinstated } = await container.churnService.syncFromBilling(serviceIds, startDate, endDate);
 
-  console.log(`Selesai. Disinkronkan: ${synced}, dihapus (orphan): ${deleted}.`);
+  console.log(
+    `Selesai. Disinkronkan: ${synced}, dihapus (orphan): ${deleted}, dibebaskan via Log Call: ${waived}, dibatalkan: ${reinstated}.`,
+  );
 }
 
 async function run() {

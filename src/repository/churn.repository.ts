@@ -3,9 +3,12 @@ import type { BillingDatabase } from "../lib/billing-database";
 import type {
   ChurnRow,
   ChurnSummaryRow,
+  ChurnApprovalState,
   ChurnUpsertInput,
   IChurnRepository,
+  LogCallWaiver,
   RawChurnRow,
+  WaiverLogCallRow,
 } from "../interface/churn.interface";
 
 // A customer service counts as churned if it unregistered within the
@@ -210,11 +213,48 @@ export class ChurnRepository implements IChurnRepository {
   async updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void> {
     await this.appDb.query(
       isApproved
-        ? `UPDATE churn SET is_approved = 1, approval_note = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP
+        ? `UPDATE churn SET is_approved = 1, approval_note = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+             approval_log_call_id = NULL
            WHERE customer_service_id = ?`
-        : `UPDATE churn SET is_approved = 0, approval_note = NULL, approved_by = NULL, approved_at = NULL
+        : `UPDATE churn SET is_approved = 0, approval_note = NULL, approved_by = NULL, approved_at = NULL,
+             approval_log_call_id = NULL
            WHERE customer_service_id = ?`,
       isApproved ? [note, approvedBy, customerServiceId] : [customerServiceId],
+    );
+  }
+
+  findWaiverLogCalls(approverIds: string[], since: string): Promise<WaiverLogCallRow[]> {
+    if (approverIds.length === 0) return Promise.resolve([]);
+    return this.billingDb.query<WaiverLogCallRow[]>(
+      `SELECT LogCallId AS log_call_id, EmpId AS emp_id, Posted AS posted, Subject AS text
+       FROM CustomerLogCall
+       WHERE EmpId IN (?) AND Posted >= ? AND Subject LIKE '%churn%'
+       ORDER BY LogCallId`,
+      [approverIds, since],
+    );
+  }
+
+  findApprovalStatesInRange(startDate: string, endDate: string): Promise<ChurnApprovalState[]> {
+    return this.appDb.query<ChurnApprovalState[]>(
+      `SELECT customer_service_id, customer_service_account, is_approved, approval_log_call_id
+       FROM churn WHERE unregistration_date BETWEEN ? AND ?`,
+      [startDate, endDate],
+    );
+  }
+
+  async setLogCallWaiver(customerServiceId: number, waiver: LogCallWaiver): Promise<void> {
+    await this.appDb.query(
+      `UPDATE churn SET is_approved = 1, approval_note = ?, approved_by = ?, approved_at = ?, approval_log_call_id = ?
+       WHERE customer_service_id = ?`,
+      [waiver.note, waiver.empId, waiver.posted, waiver.logCallId, customerServiceId],
+    );
+  }
+
+  async clearLogCallWaiver(customerServiceId: number): Promise<void> {
+    await this.appDb.query(
+      `UPDATE churn SET is_approved = 0, approval_note = NULL, approved_by = NULL, approved_at = NULL, approval_log_call_id = NULL
+       WHERE customer_service_id = ? AND approval_log_call_id IS NOT NULL`,
+      [customerServiceId],
     );
   }
 }

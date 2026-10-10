@@ -62,6 +62,8 @@ export type ChurnRow = {
   approval_note: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  /** NIS log call that waived this churn (see churn-waiver.helper); null when waived by hand or not waived. */
+  approval_log_call_id: number | null;
 };
 
 export type ChurnSummaryRow = ChurnRow & {
@@ -69,6 +71,28 @@ export type ChurnSummaryRow = ChurnRow & {
   employee_eid: string | null;
   employee_photo: string | null;
   approved_by_name: string | null;
+};
+
+// A NIS log call by a churn-waiver approver that mentions churn.
+export type WaiverLogCallRow = {
+  log_call_id: number;
+  emp_id: string;
+  posted: Date;
+  text: string | null;
+};
+
+export type ChurnApprovalState = {
+  customer_service_id: number;
+  customer_service_account: string | null;
+  is_approved: boolean | number;
+  approval_log_call_id: number | null;
+};
+
+export type LogCallWaiver = {
+  logCallId: number;
+  empId: string;
+  posted: Date;
+  note: string;
 };
 
 export interface IChurnRepository {
@@ -84,11 +108,19 @@ export interface IChurnRepository {
   ): Promise<ChurnRow[]>;
   findSummary(startDate: string, endDate: string, search?: string): Promise<ChurnSummaryRow[]>;
   updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void>;
+  findWaiverLogCalls(approverIds: string[], since: string): Promise<WaiverLogCallRow[]>;
+  findApprovalStatesInRange(startDate: string, endDate: string): Promise<ChurnApprovalState[]>;
+  setLogCallWaiver(customerServiceId: number, waiver: LogCallWaiver): Promise<void>;
+  clearLogCallWaiver(customerServiceId: number): Promise<void>;
 }
 
 export interface IChurnService {
   /** Fetches churns of the given ServiceIds from billing, upserts them, and deletes local rows no longer in range. */
-  syncFromBilling(serviceIds: string[], startDate: string, endDate: string): Promise<{ synced: number; deleted: number }>;
+  syncFromBilling(
+    serviceIds: string[],
+    startDate: string,
+    endDate: string,
+  ): Promise<{ synced: number; deleted: number; waived: number; reinstated: number }>;
   getByEmployeeId(employeeId: string, startDate: string, endDate: string): Promise<ChurnRow[]>;
   getByEmployeeIds(
     employeeIds: string[],

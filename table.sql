@@ -106,6 +106,8 @@ CREATE TABLE churn (
     approval_note TEXT NULL,
     approved_by VARCHAR(20) NULL,
     approved_at TIMESTAMP NULL,
+    -- NIS log call whose "Churn = false" block waived this churn; NULL when waived by hand.
+    approval_log_call_id BIGINT NULL,
     INDEX idx_churn_unregistration_date (unregistration_date),
     INDEX idx_churn_sales_id (sales_id)
 );
@@ -170,3 +172,6 @@ CREATE TABLE target_override (
 -- Migration for existing databases (churn close category from NIS):
 -- ALTER TABLE churn ADD COLUMN close_status VARCHAR(50) NULL AFTER reason,
 --   ADD COLUMN close_reason VARCHAR(150) NULL AFTER close_status;
+
+-- Migration for existing databases (churn waived from an NIS log call):
+-- ALTER TABLE churn ADD COLUMN approval_log_call_id BIGINT NULL AFTER approved_at;
