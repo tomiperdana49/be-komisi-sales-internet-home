@@ -28,6 +28,8 @@ const SQL_CHURN_FROM_BILLING = `
       cs.CustActivationDate AS registration_date,
       cs.CustUnregDate AS unregistration_date,
       cs.CustCloseReason AS reason,
+      scs.name AS close_status,
+      TRIM(scdd.name) AS close_reason,
       cs.SalesId AS sales_id,
       cs.ManagerSalesId AS manager_id,
       cs.Subscription AS subscription,
@@ -49,6 +51,7 @@ const SQL_CHURN_FROM_BILLING = `
     SELECT MAX(x.id) FROM ServiceCloseCategoryDetails x WHERE x.custServId = cs.CustServId
   )
   LEFT JOIN ServiceCloseCategoryDetail scdd ON scdd.id = scd.closeCategoryDetail
+  LEFT JOIN ServiceCloseStatusExisting scs ON scs.id = scd.closeCatExistingStatus
   WHERE cs.ServiceId IN (?)
     AND cs.CustStatus = 'NA'
     AND cs.CustUnregDate BETWEEN ? AND ?
@@ -101,9 +104,10 @@ export class ChurnRepository implements IChurnRepository {
         customer_service_id, customer_id, customer_name,
         customer_service_account, service_id, service_name,
         registration_date, unregistration_date, reason,
+        close_status, close_reason,
         period, price, sales_id, manager_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         customer_id = VALUES(customer_id),
         customer_name = VALUES(customer_name),
@@ -113,6 +117,8 @@ export class ChurnRepository implements IChurnRepository {
         registration_date = VALUES(registration_date),
         unregistration_date = VALUES(unregistration_date),
         reason = VALUES(reason),
+        close_status = VALUES(close_status),
+        close_reason = VALUES(close_reason),
         period = VALUES(period),
         price = VALUES(price),
         sales_id = VALUES(sales_id),
@@ -128,6 +134,8 @@ export class ChurnRepository implements IChurnRepository {
         data.registration_date,
         data.unregistration_date,
         data.reason,
+        data.close_status,
+        data.close_reason,
         data.period,
         data.price,
         data.sales_id,

@@ -27,6 +27,8 @@ export class ChurnService implements IChurnService {
         registration_date: row.registration_date,
         unregistration_date: row.unregistration_date,
         reason: row.reason,
+        close_status: row.close_status,
+        close_reason: row.close_reason,
         period: row.period,
         price: row.price,
         sales_id: row.sales_id,

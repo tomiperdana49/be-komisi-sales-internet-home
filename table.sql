@@ -94,6 +94,9 @@ CREATE TABLE churn (
     registration_date DATE NULL,
     unregistration_date DATE NULL,
     reason TEXT NULL,
+    -- NIS close category (ServiceCloseStatusExisting / ServiceCloseCategoryDetail names).
+    close_status VARCHAR(50) NULL,
+    close_reason VARCHAR(150) NULL,
     period INT NOT NULL DEFAULT 1,
     price DECIMAL(18,2) NULL,
     sales_id VARCHAR(20) NULL,
@@ -163,3 +166,7 @@ CREATE TABLE target_override (
     updated_at TIMESTAMP NULL,
     INDEX idx_target_override_lookup (employee_id, start_period, end_period)
 );
+
+-- Migration for existing databases (churn close category from NIS):
+-- ALTER TABLE churn ADD COLUMN close_status VARCHAR(50) NULL AFTER reason,
+--   ADD COLUMN close_reason VARCHAR(150) NULL AFTER close_status;

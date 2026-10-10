@@ -9,6 +9,9 @@ export type RawChurnRow = {
   registration_date: unknown;
   unregistration_date: unknown;
   reason: string | null;
+  /** NIS close category: status when closed (e.g. "Renewal") and the reason picked; null for legacy closings. */
+  close_status: string | null;
+  close_reason: string | null;
   sales_id: string | null;
   manager_id: string | null;
   subscription: unknown;
@@ -28,6 +31,9 @@ export type ChurnUpsertInput = {
   registration_date: unknown;
   unregistration_date: unknown;
   reason: string | null;
+  /** NIS close category: status when closed (e.g. "Renewal") and the reason picked; null for legacy closings. */
+  close_status: string | null;
+  close_reason: string | null;
   period: number;
   price: unknown;
   sales_id: string | null;
@@ -44,6 +50,9 @@ export type ChurnRow = {
   registration_date: string | null;
   unregistration_date: string | null;
   reason: string | null;
+  /** NIS close category: status when closed (e.g. "Renewal") and the reason picked; null for legacy closings. */
+  close_status: string | null;
+  close_reason: string | null;
   period: number;
   price: number | null;
   sales_id: string | null;
