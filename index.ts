@@ -18,7 +18,11 @@ if (securityConfig.corsOrigins.length === 0) {
 app.use("*", cors({ origin: allowedOrigins }));
 app.onError(errorHandler);
 
-app.use("/uploads/*", serveStatic({ root: "./" }));
+// Served under /api because the production reverse proxy only forwards /api to this app.
+app.use(
+  "/api/uploads/*",
+  serveStatic({ root: "./", rewriteRequestPath: (path) => path.replace(/^\/api/, "") }),
+);
 
 app.get("/", (c) => container.healthController.getHealth(c));
 app.route("/api", routes);

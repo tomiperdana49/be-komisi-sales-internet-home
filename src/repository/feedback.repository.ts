@@ -19,7 +19,7 @@ export class FeedbackRepository implements IFeedbackRepository {
       // Bun.write creates any missing parent directories automatically.
       await Bun.write(`${UPLOAD_DIR}/${fileName}`, file);
 
-      imageUrls.push(`${feedbackConfig.appUrl}/uploads/feedback/${fileName}`);
+      imageUrls.push(`${feedbackConfig.appUrl}/api/uploads/feedback/${fileName}`);
     }
 
     return imageUrls;

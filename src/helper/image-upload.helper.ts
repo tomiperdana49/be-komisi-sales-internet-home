@@ -8,7 +8,7 @@ export type ImageExtension = "png" | "jpg" | "webp" | "gif";
 /**
  * Identifies an image by its leading bytes rather than the client-supplied
  * Content-Type, which anyone can set to "image/png" on an HTML or SVG file.
- * Uploads are served publicly from /uploads, so only these raster formats
+ * Uploads are served publicly from /api/uploads, so only these raster formats
  * (which can't carry script) are accepted.
  */
 export function detectImageType(bytes: Uint8Array): ImageExtension | null {
