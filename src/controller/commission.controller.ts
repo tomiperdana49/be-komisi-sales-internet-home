@@ -78,6 +78,15 @@ export class CommissionController {
     return c.json(successResponse("Manager commission retrieved successfully", { ...result, closedAt }));
   }
 
+  /** Churn of the manager and the whole team for one period. */
+  async managerChurn(c: Context) {
+    const managerId = c.req.param("id")!;
+    const period = resolvePeriodFromQuery(c);
+
+    const data = await this.commissionService.getManagerChurn(managerId, period);
+    return c.json(successResponse("Team churn retrieved successfully", data));
+  }
+
   /** Per-month manager commission for a whole year, for the dashboard's yearly charts. */
   async managerCommissionYear(c: Context) {
     const managerId = c.req.param("id")!;

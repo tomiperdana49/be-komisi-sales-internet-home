@@ -163,6 +163,20 @@ export class CommissionService {
   }
 
   /**
+   * Every churn of a Manager Area in one list — the manager's own plus each
+   * team member's — so a manager needn't open every AM page. Valued per
+   * salesperson through getSalesChurn, matching what each AM page shows.
+   */
+  async getManagerChurn(managerId: string, period: string) {
+    const people = await this.employeeService.getHierarchy(managerId, undefined, true, false);
+    const churnBySalesperson = await Promise.all(people.map((e) => this.getSalesChurn(e.employee_id, period)));
+
+    return people.flatMap((e, i) =>
+      churnBySalesperson[i]!.map((churn) => ({ ...churn, sales_name: e.name, sales_photo_profile: e.photo_profile })),
+    );
+  }
+
+  /**
    * Lightweight per-month totals for a whole year, reusing getSalesCommission
    * for each period so the dashboard's yearly chart never drifts from the
    * single-period numbers it's built from.
