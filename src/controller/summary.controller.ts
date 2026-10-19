@@ -128,6 +128,7 @@ export class SummaryController {
         employeeId: e.employeeId,
         name: e.name,
         photoProfile: e.photoProfile,
+        branch: e.branch,
         status: e.status,
         amount: grant ? Number(grant.amount) : 0,
         note: grant?.note ?? null,

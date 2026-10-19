@@ -51,6 +51,7 @@ export type ConsistencyBonusItem = {
   employeeId: string;
   name: string;
   photoProfile: string;
+  branch: string | null;
   status: string | null;
   amount: number;
   note: string | null;

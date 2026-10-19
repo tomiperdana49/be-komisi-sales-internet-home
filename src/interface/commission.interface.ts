@@ -237,6 +237,7 @@ export type SalesSummaryItem = {
   employeeId: string;
   name: string;
   photoProfile: string;
+  branch: string | null;
   status: string | null;
   achievementStatus: string;
   activityCount: number;
@@ -258,6 +259,7 @@ export type ManagerSummaryItem = {
   employeeId: string;
   name: string;
   photoProfile: string;
+  branch: string | null;
   totalCount: number;
   achievementPercentage: number;
   activityCount: number;
@@ -276,6 +278,8 @@ export type ManagerSummaryItem = {
 export type InvoiceSummaryItem = CommissionLineItem & {
   sales: { employeeId: string; name: string; photoProfile: string } | null;
   managerEmployee: { employeeId: string; name: string; photoProfile: string } | null;
+  /** The selling Account Manager's branch. */
+  branch: string | null;
 };
 
 export type ManagerServiceGroup = "Home" | "Nusafiber" | "NusaSelecta" | "Digital Business" | "Access Business";

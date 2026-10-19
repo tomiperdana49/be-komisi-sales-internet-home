@@ -822,6 +822,7 @@ export class CommissionService {
         employeeId: e.employeeId,
         name: e.name,
         photoProfile: e.photoProfile,
+        branch: e.branch,
         status: r.status,
         achievementStatus: r.achievementStatus,
         activityCount: r.activityCount,
@@ -853,6 +854,7 @@ export class CommissionService {
         employeeId: m.employee_id,
         name: m.name,
         photoProfile: m.photo_profile,
+        branch: m.branch,
         totalCount: r.team.totalCount,
         achievementPercentage: r.team.achievementPercentage,
         activityCount: r.team.activityCount,
@@ -895,7 +897,7 @@ export class CommissionService {
         const managerEmployee = manager
           ? { employeeId: manager.employee_id, name: manager.name, photoProfile: manager.photo_profile }
           : null;
-        items.push({ ...item, sales, managerEmployee });
+        items.push({ ...item, sales, managerEmployee, branch: e.branch });
       }
     });
 

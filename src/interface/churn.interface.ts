@@ -70,6 +70,7 @@ export type ChurnSummaryRow = ChurnRow & {
   employee_name: string | null;
   employee_eid: string | null;
   employee_photo: string | null;
+  employee_branch: string | null;
   approved_by_name: string | null;
 };
 

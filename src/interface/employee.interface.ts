@@ -44,6 +44,7 @@ export type SalesTargetItem = {
   employeeId: string;
   name: string;
   photoProfile: string;
+  branch: string | null;
   status: string;
   target: number;
 };

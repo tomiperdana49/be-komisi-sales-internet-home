@@ -189,7 +189,7 @@ export class EmployeeRepository implements IEmployeeRepository {
 
   findSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]> {
     return this.db.query<SalesTargetItem[]>(
-      `SELECT e.employee_id AS employeeId, e.name, e.photo_profile AS photoProfile,
+      `SELECT e.employee_id AS employeeId, e.name, e.photo_profile AS photoProfile, e.branch,
               sp.status, sp.target
        FROM status_period sp
        JOIN employee e ON e.employee_id = sp.employee_id

@@ -183,6 +183,7 @@ export class ChurnRepository implements IChurnRepository {
     let query = `
       SELECT c.*,
              e.name AS employee_name, e.employee_id AS employee_eid, e.photo_profile AS employee_photo,
+             e.branch AS employee_branch,
              ap.name AS approved_by_name
       FROM churn c
       LEFT JOIN employee e ON c.sales_id = e.employee_id
