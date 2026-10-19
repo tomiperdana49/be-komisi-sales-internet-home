@@ -18,6 +18,7 @@ const ADMIN_EMPLOYEE_IDS = new Set([
   "0201203",
   "0202623",
   "0201204",
+  "0202646",
 ]);
 
 /** Kept as an admin record outside the sales hierarchy (getEmployeeAdmin). */
