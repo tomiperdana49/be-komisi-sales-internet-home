@@ -26,12 +26,34 @@ export class FeedbackRepository implements IFeedbackRepository {
   }
 
   notify(item: FeedbackItem): void {
+    this.notifyGoogleChat(item);
+
     if (!feedbackConfig.feedbackUrl) return;
 
     fetch(feedbackConfig.feedbackUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(item),
+    }).catch(() => {});
+  }
+
+  /** Posts a summary of the feedback to Google Chat, so nobody has to keep checking the Sheet. */
+  private notifyGoogleChat(item: FeedbackItem): void {
+    if (!feedbackConfig.googleChatWebhookUrl) return;
+
+    const lines = [
+      `*Feedback baru dari ${item.name} (${item.employeeId})*`,
+      `Tipe: ${item.type}`,
+      item.url ? `Halaman: ${item.url}` : null,
+      `Pesan: ${item.message}`,
+      item.image.length ? `Gambar: ${item.image.map((url, i) => `<${url}|${i + 1}>`).join(", ")}` : null,
+      feedbackConfig.sheetUrl ? `<${feedbackConfig.sheetUrl}|Buka Sheet Feedback>` : null,
+    ];
+
+    fetch(feedbackConfig.googleChatWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({ text: lines.filter(Boolean).join("\n") }),
     }).catch(() => {});
   }
 
