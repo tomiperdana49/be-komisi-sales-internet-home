@@ -158,7 +158,8 @@ export class CommissionService {
 
     return rows.map((churn) => {
       const { mrc, commission, commissionPercentage } = this.valueChurn(rules, churn, status, target);
-      return { ...churn, mrc, commission, commissionPercentage };
+      // serviceGroup lets the FE put each churn back under the group it was deducted from.
+      return { ...churn, mrc, commission, commissionPercentage, serviceGroup: getServiceGroupLabel(rules, churn.service_id) };
     });
   }
 
