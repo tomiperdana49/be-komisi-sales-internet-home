@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { BadRequestException, NotFoundException } from "../exception/http.exception";
+import { inAdminBranch } from "../helper/access.helper";
 import { successResponse } from "../helper/api-response.helper";
 import { isSdr } from "../helper/commission.helper";
 import { resolvePeriodFromQuery } from "../helper/period-query.helper";
@@ -11,7 +12,7 @@ import { ADJUSTABLE_FIELD_COLUMNS, type AdjustableSnapshotFields } from "../inte
 import type { ConsistencyBonusItem, IConsistencyBonusService } from "../interface/consistency-bonus.interface";
 import type { IPeriodClosingService } from "../interface/period-closing.interface";
 
-/** Admin-only cross-employee views: every Account Manager/Manager/invoice/churn row for a period. */
+/** Admin-only cross-employee views: every Account Manager/Manager/invoice/churn row for a period — a branch Admin gets only their branch's rows (adminMiddleware). */
 export class SummaryController {
   constructor(
     private readonly commissionService: CommissionService,
@@ -23,19 +24,19 @@ export class SummaryController {
 
   async sales(c: Context) {
     const period = resolvePeriodFromQuery(c);
-    const data = await this.commissionService.getSalesSummary(period);
+    const data = inAdminBranch(c, await this.commissionService.getSalesSummary(period), (r) => r.branch);
     return c.json(successResponse("Sales summary retrieved successfully", data));
   }
 
   async manager(c: Context) {
     const period = resolvePeriodFromQuery(c);
-    const data = await this.commissionService.getManagerSummary(period);
+    const data = inAdminBranch(c, await this.commissionService.getManagerSummary(period), (r) => r.branch);
     return c.json(successResponse("Manager summary retrieved successfully", data));
   }
 
   async invoice(c: Context) {
     const period = resolvePeriodFromQuery(c);
-    const data = await this.commissionService.getInvoiceSummary(period);
+    const data = inAdminBranch(c, await this.commissionService.getInvoiceSummary(period), (r) => r.branch);
     return c.json(successResponse("Invoice summary retrieved successfully", data));
   }
 
@@ -91,7 +92,8 @@ export class SummaryController {
     const period = resolvePeriodFromQuery(c);
     const { start, end } = getDateRangeForPeriod(period);
     const search = c.req.query("search");
-    const data = await this.churnService.getSummary(toSqlDate(start), toSqlDate(end), search);
+    const rows = await this.churnService.getSummary(toSqlDate(start), toSqlDate(end), search);
+    const data = inAdminBranch(c, rows, (r) => r.employee_branch);
     return c.json(successResponse("Churn summary retrieved successfully", data));
   }
 
@@ -115,7 +117,7 @@ export class SummaryController {
   async consistencyBonus(c: Context) {
     const period = resolvePeriodFromQuery(c);
     const { start, end } = getDateRangeForPeriod(period);
-    const roster = await this.employeeService.getSalesTargetsByPeriod(toSqlDate(start), toSqlDate(end));
+    const roster = inAdminBranch(c, await this.employeeService.getSalesTargetsByPeriod(toSqlDate(start), toSqlDate(end)), (e) => e.branch);
     const employeeIds = roster.map((e) => e.employeeId);
 
     const grants = await this.consistencyBonusService.getGrantsByEmployeeIds(employeeIds, period);

@@ -15,6 +15,7 @@ function app(validAfter: Map<string, number> = new Map()) {
   };
   const employeeService = {
     findByEmployeeId: async (id: string) => ({ employee_id: id }),
+    withAccess: async (e: object) => e,
     getTokensValidAfter: async (id: string) => validAfter.get(id) ?? null,
     setTokensValidAfter: async (id: string, s: number) => void validAfter.set(id, s),
   };

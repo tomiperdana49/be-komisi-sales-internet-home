@@ -18,7 +18,7 @@ export class EmployeeController {
   async getHierarchy(c: Context) {
     const employeeId = c.req.param("id")!;
     const search = c.req.query("q");
-    const hierarchy = await this.employeeService.getHierarchy(employeeId, search);
+    const hierarchy = await this.employeeService.getVisibleTeam(employeeId, search);
     return c.json(successResponse("Employee hierarchy retrieved successfully", hierarchy));
   }
 }

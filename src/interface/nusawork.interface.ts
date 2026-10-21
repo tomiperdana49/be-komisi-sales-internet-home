@@ -38,6 +38,8 @@ export interface INusaworkClient {
 export interface INusaworkService {
   /** Account managers plus everyone on their reporting chain up to VP Internet Access Home. */
   getSalesHome(): Promise<CrawledEmployee[]>;
-  /** Fixed set of admins/finance/BIS/VP/Direksi, kept outside the sales hierarchy. */
-  getEmployeeAdmin(): Promise<CrawledEmployee[]>;
+  /** These employees, outside the sales hierarchy (manager left empty) — the crawl pulls in the ACL's admins this way. */
+  getEmployeesByIds(employeeIds: string[]): Promise<CrawledEmployee[]>;
+  /** Every Nusawork employee, for picking someone to give admin access. */
+  listEmployees(): Promise<CrawledEmployee[]>;
 }

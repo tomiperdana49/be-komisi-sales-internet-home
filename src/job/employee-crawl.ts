@@ -20,9 +20,13 @@ async function run() {
     }),
   );
 
+  // Admin access comes only from the ACL (admin_access). Read it first: if the
+  // table is missing this fails before anyone gets deactivated.
+  const adminIds = new Set((await container.adminAccessRepository.findAll()).map((a) => a.employee_id));
+
   const sales = await container.nusaworkService.getSalesHome();
   for (const employee of sales) {
-    await container.employeeService.upsertEmployee(employee);
+    await container.employeeService.upsertEmployee({ ...employee, isAdmin: adminIds.has(employee.employeeId) });
     for (const { startDate, endDate, targets: amTargets, sdrTargets } of periods) {
       const targets = isSdr(employee.jobPosition) ? sdrTargets : amTargets;
       await container.employeeService.upsertStatusPeriod(
@@ -37,9 +41,12 @@ async function run() {
     console.log("Employee inserted:", employee.employeeId);
   }
 
-  const admins = await container.nusaworkService.getEmployeeAdmin();
+  // ACL admins outside the sales hierarchy (head office, a branch's sales admin, ...).
+  // Someone removed from the ACL is no longer pulled in, so they get deactivated below.
+  const outsideIds = [...adminIds].filter((id) => !crawledIds.includes(id));
+  const admins = outsideIds.length > 0 ? await container.nusaworkService.getEmployeesByIds(outsideIds) : [];
   for (const employee of admins) {
-    await container.employeeService.upsertEmployee(employee);
+    await container.employeeService.upsertEmployee({ ...employee, isAdmin: true });
     crawledIds.push(employee.employeeId);
     console.log("Employee inserted:", employee.employeeId);
   }

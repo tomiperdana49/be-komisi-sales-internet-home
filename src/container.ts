@@ -14,6 +14,7 @@ import { ConsistencyBonusRepository } from "./repository/consistency-bonus.repos
 import { CommissionRuleRepository } from "./repository/commission-rule.repository";
 import { PeriodClosingRepository } from "./repository/period-closing.repository";
 import { TargetOverrideRepository } from "./repository/target-override.repository";
+import { AdminAccessRepository } from "./repository/admin-access.repository";
 
 import { EmployeeService } from "./service/employee.service";
 import { SnapshotService } from "./service/snapshot.service";
@@ -31,6 +32,7 @@ import { SdrCommissionRuleService } from "./service/sdr-commission-rule.service"
 import type { SdrCommissionRules } from "./interface/commission-rules.interface";
 import { PeriodClosingService } from "./service/period-closing.service";
 import { TargetOverrideService } from "./service/target-override.service";
+import { AdminAccessService } from "./service/admin-access.service";
 
 import { HealthController } from "./controller/health.controller";
 import { EmployeeController } from "./controller/employee.controller";
@@ -40,6 +42,7 @@ import { CommissionController } from "./controller/commission.controller";
 import { SummaryController } from "./controller/summary.controller";
 import { CommissionRuleController } from "./controller/commission-rule.controller";
 import { TargetOverrideController } from "./controller/target-override.controller";
+import { AdminAccessController } from "./controller/admin-access.controller";
 
 /**
  * Composition root: the one place the full dependency graph gets wired
@@ -73,9 +76,10 @@ class Container {
   readonly commissionRuleRepository = new CommissionRuleRepository(this.appDatabase);
   readonly sdrCommissionRuleRepository = new CommissionRuleRepository<SdrCommissionRules>(this.appDatabase, "sdr_commission_rule_set");
   readonly targetOverrideRepository = new TargetOverrideRepository(this.appDatabase);
+  readonly adminAccessRepository = new AdminAccessRepository(this.appDatabase);
 
   // Services
-  readonly employeeService = new EmployeeService(this.employeeRepository);
+  readonly employeeService = new EmployeeService(this.employeeRepository, this.adminAccessRepository);
   readonly snapshotService = new SnapshotService();
   readonly serviceCatalogService = new ServiceCatalogService(this.serviceCatalogRepository);
   readonly newCustomerService = new NewCustomerService(
@@ -91,6 +95,7 @@ class Container {
     this.snapshotService,
   );
   readonly nusaworkService = new NusaworkService(this.nusaworkClient);
+  readonly adminAccessService = new AdminAccessService(this.adminAccessRepository, this.employeeService, this.nusaworkService);
   readonly authService = new AuthService();
   readonly feedbackService = new FeedbackService(this.feedbackRepository);
   readonly churnService = new ChurnService(this.churnRepository);
@@ -139,6 +144,7 @@ class Container {
     this.employeeService,
     this.commissionRuleService,
   );
+  readonly adminAccessController = new AdminAccessController(this.adminAccessService, this.employeeService);
 
   /** Closes every open DB connection pool — call before a job/process exits. */
   async closeConnections(): Promise<void> {

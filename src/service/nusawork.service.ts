@@ -6,40 +6,23 @@ import type {
 } from "../interface/nusawork.interface";
 import { isSdr } from "../helper/commission.helper";
 
-// Fixed set of employees kept as admins/managers outside the sales
-// hierarchy: specific individuals plus anyone in Finance/BIS, or at
-// VP/Direksi level.
-const ADMIN_EMPLOYEE_IDS = new Set([
-  "0202589",
-  "0201325",
-  "0202215",
-  "0202526",
-  "0201510",
-  "0202483",
-  "0201203",
-  "0202623",
-  "0201204",
-  "0202646",
-]);
-
-/** Kept as an admin record outside the sales hierarchy (getEmployeeAdmin). */
-function isListedAdmin(emp: NusaworkEmployeeRaw): boolean {
-  return (
-    ADMIN_EMPLOYEE_IDS.has(emp.employee_id) ||
-    emp.organization_name === "Finance" ||
-    emp.organization_name === "BIS" ||
-    emp.job_level === "VP" ||
-    emp.job_level === "Direksi"
-  );
-}
-
-/**
- * Who may open the Summary dashboard. Branch Managers sit inside the sales
- * hierarchy, so they're flagged on their sales record rather than being
- * re-upserted as admins (that would null their manager_id).
- */
-function isAdminEmployee(emp: NusaworkEmployeeRaw): boolean {
-  return isListedAdmin(emp) || emp.job_position === "Branch Manager";
+/** Normalized record; admin access itself comes from the ACL (admin_access), not from here. */
+function toCrawled(emp: NusaworkEmployeeRaw, managerId: string | null, hasDashboard?: boolean): CrawledEmployee {
+  return {
+    userId: emp.user_id,
+    employeeId: emp.employee_id,
+    name: emp.full_name,
+    email: emp.email,
+    photoProfile: emp.photo_profile,
+    jobPosition: emp.job_position,
+    organizationName: emp.organization_name,
+    jobLevel: emp.job_level,
+    branch: emp.branch_name,
+    managerId,
+    status: emp.status_join,
+    hasDashboard,
+    isAdmin: false,
+  };
 }
 
 export class NusaworkService implements INusaworkService {
@@ -87,41 +70,19 @@ export class NusaworkService implements INusaworkService {
       }
     }
 
-    return Array.from(relevantEmployees.values()).map((emp) => ({
-      userId: emp.user_id,
-      employeeId: emp.employee_id,
-      name: emp.full_name,
-      email: emp.email,
-      photoProfile: emp.photo_profile,
-      jobPosition: emp.job_position,
-      organizationName: emp.organization_name,
-      jobLevel: emp.job_level,
-      branch: emp.branch_name,
-      managerId: emp.id_report_to_value,
-      status: emp.status_join,
-      hasDashboard: emp.job_level !== "General Manager",
-      isAdmin: isAdminEmployee(emp),
-    }));
+    return Array.from(relevantEmployees.values()).map((emp) =>
+      toCrawled(emp, emp.id_report_to_value, emp.job_level !== "General Manager"),
+    );
   }
 
-  async getEmployeeAdmin(): Promise<CrawledEmployee[]> {
+  async getEmployeesByIds(employeeIds: string[]): Promise<CrawledEmployee[]> {
+    const ids = new Set(employeeIds);
     const employees = await this.nusaworkClient.getEmployees();
+    return employees.filter((emp) => ids.has(emp.employee_id)).map((emp) => toCrawled(emp, null));
+  }
 
-    const admins = employees.filter(isListedAdmin);
-
-    return admins.map((emp) => ({
-      userId: emp.user_id,
-      employeeId: emp.employee_id,
-      name: emp.full_name,
-      email: emp.email,
-      photoProfile: emp.photo_profile,
-      jobPosition: emp.job_position,
-      organizationName: emp.organization_name,
-      jobLevel: emp.job_level,
-      branch: emp.branch_name,
-      managerId: null,
-      status: emp.status_join,
-      isAdmin: true,
-    }));
+  async listEmployees(): Promise<CrawledEmployee[]> {
+    const employees = await this.nusaworkClient.getEmployees();
+    return employees.map((emp) => toCrawled(emp, null));
   }
 }

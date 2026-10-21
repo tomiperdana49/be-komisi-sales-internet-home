@@ -56,6 +56,8 @@ CREATE TABLE employee (
     manager_id INT NULL,
     has_dashboard BOOLEAN NOT NULL DEFAULT false,
     is_active BOOLEAN NOT NULL DEFAULT true,
+    -- Whether they were in admin_access at the last crawl; informational only —
+    -- access checks read admin_access itself.
     is_admin BOOLEAN NOT NULL DEFAULT false,
     -- Epoch milliseconds; any token issued before this is rejected (set on logout).
     tokens_valid_after BIGINT NULL
@@ -194,3 +196,21 @@ CREATE TABLE target_override (
 
 -- Migration for existing databases (churn waived from an NIS log call):
 -- ALTER TABLE churn ADD COLUMN approval_log_call_id BIGINT NULL AFTER approved_at;
+
+-- ACL for the admin pages, managed by Super Admins on the "Akses Admin" page.
+-- super_admin: every branch, and the only role that can change anything.
+-- admin: read-only, over every branch (branch NULL) or just `branch`.
+-- employee:crawl keeps the people listed here (pulling in those outside the
+-- sales hierarchy from Nusawork) and nobody else outside it.
+CREATE TABLE admin_access (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id VARCHAR(20) NOT NULL,
+    role ENUM('super_admin', 'admin') NOT NULL DEFAULT 'admin',
+    branch VARCHAR(255) NULL,
+    note TEXT NULL,
+    created_by VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(20) NULL,
+    updated_at TIMESTAMP NULL,
+    UNIQUE KEY uq_admin_access_employee (employee_id)
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

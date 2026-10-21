@@ -20,6 +20,10 @@ export type EmployeeDetail = {
   has_dashboard: boolean;
   is_active: boolean;
   is_admin: boolean;
+  // Admin role from the ACL (admin_access), filled in by EmployeeService.withAccess —
+  // is_admin is then the ACL's answer too, not the crawled column. See access.helper.
+  is_super_admin?: boolean;
+  admin_branch?: string | null;
   managerName?: string | null;
   managerEmployeeId?: string | null;
   managerPhotoProfile?: string | null;
@@ -63,7 +67,7 @@ export type EmployeeUpsertInput = {
   status: string;
   managerId?: string | null;
   hasDashboard?: boolean;
-  /** Summary dashboard access — recomputed on every crawl, so manual flags don't stick. */
+  /** Whether they're in the ACL (admin_access) at crawl time — informational; access checks read the ACL itself. */
   isAdmin: boolean;
 };
 
@@ -108,18 +112,21 @@ export interface IEmployeeRepository {
   /**
    * Recursive-CTE lookup: the employee's own reporting chain (isSelf=true)
    * or their direct team (isSelf=false), filtered to has_dashboard rows.
-   * An employee with no manager (top of the org) instead gets every
-   * has_dashboard employee, matching the original dashboard's "see everyone"
-   * rule for the top-level role.
+   * An admin (adminScope given, with isSelf) instead gets every has_dashboard
+   * employee, or every one in adminScope.branch; without adminScope an
+   * employee with no manager (top of the org) gets every has_dashboard employee.
    */
   findHierarchy(
     employeeId: string,
     search: string | undefined,
     isSelf: boolean,
     isActiveOnly: boolean,
+    adminScope?: { branch: string | null } | null,
   ): Promise<EmployeeDetail[]>;
   /** Every active Manager/C-Level employee — the admin manager summary roster. */
   findAllManagerEmployees(): Promise<EmployeeDetail[]>;
+  /** Branches that have active dashboard users — the choices for an Admin's branch scope. */
+  findBranches(): Promise<string[]>;
 }
 
 export type SalesResolution = { value: string | null; skip: boolean };
@@ -170,11 +177,20 @@ export interface IEmployeeService {
   setTokensValidAfter(employeeId: string, epochMs: number): Promise<void>;
   findByEmployeeIds(employeeIds: string[]): Promise<EmployeeDetail[]>;
   findByEmail(email: string): Promise<EmployeeDetail | null>;
+  /** The employee plus their admin role from the ACL (is_admin, is_super_admin, admin_branch). */
+  withAccess(employee: EmployeeDetail): Promise<EmployeeDetail>;
   getHierarchy(
     employeeId: string,
     search?: string,
     isSelf?: boolean,
     isActiveOnly?: boolean,
   ): Promise<EmployeeDetail[]>;
+  /**
+   * Who this employee may see (My Team, and whose dashboards they may open):
+   * their reporting chain, or for an admin everyone in their ACL scope.
+   * Commission math uses getHierarchy, never this.
+   */
+  getVisibleTeam(employeeId: string, search?: string, isActiveOnly?: boolean): Promise<EmployeeDetail[]>;
   getAllManagerEmployees(): Promise<EmployeeDetail[]>;
+  getBranches(): Promise<string[]>;
 }

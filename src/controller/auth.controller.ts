@@ -54,7 +54,7 @@ export class AuthController {
     }
 
     const tokens = await this.authService.generateTokens(employee);
-    return c.json(successResponse("Login successful", { ...tokens, user: employee }));
+    return c.json(successResponse("Login successful", { ...tokens, user: await this.employeeService.withAccess(employee) }));
   }
 
   /**
@@ -73,7 +73,7 @@ export class AuthController {
     }
 
     const tokens = await this.authService.generateTokens(employee);
-    return c.json(successResponse("Login successful", { ...tokens, user: employee }));
+    return c.json(successResponse("Login successful", { ...tokens, user: await this.employeeService.withAccess(employee) }));
   }
 
   async google(c: Context) {
@@ -89,7 +89,7 @@ export class AuthController {
     }
 
     const tokens = await this.authService.generateTokens(employee);
-    return c.json(successResponse("Login successful", { ...tokens, user: employee }));
+    return c.json(successResponse("Login successful", { ...tokens, user: await this.employeeService.withAccess(employee) }));
   }
 
   async refresh(c: Context) {
@@ -107,7 +107,7 @@ export class AuthController {
     }
 
     const tokens = await this.authService.generateTokens(employee);
-    return c.json(successResponse("Token refreshed successfully", { ...tokens, user: employee }));
+    return c.json(successResponse("Token refreshed successfully", { ...tokens, user: await this.employeeService.withAccess(employee) }));
   }
 
   async me(c: Context) {
@@ -128,7 +128,7 @@ export class AuthController {
       throw new NotFoundException("User not found");
     }
 
-    return c.json(successResponse("User retrieved successfully", employee));
+    return c.json(successResponse("User retrieved successfully", await this.employeeService.withAccess(employee)));
   }
 
   /**

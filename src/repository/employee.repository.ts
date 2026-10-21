@@ -206,13 +206,19 @@ export class EmployeeRepository implements IEmployeeRepository {
     search: string | undefined,
     isSelf: boolean,
     isActiveOnly: boolean,
+    adminScope?: { branch: string | null } | null,
   ): Promise<EmployeeDetail[]> {
-    const employee = await this.findByEmployeeId(employeeId);
-
-    // Top of the org (no manager) sees every dashboard-visible employee.
-    if (employee && employee.manager_id === null) {
+    // An admin (ACL) sees every dashboard-visible employee, or every one in their
+    // branch; otherwise the top of the org (no manager) sees every one.
+    const employee = adminScope ? null : await this.findByEmployeeId(employeeId);
+    if (adminScope || (employee && employee.manager_id === null)) {
       let query = `SELECT * FROM employee WHERE has_dashboard = true`;
       const params: any[] = [];
+
+      if (adminScope?.branch) {
+        query += ` AND branch = ?`;
+        params.push(adminScope.branch);
+      }
 
       if (isActiveOnly) query += ` AND is_active = true`;
 
@@ -281,5 +287,12 @@ export class EmployeeRepository implements IEmployeeRepository {
          AND has_dashboard = true AND is_active = true
        ORDER BY name ASC`,
     );
+  }
+
+  async findBranches(): Promise<string[]> {
+    const rows = await this.db.query<{ branch: string }[]>(
+      `SELECT DISTINCT branch FROM employee WHERE has_dashboard = true AND is_active = true ORDER BY branch ASC`,
+    );
+    return rows.map((r) => r.branch);
   }
 }

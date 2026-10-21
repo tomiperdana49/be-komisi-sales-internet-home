@@ -1,3 +1,5 @@
+import { accessFields } from "../helper/access.helper";
+import type { IAdminAccessRepository } from "../interface/admin-access.interface";
 import type {
   EmployeeDetail,
   EmployeeUpsertInput,
@@ -14,7 +16,10 @@ export const CRO_PLACEHOLDER = "Customer Relation Officer";
 const SALES_UNMATCHED_ALLOWED = new Set([CRO_PLACEHOLDER]);
 
 export class EmployeeService implements IEmployeeService {
-  constructor(private readonly employeeRepository: IEmployeeRepository) {}
+  constructor(
+    private readonly employeeRepository: IEmployeeRepository,
+    private readonly adminAccessRepository: Pick<IAdminAccessRepository, "findByEmployeeId">,
+  ) {}
 
   // Stray internal spaces (e.g. "M. Syafi' i" vs "M. Syafi'i") are a known
   // data-entry issue in the employee table, so matching ignores all
@@ -123,6 +128,11 @@ export class EmployeeService implements IEmployeeService {
     return this.employeeRepository.findByEmail(email);
   }
 
+  async withAccess(employee: EmployeeDetail): Promise<EmployeeDetail> {
+    const access = await this.adminAccessRepository.findByEmployeeId(employee.employee_id);
+    return { ...employee, ...accessFields(access) };
+  }
+
   getHierarchy(
     employeeId: string,
     search?: string,
@@ -132,7 +142,18 @@ export class EmployeeService implements IEmployeeService {
     return this.employeeRepository.findHierarchy(employeeId, search, isSelf, isActiveOnly);
   }
 
+  async getVisibleTeam(employeeId: string, search?: string, isActiveOnly: boolean = true): Promise<EmployeeDetail[]> {
+    // An admin sees everyone in their ACL scope rather than their reporting chain.
+    const access = await this.adminAccessRepository.findByEmployeeId(employeeId);
+    const adminScope = access ? { branch: accessFields(access).admin_branch } : null;
+    return this.employeeRepository.findHierarchy(employeeId, search, true, isActiveOnly, adminScope);
+  }
+
   getAllManagerEmployees(): Promise<EmployeeDetail[]> {
     return this.employeeRepository.findAllManagerEmployees();
+  }
+
+  getBranches(): Promise<string[]> {
+    return this.employeeRepository.findBranches();
   }
 }

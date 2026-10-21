@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { BadRequestException } from "../exception/http.exception";
+import { inAdminBranch } from "../helper/access.helper";
 import { successResponse } from "../helper/api-response.helper";
 import { isSdr, resolveTarget } from "../helper/commission.helper";
 import { resolvePeriodFromQuery } from "../helper/period-query.helper";
@@ -27,7 +28,7 @@ export class TargetOverrideController {
     const period = resolvePeriodFromQuery(c);
     const { start, end } = getDateRangeForPeriod(period);
     const [roster, rows, rules] = await Promise.all([
-      this.employeeService.getSalesTargetsByPeriod(toSqlDate(start), toSqlDate(end)),
+      this.employeeService.getSalesTargetsByPeriod(toSqlDate(start), toSqlDate(end)).then((r) => inAdminBranch(c, r, (e) => e.branch)),
       this.targetOverrideService.listFrom(period),
       this.rulesProvider.getForPeriod(period),
     ]);
