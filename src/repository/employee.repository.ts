@@ -1,4 +1,5 @@
 import type { AppDatabase } from "../lib/app-database";
+import { SDR_JOB_POSITION } from "../helper/commission.helper";
 import {
   type EmployeeDetail,
   type EmployeeRow,
@@ -190,13 +191,13 @@ export class EmployeeRepository implements IEmployeeRepository {
   findSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]> {
     return this.db.query<SalesTargetItem[]>(
       `SELECT e.employee_id AS employeeId, e.name, e.photo_profile AS photoProfile, e.branch,
-              sp.status, sp.target
+              e.job_position AS jobPosition, sp.status, sp.target
        FROM status_period sp
        JOIN employee e ON e.employee_id = sp.employee_id
        WHERE sp.start_date = ? AND sp.end_date = ?
-         AND e.job_level = 'Staff' AND e.job_position = 'Account Manager'
+         AND e.job_level = 'Staff' AND e.job_position IN ('Account Manager', ?)
        ORDER BY e.name ASC`,
-      [startDate, endDate],
+      [startDate, endDate, SDR_JOB_POSITION],
     );
   }
 

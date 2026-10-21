@@ -1,4 +1,5 @@
 import type { AppDatabase } from "../lib/app-database";
+import { SDR_JOB_POSITION } from "../helper/commission.helper";
 import type { ISnapshotRepository } from "../interface/snapshot.interface";
 import type {
   CommissionSnapshotRow,
@@ -53,13 +54,17 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
    * salesperson — that's what lets Customer Relation Officer invoices
    * still count toward the manager's recurring pool (KOMISI.md 6.D).
    * Renewal price increases (is_renewal, stored as type 'new') stay out of
-   * the pool (KOMISI.md 1.3).
+   * the pool (KOMISI.md 1.3). SDR sales stay out too: SDRs sit outside
+   * the Manager Area (KOMISI.md 7).
    */
   findRecurringByManager(managerId: string, period: string): Promise<CommissionSnapshotRow[]> {
     return this.db.query<CommissionSnapshotRow[]>(
-      `SELECT * FROM snapshots
-       WHERE manager = ? AND period = ? AND type = 'recurring'`,
-      [managerId, period],
+      `SELECT * FROM snapshots s
+       WHERE s.manager = ? AND s.period = ? AND s.type = 'recurring'
+         AND NOT EXISTS (
+           SELECT 1 FROM employee e WHERE e.employee_id = s.sales AND e.job_position = ?
+         )`,
+      [managerId, period, SDR_JOB_POSITION],
     );
   }
 

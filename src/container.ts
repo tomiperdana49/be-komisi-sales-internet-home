@@ -27,6 +27,8 @@ import { ChurnService } from "./service/churn.service";
 import { ConsistencyBonusService } from "./service/consistency-bonus.service";
 import { CommissionService } from "./service/commission.service";
 import { CommissionRuleService } from "./service/commission-rule.service";
+import { SdrCommissionRuleService } from "./service/sdr-commission-rule.service";
+import type { SdrCommissionRules } from "./interface/commission-rules.interface";
 import { PeriodClosingService } from "./service/period-closing.service";
 import { TargetOverrideService } from "./service/target-override.service";
 
@@ -69,6 +71,7 @@ class Container {
   readonly consistencyBonusRepository = new ConsistencyBonusRepository(this.appDatabase);
   readonly periodClosingRepository = new PeriodClosingRepository(this.appDatabase);
   readonly commissionRuleRepository = new CommissionRuleRepository(this.appDatabase);
+  readonly sdrCommissionRuleRepository = new CommissionRuleRepository<SdrCommissionRules>(this.appDatabase, "sdr_commission_rule_set");
   readonly targetOverrideRepository = new TargetOverrideRepository(this.appDatabase);
 
   // Services
@@ -94,6 +97,7 @@ class Container {
   readonly consistencyBonusService = new ConsistencyBonusService(this.consistencyBonusRepository);
   readonly periodClosingService = new PeriodClosingService(this.periodClosingRepository);
   readonly commissionRuleService = new CommissionRuleService(this.commissionRuleRepository, this.employeeService);
+  readonly sdrCommissionRuleService = new SdrCommissionRuleService(this.sdrCommissionRuleRepository, this.employeeService);
   readonly targetOverrideService = new TargetOverrideService(
     this.targetOverrideRepository,
     this.employeeService,
@@ -106,6 +110,7 @@ class Container {
     this.consistencyBonusService,
     this.commissionRuleService,
     this.targetOverrideService,
+    this.sdrCommissionRuleService,
   );
 
   // Controllers
@@ -123,6 +128,10 @@ class Container {
   );
   readonly commissionRuleController = new CommissionRuleController(
     this.commissionRuleService,
+    this.commissionService,
+  );
+  readonly sdrCommissionRuleController = new CommissionRuleController(
+    this.sdrCommissionRuleService,
     this.commissionService,
   );
   readonly targetOverrideController = new TargetOverrideController(

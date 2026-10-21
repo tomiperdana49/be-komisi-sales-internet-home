@@ -109,4 +109,22 @@ router.delete("/summary/rules/:id", authMiddleware, adminMiddleware, (c) =>
   container.commissionRuleController.remove(c),
 );
 
+// SDR commission rules: own versions, separate from the Home rules above.
+router.get("/summary/sdr-rules", authMiddleware, adminMiddleware, (c) => container.sdrCommissionRuleController.list(c));
+router.get("/summary/sdr-rules/effective", authMiddleware, adminMiddleware, (c) =>
+  container.sdrCommissionRuleController.effective(c),
+);
+router.get("/summary/sdr-rules/:id", authMiddleware, adminMiddleware, (c) => container.sdrCommissionRuleController.show(c));
+router.post("/summary/sdr-rules", authMiddleware, adminMiddleware, (c) => container.sdrCommissionRuleController.create(c));
+router.put("/summary/sdr-rules/:id", authMiddleware, adminMiddleware, (c) => container.sdrCommissionRuleController.update(c));
+router.get("/summary/sdr-rules/:id/preview", authMiddleware, adminMiddleware, (c) =>
+  container.sdrCommissionRuleController.preview(c),
+);
+router.post("/summary/sdr-rules/:id/publish", authMiddleware, adminMiddleware, (c) =>
+  container.sdrCommissionRuleController.publish(c),
+);
+router.delete("/summary/sdr-rules/:id", authMiddleware, adminMiddleware, (c) =>
+  container.sdrCommissionRuleController.remove(c),
+);
+
 export default router;

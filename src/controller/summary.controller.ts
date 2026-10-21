@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { BadRequestException, NotFoundException } from "../exception/http.exception";
 import { successResponse } from "../helper/api-response.helper";
+import { isSdr } from "../helper/commission.helper";
 import { resolvePeriodFromQuery } from "../helper/period-query.helper";
 import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
 import type { CommissionService } from "../service/commission.service";
@@ -129,6 +130,7 @@ export class SummaryController {
         name: e.name,
         photoProfile: e.photoProfile,
         branch: e.branch,
+        isSdr: isSdr(e.jobPosition),
         status: e.status,
         amount: grant ? Number(grant.amount) : 0,
         note: grant?.note ?? null,

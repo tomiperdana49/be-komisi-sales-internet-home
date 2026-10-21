@@ -45,6 +45,7 @@ export type SalesTargetItem = {
   name: string;
   photoProfile: string;
   branch: string | null;
+  jobPosition: string;
   status: string;
   target: number;
 };
@@ -98,7 +99,7 @@ export interface IEmployeeRepository {
     endDate: string,
   ): Promise<StatusPeriodRow[]>;
   /**
-   * Every Account Manager registered (has a status_period row) for a
+   * Every Account Manager and SDR registered (has a status_period row) for a
    * period — the period-aware roster shared by the admin target/sales/invoice
    * summary endpoints, so all three always agree on who counts for a given
    * period regardless of current employment status (KOMISI.md 6.E).

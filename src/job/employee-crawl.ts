@@ -1,5 +1,6 @@
 import { container } from "../container";
 import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
+import { isSdr } from "../helper/commission.helper";
 import { resolveJobPeriods } from "./job-periods";
 
 async function run() {
@@ -11,15 +12,19 @@ async function run() {
   const periods = await Promise.all(
     (await resolveJobPeriods()).map(async (period) => {
       const { start, end } = getDateRangeForPeriod(period);
-      const { targets } = await container.commissionRuleService.getForPeriod(period);
-      return { startDate: toSqlDate(start), endDate: toSqlDate(end), targets };
+      const [{ targets }, sdrRules] = await Promise.all([
+        container.commissionRuleService.getForPeriod(period),
+        container.sdrCommissionRuleService.getForPeriod(period),
+      ]);
+      return { startDate: toSqlDate(start), endDate: toSqlDate(end), targets, sdrTargets: sdrRules.targets };
     }),
   );
 
   const sales = await container.nusaworkService.getSalesHome();
   for (const employee of sales) {
     await container.employeeService.upsertEmployee(employee);
-    for (const { startDate, endDate, targets } of periods) {
+    for (const { startDate, endDate, targets: amTargets, sdrTargets } of periods) {
+      const targets = isSdr(employee.jobPosition) ? sdrTargets : amTargets;
       await container.employeeService.upsertStatusPeriod(
         employee.employeeId,
         startDate,

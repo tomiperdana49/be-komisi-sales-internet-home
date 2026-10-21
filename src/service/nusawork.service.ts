@@ -4,6 +4,7 @@ import type {
   INusaworkService,
   NusaworkEmployeeRaw,
 } from "../interface/nusawork.interface";
+import { isSdr } from "../helper/commission.helper";
 
 // Fixed set of employees kept as admins/managers outside the sales
 // hierarchy: specific individuals plus anyone in Finance/BIS, or at
@@ -50,8 +51,9 @@ export class NusaworkService implements INusaworkService {
       employees.map((e) => [e.user_id, e]),
     );
 
-    const accountManagers = employees.filter((emp) =>
-      emp.job_position?.includes("Account Manager"),
+    // SDRs join the same way, with their own commission rules (KOMISI.md 7).
+    const accountManagers = employees.filter(
+      (emp) => emp.job_position?.includes("Account Manager") || isSdr(emp.job_position),
     );
 
     const relevantEmployees = new Map<string, NusaworkEmployeeRaw>();

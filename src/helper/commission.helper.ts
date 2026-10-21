@@ -6,8 +6,35 @@
  * values used before any rule set is published.
  */
 
-import type { CommissionProductRule, CommissionRules } from "../interface/commission-rules.interface";
+import type { CommissionProductRule, CommissionRules, SdrCommissionRules } from "../interface/commission-rules.interface";
 import type { CommissionBreakdown } from "../interface/commission.interface";
+import { DEFAULT_COMMISSION_RULES, deepFreeze } from "./commission-rules.default";
+
+/** Nusawork job position of a Sales Development Representative (KOMISI.md 7). */
+export const SDR_JOB_POSITION = "Sales Development Representative";
+
+export function isSdr(jobPosition: string | null | undefined): boolean {
+  return jobPosition === SDR_JOB_POSITION;
+}
+
+const sdrRulesCache = new WeakMap<SdrCommissionRules, CommissionRules>();
+
+/**
+ * Runs the shared commission math on the SDR rules: every per-salesperson
+ * section (products, rates, penalties, targets, achievement, bonus) comes
+ * from the SDR rule set. The Home-only parts (manager, recurring import
+ * exclusions) are filled with the system defaults so nothing in the period's
+ * Home rule set can affect an SDR. Cached per rules object so the product
+ * index cache below keeps working.
+ */
+export function rulesForSdr(sdrRules: SdrCommissionRules): CommissionRules {
+  let rules = sdrRulesCache.get(sdrRules);
+  if (!rules) {
+    rules = deepFreeze({ ...DEFAULT_COMMISSION_RULES, ...sdrRules });
+    sdrRulesCache.set(sdrRules, rules);
+  }
+  return rules;
+}
 
 /** Commission behaves differently per group; derived from the snapshot's `category` label. */
 export type CommissionCategory = "home" | "alat" | "setup" | "digital-business";

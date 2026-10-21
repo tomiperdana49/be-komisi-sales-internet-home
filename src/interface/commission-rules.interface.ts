@@ -120,6 +120,80 @@ export const commissionRulesSchema = z
   });
 
 export type CommissionRules = z.output<typeof commissionRulesSchema>;
+
+/**
+ * Sales Development Representative (SDR) rules — versioned on their own
+ * (table sdr_commission_rule_set, admin page "Aturan Komisi SDR"), fully
+ * separate from the Home rules above. Same per-salesperson sections as Home
+ * (products, rates, penalties, targets, achievement, bonus); no manager part.
+ */
+export const sdrRulesSchema = z
+  .object({
+    products: z.array(productSchema),
+    rates: z.object({
+      prorate: percent,
+      setup: percent,
+      alatWithSetup: percent,
+      alatStandalone: percent,
+      recurringOnTarget: percent,
+      recurringMissedTarget: percent,
+      digitalBusinessInternal: percent,
+      digitalBusinessResell: percent,
+    }),
+    penalties: z.object({
+      latePerMonth: percent,
+      lateMax: percent,
+      missedTarget: percent,
+    }),
+    targets: z.object({
+      permanent: count,
+      probation: count,
+    }),
+    achievement: z.object({
+      permanentBonus: count,
+      permanentOnTarget: count,
+      permanentSp1Below: count,
+      probationExcellent: count,
+      probationVeryGood: count,
+      probationAverage: count,
+    }),
+    bonus: z.object({
+      tiers: tier({ at: count, amount }),
+      /** Paid per unit above the last tier, on top of the last tier's amount. */
+      excessPerUnit: amount,
+    }),
+  })
+  .superRefine((rules, ctx) => {
+    const seen = new Map<string, string>();
+    for (const product of rules.products) {
+      if (product.sixMonthRateFrom >= product.twelveMonthRateFrom) {
+        ctx.addIssue({ code: "custom", message: `${product.name}: kontrak untuk rate 6 bulan harus lebih pendek dari rate 12 bulan` });
+      }
+      for (const id of product.serviceIds) {
+        const key = id.toUpperCase();
+        const other = seen.get(key);
+        if (other) {
+          ctx.addIssue({ code: "custom", message: `ServiceId ${id} dipakai di dua produk: ${other} dan ${product.name}` });
+        }
+        seen.set(key, product.name);
+      }
+    }
+
+    const tiers = rules.bonus.tiers.map((t) => t.at);
+    if (tiers.some((at, i) => i > 0 && at <= tiers[i - 1]!)) {
+      ctx.addIssue({ code: "custom", message: "Tier bonus bulanan harus berurutan naik" });
+    }
+
+    const a = rules.achievement;
+    if (!(a.permanentSp1Below <= a.permanentOnTarget && a.permanentOnTarget <= a.permanentBonus)) {
+      ctx.addIssue({ code: "custom", message: "Batas status Permanent harus SP1 ≤ Capai target ≤ Capai target Bonus" });
+    }
+    if (!(a.probationAverage <= a.probationVeryGood && a.probationVeryGood <= a.probationExcellent)) {
+      ctx.addIssue({ code: "custom", message: "Batas status Probation harus Average ≤ Very Good ≤ Excellent" });
+    }
+  });
+
+export type SdrCommissionRules = z.output<typeof sdrRulesSchema>;
 export type CommissionProductRule = CommissionRules["products"][number];
 
 /** Supplies the rules in force for a period — swapped for a draft when previewing. */
@@ -127,11 +201,16 @@ export interface ICommissionRulesProvider {
   getForPeriod(period: string): Promise<CommissionRules>;
 }
 
-export type CommissionRuleSetRow = {
+/** Supplies the SDR rules in force for a period — swapped for a draft when previewing. */
+export interface ISdrRulesProvider {
+  getForPeriod(period: string): Promise<SdrCommissionRules>;
+}
+
+export type CommissionRuleSetRow<R = CommissionRules> = {
   id: number;
   effective_period: string;
   status: "draft" | "published";
-  rules: CommissionRules | string;
+  rules: R | string;
   note: string;
   created_by: string;
   created_at: Date | string;
@@ -141,11 +220,11 @@ export type CommissionRuleSetRow = {
   published_at: Date | string | null;
 };
 
-export type CommissionRuleSetItem = {
+export type CommissionRuleSetItem<R = CommissionRules> = {
   id: number;
   effectivePeriod: string;
   status: "draft" | "published";
-  rules: CommissionRules;
+  rules: R;
   note: string;
   createdBy: string;
   createdByName: string | null;
@@ -159,12 +238,12 @@ export type CommissionRuleSetItem = {
   publishedAt: string | null;
 };
 
-export interface ICommissionRuleRepository {
-  findAll(): Promise<CommissionRuleSetRow[]>;
-  findById(id: number): Promise<CommissionRuleSetRow | null>;
-  findPublishedForPeriod(period: string): Promise<CommissionRuleSetRow | null>;
-  insertDraft(effectivePeriod: string, rules: CommissionRules, note: string, createdBy: string): Promise<number>;
-  updateDraft(id: number, effectivePeriod: string, rules: CommissionRules, note: string, updatedBy: string): Promise<void>;
+export interface ICommissionRuleRepository<R = CommissionRules> {
+  findAll(): Promise<CommissionRuleSetRow<R>[]>;
+  findById(id: number): Promise<CommissionRuleSetRow<R> | null>;
+  findPublishedForPeriod(period: string): Promise<CommissionRuleSetRow<R> | null>;
+  insertDraft(effectivePeriod: string, rules: R, note: string, createdBy: string): Promise<number>;
+  updateDraft(id: number, effectivePeriod: string, rules: R, note: string, updatedBy: string): Promise<void>;
   publish(id: number, publishedBy: string): Promise<void>;
   deleteDraft(id: number): Promise<void>;
 }

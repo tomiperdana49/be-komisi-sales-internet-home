@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { BadRequestException } from "../exception/http.exception";
 import { successResponse } from "../helper/api-response.helper";
-import { resolveTarget } from "../helper/commission.helper";
+import { isSdr, resolveTarget } from "../helper/commission.helper";
 import { resolvePeriodFromQuery } from "../helper/period-query.helper";
 import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
 import type { IEmployeeService } from "../interface/employee.interface";
@@ -49,7 +49,8 @@ export class TargetOverrideController {
       };
     };
 
-    const data: TargetOverrideRosterItem[] = roster.map((e) => {
+    // Manual targets are an Account Manager feature; SDR targets come only from the rules.
+    const data: TargetOverrideRosterItem[] = roster.filter((e) => !isSdr(e.jobPosition)).map((e) => {
       const own = rows.filter((r) => r.employee_id === e.employeeId);
       const active = own.find((r) => r.start_period <= period) ?? null;
       const defaultTarget = resolveTarget(rules, period, e.status, e.target);

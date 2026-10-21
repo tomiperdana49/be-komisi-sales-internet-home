@@ -1,4 +1,4 @@
-# Komisi Account Manager & Sales Manager 2026
+# Komisi Account Manager, Sales Manager & SDR 2026
 
 Dokumen ini fokus pada **aturan bisnis perhitungan komisi**.
 
@@ -312,6 +312,27 @@ Manager Area juga bisa memiliki data penjualan atas namanya sendiri (invoice den
 
 _Total Komisi Manager akhir bulan = `Komisi Penjualan Pribadi` (F) + `Overriding Komisi New, Prorate & Alat` (C) + `Overriding Komisi Recurring` (D)._
 _Semua perhitungan Manager menggunakan angka **NET** (setelah dikurangi churn dan penalti masing-masing anggota tim)._
+
+---
+
+### 7. Komisi Sales Development Representative (SDR)
+
+SDR adalah pegawai dengan jabatan Nusawork **`Sales Development Representative`** yang garis atasannya sampai ke VP Internet Access Home (ikut di-crawl bersama Account Manager). SDR memakai **aturan komisi sendiri** yang terpisah total dari aturan Home: menu *Summary > Aturan Komisi SDR*, tabel `sdr_commission_rule_set`, versi & periode berlaku sendiri (bawaan `DEFAULT_SDR_RULES` di `commission-rules.default.ts` untuk periode tanpa versi SDR terbit). Mengubah atau menerbitkan *Aturan Komisi* (Home) tidak mengubah komisi SDR, dan sebaliknya. Aturan AM dan Manager **tidak berubah** karena SDR.
+
+**A. Yang sama dengan AM** — seluruh *logika* Bagian 1–5 berlaku apa adanya (dasar komisi & referral, potongan telat bayar, renewal, rate prorate/setup/alat/recurring/Digital Business, churn, Bonus Konsistensi manual), tetapi dengan **angka dari aturan SDR**. Implementasi: `rulesForSdr()` di `commission.helper.ts` mengambil produk, rate, potongan, target, status pencapaian, dan bonus dari aturan SDR periode tersebut, lalu perhitungan sales biasa dijalankan. Daftar kategori recurring tanpa komisi dan centang Churn per produk tetap mengikuti *Aturan Komisi* (Home), karena keduanya dipakai saat job import menarik data untuk semua sales.
+
+**B. Yang berbeda (nilai bawaan):**
+
+- **Rate New/Upgrade per produk** (1 / 6 / 12 bln): nusafiber 50 (BFLITE) 22.71 / 5.24 / 4.08; NusaSelecta Basic 30 & Prime 100 16 / 4.40 / 3.60; Ultra 200 20.80 / 4.80 / 3.68; NusaSelecta Free 1 Mbps & Free 30 + Iklan 16 / 4.44 / 4.44; Home Standard Prepaid 100 22.86 / 4.76 / 3.81; Home Advanced Prepaid 200 22.22 / 4.44 / 3.70; Home Premium Prepaid 300 25 / 5 / 4.17; Lite 50 & 75 17.50 / 3.50 / 2.80; Lite 100 18.90 / 3.85 / 3.15; Lite 200 & 300 19.60 / 3.85 / 3.15; Premium 100 & 200 18.90 / 3.85 / 3.15; Premium 300/400/500 21 / 4.20 / 3.50. Setup 5%.
+- **NusaSelecta dihitung 1:1**: setiap unit NusaSelecta = 1 pencapaian service (tidak dikelompokkan seperti Bagian 3). Churn mengurangi 1 per record.
+- **Target**: Full/Permanent **25**, Probation **15**. Penalti performa 70% (New) dan rate recurring 0.5% berlaku bila SDR Permanent < 25.
+- **Status pencapaian**: Permanent ≥30 *Capai target Bonus*, ≥25 *Capai target*, <6 *SP1*, selainnya *Tidak Capai target*; Probation ≥15 *Excellent*, ≥10 *Very Good*, ≥6 *Average*, selainnya *Below Average*.
+- **Bonus Bulanan**: ≥30 Rp 400.000, ≥35 Rp 800.000, ≥40 Rp 1.200.000. Tidak ada Bonus Kelebihan Service. Tier tidak bergeser (target SDR = target default SDR).
+- **Bonus Konsistensi**: tetap diberikan manual oleh admin (5.E). Acuan SDR: 83 service → Rp 800.000, 105 → Rp 1.600.000, 128 → Rp 2.400.000.
+
+**C. Di luar Manager Area** — SDR **tidak** dihitung sebagai anggota tim manager mana pun: tidak menambah Jumlah AM / Target Dasar Tim, komisinya tidak masuk dasar Overriding New, invoice recurring-nya tidak masuk Overriding Recurring (`findRecurringByManager`), dan churn-nya tidak muncul di daftar churn manager. Target manual (halaman Target AM) hanya untuk Account Manager.
+
+> **Contoh (Julia Evita Lestari, Oktober 2026):** 35 Prime 100 @ Rp 150.000 + 4 Basic 30 @ Rp 140.000, kontrak 1 bulan → 39 service (1:1), komisi `35 × 24.000 + 4 × 22.400` = **Rp 929.600**, status *Capai target Bonus*, Bonus Bulanan **Rp 800.000** (tier 35) → Grand Total **Rp 1.729.600**.
 
 ---
 

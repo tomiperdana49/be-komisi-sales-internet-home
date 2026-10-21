@@ -17,8 +17,10 @@ import {
   isNusaBasicPrime,
   isNusaSelecta,
   isNusaUltra,
+  isSdr,
   resolveBusinessOperation,
   resolveTarget,
+  rulesForSdr,
   toCommissionCategory,
   toNumber,
   type SnapshotType,
@@ -38,7 +40,7 @@ import type {
 } from "../interface/commission.interface";
 import type { ChurnRow, IChurnService } from "../interface/churn.interface";
 import type { IEmployeeService } from "../interface/employee.interface";
-import type { CommissionRules, ICommissionRulesProvider } from "../interface/commission-rules.interface";
+import type { CommissionRules, ICommissionRulesProvider, ISdrRulesProvider } from "../interface/commission-rules.interface";
 import {
   ADJUSTABLE_FIELD_COLUMNS,
   type AdjustableSnapshotFields,
@@ -124,6 +126,7 @@ export class CommissionService {
     private readonly consistencyBonusService: IConsistencyBonusService,
     private readonly rulesProvider: ICommissionRulesProvider,
     private readonly targetOverrides: ITargetOverrideReader,
+    private readonly sdrRulesProvider: ISdrRulesProvider,
   ) {}
 
   /** Same engine with a different rules source — used to preview a draft rule set without publishing it. */
@@ -135,7 +138,30 @@ export class CommissionService {
       this.consistencyBonusService,
       rulesProvider,
       this.targetOverrides,
+      this.sdrRulesProvider,
     );
+  }
+
+  /** Same engine with a different SDR rules source — used to preview a draft SDR rule set. */
+  withSdrRules(sdrRulesProvider: ISdrRulesProvider): CommissionService {
+    return new CommissionService(
+      this.snapshotRepository,
+      this.churnService,
+      this.employeeService,
+      this.consistencyBonusService,
+      this.rulesProvider,
+      this.targetOverrides,
+      sdrRulesProvider,
+    );
+  }
+
+  /** The period's rules for one salesperson: SDRs use the separate SDR rule set (KOMISI.md 7). */
+  private async getRulesFor(employeeId: string, period: string): Promise<{ rules: CommissionRules; isSdr: boolean }> {
+    const employee = await this.employeeService.findByEmployeeId(employeeId);
+    if (isSdr(employee?.job_position)) {
+      return { rules: rulesForSdr(await this.sdrRulesProvider.getForPeriod(period)), isSdr: true };
+    }
+    return { rules: await this.rulesProvider.getForPeriod(period), isSdr: false };
   }
 
   /**
@@ -147,10 +173,10 @@ export class CommissionService {
     const startDate = toSqlDate(start);
     const endDate = toSqlDate(end);
 
-    const [rows, statusPeriod, rules, manualTarget] = await Promise.all([
+    const [rows, statusPeriod, { rules }, manualTarget] = await Promise.all([
       this.churnService.getByEmployeeId(employeeId, startDate, endDate),
       this.employeeService.getStatusByPeriod(employeeId, startDate, endDate),
-      this.rulesProvider.getForPeriod(period),
+      this.getRulesFor(employeeId, period),
       this.targetOverrides.getActive(employeeId, period),
     ]);
     const status = statusPeriod?.status ?? null;
@@ -169,7 +195,10 @@ export class CommissionService {
    * salesperson through getSalesChurn, matching what each AM page shows.
    */
   async getManagerChurn(managerId: string, period: string) {
-    const people = await this.employeeService.getHierarchy(managerId, undefined, true, false);
+    // SDRs sit outside the Manager Area (KOMISI.md 7), same as in getManagerCommission.
+    const people = (await this.employeeService.getHierarchy(managerId, undefined, true, false)).filter(
+      (e) => e.employee_id === managerId || !isSdr(e.job_position),
+    );
     const churnBySalesperson = await Promise.all(people.map((e) => this.getSalesChurn(e.employee_id, period)));
 
     return people.flatMap((e, i) =>
@@ -227,7 +256,11 @@ export class CommissionService {
 
     // Direct + recursive team, excluding the manager themselves — KOMISI.md
     // 6.F: personal sales must never feed back into team activity.
-    const team = await this.employeeService.getHierarchy(managerId, undefined, false, false);
+    // SDRs have their own commission scheme and never count toward a
+    // manager's team target or overriding (KOMISI.md 7).
+    const team = (await this.employeeService.getHierarchy(managerId, undefined, false, false)).filter(
+      (e) => !isSdr(e.job_position),
+    );
     const teamIds = team.map((e) => e.employee_id);
 
     const [statusRows, recurringRows, managerStatusPeriod, consistencyBonusByEmployeeId, managerConsistencyBonus, rules] =
@@ -541,14 +574,14 @@ export class CommissionService {
     const startDate = toSqlDate(start);
     const endDate = toSqlDate(end);
 
-    const [allRows, churnRows, statusPeriod, consistencyBonus, rules, manualTarget] = await Promise.all([
+    const [allRows, churnRows, statusPeriod, consistencyBonus, { rules, isSdr: sdr }, manualTarget] = await Promise.all([
       this.snapshotRepository.findBySales(employeeId, period),
       this.churnService.getByEmployeeId(employeeId, startDate, endDate),
       this.employeeService.getStatusByPeriod(employeeId, startDate, endDate),
       consistencyBonusOverride !== undefined
         ? Promise.resolve(consistencyBonusOverride)
         : this.consistencyBonusService.getAmount(employeeId, period),
-      this.rulesProvider.getForPeriod(period),
+      this.getRulesFor(employeeId, period),
       targetOverride !== undefined ? Promise.resolve(null) : this.targetOverrides.getActive(employeeId, period),
     ]);
     const status = statusPeriod?.status ?? null;
@@ -561,7 +594,7 @@ export class CommissionService {
     );
 
     const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =
-      this.computeActivity(rules, rows, churnRows);
+      this.computeActivity(rules, rows, churnRows, !sdr);
     const rateActivityCount = rateActivityCountOverride ?? activityCount;
 
     const total = emptyStats();
@@ -609,8 +642,8 @@ export class CommissionService {
 
       // NusaSelecta "new" units are counted as grouped achievements
       // instead of one-per-row, so they're excluded from the raw count
-      // and added back in aggregate below.
-      const countsIndividually = !(isNusaSelecta(rules, row.service_id) && bucket === "new");
+      // and added back in aggregate below. SDRs count every unit (KOMISI.md 7).
+      const countsIndividually = sdr || !(isNusaSelecta(rules, row.service_id) && bucket === "new");
       const delta = {
         count: countsIndividually ? 1 : 0,
         commission,
@@ -681,6 +714,7 @@ export class CommissionService {
       startDate,
       endDate,
       employeeId,
+      isSdr: sdr,
       status,
       activityCount,
       target,
@@ -704,7 +738,13 @@ export class CommissionService {
    * first: standard services count 1:1, NusaSelecta is grouped, and
    * unapproved churn is subtracted before grouping.
    */
-  private computeActivity(rules: CommissionRules, rows: CommissionSnapshotRow[], churnRows: ChurnRow[]) {
+  private computeActivity(
+    rules: CommissionRules,
+    rows: CommissionSnapshotRow[],
+    churnRows: ChurnRow[],
+    /** False for SDRs, whose NusaSelecta units count 1:1 like any other service (KOMISI.md 7). */
+    groupNusaSelecta: boolean,
+  ) {
     let basicPrime = 0;
     let ultra = 0;
     let standard = 0;
@@ -718,6 +758,14 @@ export class CommissionService {
       if (isNusaBasicPrime(rules, row.service_id)) basicPrime++;
       else if (isNusaUltra(rules, row.service_id)) ultra++;
       else standard++;
+    }
+
+    if (!groupNusaSelecta) {
+      let net = standard + basicPrime + ultra;
+      for (const churn of churnRows) {
+        if (!churn.is_approved) net--;
+      }
+      return { activityCount: net, grossNusaSelectaActivity: 0, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra } };
     }
 
     const grossNusaSelectaActivity = calculateNusaSelectaActivity(basicPrime, ultra);
@@ -824,6 +872,7 @@ export class CommissionService {
         name: e.name,
         photoProfile: e.photoProfile,
         branch: e.branch,
+        isSdr: r.isSdr,
         status: r.status,
         achievementStatus: r.achievementStatus,
         activityCount: r.activityCount,

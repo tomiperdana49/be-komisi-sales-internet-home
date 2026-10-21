@@ -1,4 +1,4 @@
-import type { CommissionRules } from "../interface/commission-rules.interface";
+import type { CommissionRules, SdrCommissionRules } from "../interface/commission-rules.interface";
 
 /** Rules are cached by identity (commission.helper.ts), so any rules object in use must never change. */
 export function deepFreeze<T>(value: T): T {
@@ -8,6 +8,71 @@ export function deepFreeze<T>(value: T): T {
   }
   return value;
 }
+
+/**
+ * Sales Development Representative (SDR) rules, from the SDR commission
+ * sheet (rows marked "sesuai SE terbaru" win where a product is listed
+ * twice). Used for any period with no published SDR rule set; change SDR
+ * commission by publishing from "Aturan Komisi SDR", never here.
+ */
+export const DEFAULT_SDR_RULES: SdrCommissionRules = deepFreeze({
+  products: [
+    { name: "nusafiber 50 Mbps", serviceIds: ["BFLITE"], group: "Nusafiber", rate1: 22.71, rate6: 5.24, rate12: 4.08, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: true },
+    { name: "NusaSelecta Basic 30", serviceIds: ["NFSP030"], group: "NusaSelecta Basic/Prime", rate1: 16.0, rate6: 4.4, rate12: 3.6, sixMonthRateFrom: 6, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "NusaSelecta Prime 100", serviceIds: ["NFSP100"], group: "NusaSelecta Basic/Prime", rate1: 16.0, rate6: 4.4, rate12: 3.6, sixMonthRateFrom: 6, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "NusaSelecta Ultra 200", serviceIds: ["NFSP200"], group: "NusaSelecta Ultra", rate1: 20.8, rate6: 4.8, rate12: 3.68, sixMonthRateFrom: 6, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "NusaSelecta Free 1 Mbps + Iklan", serviceIds: ["NFSF001"], group: "NusaSelecta Basic/Prime", rate1: 16.0, rate6: 4.44, rate12: 4.44, sixMonthRateFrom: 6, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "NusaSelecta Free 30 + Iklan", serviceIds: ["NFSF030"], group: "NusaSelecta Basic/Prime", rate1: 16.0, rate6: 4.44, rate12: 4.44, sixMonthRateFrom: 6, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Standard Prepaid 100 Mbps", serviceIds: ["HOME100", "HOMESTD100"], group: "Home", rate1: 22.86, rate6: 4.76, rate12: 3.81, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: true },
+    { name: "Broadband FO Home Advanced Prepaid 200 Mbps", serviceIds: ["HOMEADV200", "HOMEADV"], group: "Home", rate1: 22.22, rate6: 4.44, rate12: 3.7, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: true },
+    { name: "Broadband FO Home Premium Prepaid 300 Mbps", serviceIds: ["HOMEPREM300", "HOME300"], group: "Home", rate1: 25.0, rate6: 5.0, rate12: 4.17, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: true },
+    { name: "Broadband FO Home Lite 50 Mbps", serviceIds: ["LITE50"], group: "Home", rate1: 17.5, rate6: 3.5, rate12: 2.8, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Lite 75 Mbps", serviceIds: ["LITE75"], group: "Home", rate1: 17.5, rate6: 3.5, rate12: 2.8, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Lite 100 Mbps", serviceIds: ["LITE100"], group: "Home", rate1: 18.9, rate6: 3.85, rate12: 3.15, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Lite 200 Mbps", serviceIds: ["LITE200"], group: "Home", rate1: 19.6, rate6: 3.85, rate12: 3.15, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Lite 300 Mbps", serviceIds: ["LITE300"], group: "Home", rate1: 19.6, rate6: 3.85, rate12: 3.15, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Premium 100 Mbps", serviceIds: ["PREMIUM100"], group: "Home", rate1: 18.9, rate6: 3.85, rate12: 3.15, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Premium 200 Mbps", serviceIds: ["PREMIUM200"], group: "Home", rate1: 18.9, rate6: 3.85, rate12: 3.15, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Premium 300 Mbps", serviceIds: ["PREMIUM300"], group: "Home", rate1: 21.0, rate6: 4.2, rate12: 3.5, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Premium 400 Mbps", serviceIds: ["PREMIUM400"], group: "Home", rate1: 21.0, rate6: 4.2, rate12: 3.5, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+    { name: "Broadband FO Home Premium 500 Mbps", serviceIds: ["PREMIUM500"], group: "Home", rate1: 21.0, rate6: 4.2, rate12: 3.5, sixMonthRateFrom: 2, twelveMonthRateFrom: 12, setupRate: null, churn: false },
+  ],
+  rates: {
+    prorate: 10,
+    setup: 5,
+    alatWithSetup: 2,
+    alatStandalone: 1,
+    recurringOnTarget: 1.5,
+    recurringMissedTarget: 0.5,
+    digitalBusinessInternal: 1,
+    digitalBusinessResell: 0.5,
+  },
+  penalties: {
+    latePerMonth: 10,
+    lateMax: 50,
+    missedTarget: 70,
+  },
+  targets: {
+    permanent: 25,
+    probation: 15,
+  },
+  achievement: {
+    permanentBonus: 30,
+    permanentOnTarget: 25,
+    permanentSp1Below: 6,
+    probationExcellent: 15,
+    probationVeryGood: 10,
+    probationAverage: 6,
+  },
+  bonus: {
+    tiers: [
+      { at: 30, amount: 400_000 },
+      { at: 35, amount: 800_000 },
+      { at: 40, amount: 1_200_000 },
+    ],
+    excessPerUnit: 0,
+  },
+});
 
 /**
  * The rules in force for any period that has no published rule set — i.e.

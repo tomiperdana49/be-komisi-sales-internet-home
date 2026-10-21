@@ -130,6 +130,25 @@ CREATE TABLE commission_rule_set (
     INDEX idx_commission_rule_set_lookup (status, effective_period)
 );
 
+-- Versioned SDR commission rules, edited from the admin "Aturan Komisi SDR"
+-- page. Same shape and lookup as commission_rule_set, but its own versions:
+-- periods with no published row use DEFAULT_SDR_RULES in code.
+-- Migration for existing databases: run this CREATE TABLE as is.
+CREATE TABLE sdr_commission_rule_set (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    effective_period VARCHAR(6) NOT NULL,
+    status ENUM('draft', 'published') NOT NULL DEFAULT 'draft',
+    rules JSON NOT NULL,
+    note TEXT NOT NULL,
+    created_by VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(20) NULL,
+    updated_at TIMESTAMP NULL,
+    published_by VARCHAR(20) NULL,
+    published_at TIMESTAMP NULL,
+    INDEX idx_sdr_commission_rule_set_lookup (status, effective_period)
+);
+
 -- Migration for existing databases (snapshots.is_renewal):
 -- ALTER TABLE snapshots ADD COLUMN is_renewal BOOLEAN NOT NULL DEFAULT FALSE AFTER type;
 

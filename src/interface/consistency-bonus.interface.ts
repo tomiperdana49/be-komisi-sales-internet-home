@@ -52,6 +52,7 @@ export type ConsistencyBonusItem = {
   name: string;
   photoProfile: string;
   branch: string | null;
+  isSdr: boolean;
   status: string | null;
   amount: number;
   note: string | null;

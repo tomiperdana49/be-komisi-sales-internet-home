@@ -3,12 +3,17 @@ import { BadRequestException } from "../exception/http.exception";
 import { successResponse } from "../helper/api-response.helper";
 import { resolvePeriodFromQuery } from "../helper/period-query.helper";
 import type { CommissionRuleService } from "../service/commission-rule.service";
+import type { SdrCommissionRuleService } from "../service/sdr-commission-rule.service";
 import type { CommissionService } from "../service/commission.service";
 
-/** Admin-only: versioned commission rules (rates, tiers, thresholds) — see CommissionRuleService. */
+/**
+ * Admin-only: versioned commission rules (rates, tiers, thresholds). One
+ * instance per rule set — Home (CommissionRuleService) and SDR
+ * (SdrCommissionRuleService), each under its own routes.
+ */
 export class CommissionRuleController {
   constructor(
-    private readonly ruleService: CommissionRuleService,
+    private readonly ruleService: CommissionRuleService | SdrCommissionRuleService,
     private readonly commissionService: CommissionService,
   ) {}
 

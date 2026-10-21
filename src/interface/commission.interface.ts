@@ -107,6 +107,8 @@ export type SalesCommissionResult = {
   startDate: string;
   endDate: string;
   employeeId: string;
+  /** Sales Development Representative: commissioned on the SDR rules, NusaSelecta counted 1:1 (KOMISI.md 7). */
+  isSdr: boolean;
   status: string | null;
   activityCount: number;
   /** New Achievement target used this period: the manual one (Target AM page) when set, else the rules' default. */
@@ -238,6 +240,7 @@ export type SalesSummaryItem = {
   name: string;
   photoProfile: string;
   branch: string | null;
+  isSdr: boolean;
   status: string | null;
   achievementStatus: string;
   activityCount: number;
