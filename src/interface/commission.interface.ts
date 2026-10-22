@@ -194,6 +194,37 @@ export type ManagerOverride = {
   recurringCommission: number;
   /** NET recurring subscription behind the override, incl. CRO placeholder rows outside the team roster. */
   teamRecurringSubscriptionNet: number;
+  /**
+   * How the "Subscription Recurring" Total tim card (teamSubscription) gets
+   * down to teamRecurringSubscriptionNet:
+   * teamSubscription − renewalExcluded − referralDeduction − latePenalty − otherAdjustment.
+   */
+  recurringBasis: {
+    teamSubscription: number;
+    renewalExcluded: number;
+    referralDeduction: number;
+    latePenalty: number;
+    otherAdjustment: number;
+    /** Invoices behind renewalExcluded; amount = subscription left out of the pool. */
+    renewalItems: ManagerRecurringBasisItem[];
+    /** Invoices behind latePenalty; amount = late-payment cut on that invoice. */
+    lateItems: ManagerRecurringBasisItem[];
+  };
+};
+
+/** One invoice behind a recurringBasis adjustment, so the manager page can list it. */
+export type ManagerRecurringBasisItem = {
+  aiInvoice: number;
+  customerId: string;
+  customerName: string | null;
+  serviceId: string | null;
+  /** Employee ID, or the Customer Relation Officer placeholder. */
+  sales: string | null;
+  salesName: string | null;
+  subscription: number;
+  lateMonth: number;
+  paidDate: string | null;
+  amount: number;
 };
 
 export type ManagerCommissionResult = {

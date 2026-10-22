@@ -34,6 +34,7 @@ import type {
   InvoiceSummaryItem,
   ISnapshotReadRepository,
   ManagerCommissionResult,
+  ManagerRecurringBasisItem,
   ManagerSummaryItem,
   SalesCommissionResult,
   SalesSummaryItem,
@@ -389,14 +390,32 @@ export class CommissionService {
     // NET recurring subscription behind the override — same late-payment
     // treatment as an individual recurring row, summed across every row
     // credited to this manager (incl. Customer Relation Officer rows).
+    const salesNameById = new Map(coveredTeam.map((e) => [e.employee_id, e.name]));
+    const toBasisItem = (row: CommissionSnapshotRow, amount: number): ManagerRecurringBasisItem => ({
+      aiInvoice: row.ai_invoice,
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      serviceId: row.service_id,
+      sales: row.sales,
+      salesName: (row.sales && salesNameById.get(row.sales)) || row.sales,
+      subscription: toNumber(row.subscription),
+      lateMonth: toNumber(row.late_month),
+      paidDate: row.paid_date ? toSqlDate(new Date(row.paid_date)) : null,
+      amount,
+    });
+
     let teamRecurringSubscriptionNet = 0;
+    let recurringReferralDeduction = 0;
+    let recurringLatePenalty = 0;
+    const recurringLateItems: ManagerRecurringBasisItem[] = [];
     for (const row of recurringRows) {
-      const basis = getCommissionBasis(
-        toNumber(row.subscription),
-        toNumber(row.referral_fee),
-        row.referral_type,
-      );
-      teamRecurringSubscriptionNet += applyLateMonthPenalty(rules, basis, row.late_month, row.is_approved);
+      const subscription = toNumber(row.subscription);
+      const basis = getCommissionBasis(subscription, toNumber(row.referral_fee), row.referral_type);
+      const net = applyLateMonthPenalty(rules, basis, row.late_month, row.is_approved);
+      teamRecurringSubscriptionNet += net;
+      recurringReferralDeduction += subscription - basis;
+      recurringLatePenalty += basis - net;
+      if (basis - net > 0) recurringLateItems.push(toBasisItem(row, basis - net));
     }
 
     const recurringCommissionRate = getManagerRecurringRate(rules, performance.isTargetAchieved);
@@ -425,6 +444,39 @@ export class CommissionService {
       target.recurringSubscription += item.subscription;
       target.recurringCommission += item.commission;
     }
+
+    // Reconciles the "Subscription Recurring" Total tim card with the
+    // override basis: renewal price increases stay out of the pool
+    // (KOMISI.md 1.3), referral and late-payment cuts come off it, and
+    // anything left (e.g. rows whose manager column points elsewhere) is
+    // reported as one remainder.
+    const teamRecurringSubscription = teamServiceGroups.reduce(
+      (sum, group) => sum + teamTotals.byServiceGroup[group].recurringSubscription,
+      0,
+    );
+    const recurringRenewalItems = coveredTeam.flatMap((e, i) =>
+      memberResults[i]!.items
+        .filter((item) => item.type === "recurring" && item.isRenewal)
+        .map((item): ManagerRecurringBasisItem => ({
+          aiInvoice: item.aiInvoice,
+          customerId: item.customerId,
+          customerName: item.customerName,
+          serviceId: item.serviceId,
+          sales: e.employee_id,
+          salesName: e.name,
+          subscription: item.subscription,
+          lateMonth: item.lateMonth,
+          paidDate: item.paidDate,
+          amount: item.subscription,
+        })),
+    );
+    const recurringRenewalExcluded = recurringRenewalItems.reduce((sum, item) => sum + item.amount, 0);
+    const recurringOtherAdjustment =
+      teamRecurringSubscription -
+      recurringRenewalExcluded -
+      recurringReferralDeduction -
+      recurringLatePenalty -
+      teamRecurringSubscriptionNet;
 
     const members = coveredTeam.map((e, i) => {
       const r = memberResults[i]!;
@@ -484,6 +536,15 @@ export class CommissionService {
         recurringCommissionRate,
         recurringCommission: overrideRecurringCommission,
         teamRecurringSubscriptionNet,
+        recurringBasis: {
+          teamSubscription: teamRecurringSubscription,
+          renewalExcluded: recurringRenewalExcluded,
+          referralDeduction: recurringReferralDeduction,
+          latePenalty: recurringLatePenalty,
+          otherAdjustment: recurringOtherAdjustment,
+          renewalItems: recurringRenewalItems,
+          lateItems: recurringLateItems,
+        },
       },
       teamTotals,
       personal,
