@@ -64,6 +64,8 @@ export type ChurnRow = {
   approved_at: string | null;
   /** NIS log call that waived this churn (see churn-waiver.helper); null when waived by hand or not waived. */
   approval_log_call_id: number | null;
+  /** Set on a churn carried over by hand (churn:carry): it counts in the period of this date, not of unregistration_date. */
+  deduct_date: string | null;
 };
 
 export type ChurnSummaryRow = ChurnRow & {
@@ -100,7 +102,10 @@ export type LogCallWaiver = {
 
 export interface IChurnRepository {
   findFromBilling(serviceIds: string[], startDate: string, endDate: string): Promise<RawChurnRow[]>;
+  /** Stopped services by account name, without the churn eligibility rules (churn:carry). */
+  findFromBillingByAccounts(accounts: string[]): Promise<RawChurnRow[]>;
   upsert(data: ChurnUpsertInput): Promise<void>;
+  setDeductDate(customerServiceId: number, deductDate: string): Promise<void>;
   findLocalCsIdsInRange(startDate: string, endDate: string): Promise<number[]>;
   deleteByCsIds(csIds: number[]): Promise<void>;
   findByEmployeeId(employeeId: string, startDate: string, endDate: string): Promise<ChurnRow[]>;
@@ -131,6 +136,8 @@ export interface IChurnService {
     endDate: string,
   ): Promise<ChurnRow[]>;
   getSummary(startDate: string, endDate: string, search?: string): Promise<ChurnSummaryRow[]>;
+  /** Pulls the named stopped services from billing as churns deducted in the period holding deductDate. */
+  carryFromBilling(accounts: string[], deductDate: string): Promise<RawChurnRow[]>;
   /** Waives (isApproved) a churn with the admin's reason, or reinstates it and clears the reason. */
   updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void>;
 }

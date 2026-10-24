@@ -110,6 +110,8 @@ CREATE TABLE churn (
     approved_at TIMESTAMP NULL,
     -- NIS log call whose "Churn = false" block waived this churn; NULL when waived by hand.
     approval_log_call_id BIGINT NULL,
+    -- Churn missed in its own period and deducted by hand in the period of this date (churn:carry).
+    deduct_date DATE NULL,
     INDEX idx_churn_unregistration_date (unregistration_date),
     INDEX idx_churn_sales_id (sales_id)
 );
@@ -196,6 +198,9 @@ CREATE TABLE target_override (
 
 -- Migration for existing databases (churn waived from an NIS log call):
 -- ALTER TABLE churn ADD COLUMN approval_log_call_id BIGINT NULL AFTER approved_at;
+
+-- Migration for existing databases (churn carried over to a later period):
+-- ALTER TABLE churn ADD COLUMN deduct_date DATE NULL AFTER approval_log_call_id;
 
 -- ACL for the admin pages, managed by Super Admins on the "Akses Admin" page.
 -- super_admin: every branch, and the only role that can change anything.

@@ -21,7 +21,7 @@ import type {
 // closed while Active (2) or at Renewal (3) always does; at New Installation
 // (1) only "Paid not yet to install"; SYSTEM (4) never. Services with no
 // close-category row (legacy closings) still count.
-const SQL_CHURN_FROM_BILLING = `
+const SQL_CHURN_SELECT = `
   SELECT
       cs.CustId AS customer_id,
       c.CustName AS customer_name,
@@ -56,6 +56,9 @@ const SQL_CHURN_FROM_BILLING = `
   )
   LEFT JOIN ServiceCloseCategoryDetail scdd ON scdd.id = scd.closeCategoryDetail
   LEFT JOIN ServiceCloseStatusExisting scs ON scs.id = scd.closeCatExistingStatus
+`;
+
+const SQL_CHURN_FROM_BILLING = `${SQL_CHURN_SELECT}
   WHERE cs.ServiceId IN (?)
     AND cs.CustStatus = 'NA'
     AND cs.CustUnregDate BETWEEN ? AND ?
@@ -99,6 +102,16 @@ const SQL_CHURN_FROM_BILLING = `
   HAVING i.TotalInvoice > 0
 `;
 
+// Churns deducted by hand in a later period (churn:carry): the named stopped
+// services as they are, without the eligibility rules above.
+const SQL_CHURN_BY_ACCOUNT = `${SQL_CHURN_SELECT}
+  WHERE cs.CustAccName IN (?) AND cs.CustStatus = 'NA'
+`;
+
+// A churn counts in the period holding deduct_date when set (a carried-over
+// churn), otherwise in the one holding its unregistration_date.
+const CHURN_DATE = "IFNULL(deduct_date, unregistration_date)";
+
 export class ChurnRepository implements IChurnRepository {
   constructor(
     private readonly billingDb: BillingDatabase,
@@ -108,6 +121,18 @@ export class ChurnRepository implements IChurnRepository {
   findFromBilling(serviceIds: string[], startDate: string, endDate: string): Promise<RawChurnRow[]> {
     if (serviceIds.length === 0) return Promise.resolve([]);
     return this.billingDb.query<RawChurnRow[]>(SQL_CHURN_FROM_BILLING, [serviceIds, startDate, endDate]);
+  }
+
+  findFromBillingByAccounts(accounts: string[]): Promise<RawChurnRow[]> {
+    if (accounts.length === 0) return Promise.resolve([]);
+    return this.billingDb.query<RawChurnRow[]>(SQL_CHURN_BY_ACCOUNT, [accounts]);
+  }
+
+  async setDeductDate(customerServiceId: number, deductDate: string): Promise<void> {
+    await this.appDb.query(`UPDATE churn SET deduct_date = ? WHERE customer_service_id = ?`, [
+      deductDate,
+      customerServiceId,
+    ]);
   }
 
   async upsert(data: ChurnUpsertInput): Promise<void> {
@@ -158,8 +183,9 @@ export class ChurnRepository implements IChurnRepository {
   }
 
   async findLocalCsIdsInRange(startDate: string, endDate: string): Promise<number[]> {
+    // Carried-over churns were added by hand, so a crawl never deletes them.
     const rows = await this.appDb.query<{ customer_service_id: number }[]>(
-      `SELECT customer_service_id FROM churn WHERE unregistration_date BETWEEN ? AND ?`,
+      `SELECT customer_service_id FROM churn WHERE deduct_date IS NULL AND unregistration_date BETWEEN ? AND ?`,
       [startDate, endDate],
     );
     return rows.map((row) => Number(row.customer_service_id));
@@ -172,7 +198,7 @@ export class ChurnRepository implements IChurnRepository {
 
   findByEmployeeId(employeeId: string, startDate: string, endDate: string): Promise<ChurnRow[]> {
     return this.appDb.query<ChurnRow[]>(
-      `SELECT * FROM churn WHERE sales_id = ? AND unregistration_date BETWEEN ? AND ?`,
+      `SELECT * FROM churn WHERE sales_id = ? AND ${CHURN_DATE} BETWEEN ? AND ?`,
       [employeeId, startDate, endDate],
     );
   }
@@ -184,7 +210,7 @@ export class ChurnRepository implements IChurnRepository {
   ): Promise<ChurnRow[]> {
     if (employeeIds.length === 0) return Promise.resolve([]);
     return this.appDb.query<ChurnRow[]>(
-      `SELECT * FROM churn WHERE sales_id IN (?) AND unregistration_date BETWEEN ? AND ?`,
+      `SELECT * FROM churn WHERE sales_id IN (?) AND ${CHURN_DATE} BETWEEN ? AND ?`,
       [employeeIds, startDate, endDate],
     );
   }
@@ -198,7 +224,7 @@ export class ChurnRepository implements IChurnRepository {
       FROM churn c
       LEFT JOIN employee e ON c.sales_id = e.employee_id
       LEFT JOIN employee ap ON c.approved_by = ap.employee_id
-      WHERE c.unregistration_date BETWEEN ? AND ?
+      WHERE IFNULL(c.deduct_date, c.unregistration_date) BETWEEN ? AND ?
     `;
     const params: any[] = [startDate, endDate];
 
@@ -248,7 +274,7 @@ export class ChurnRepository implements IChurnRepository {
   findApprovalStatesInRange(startDate: string, endDate: string): Promise<ChurnApprovalState[]> {
     return this.appDb.query<ChurnApprovalState[]>(
       `SELECT customer_service_id, customer_id, customer_service_account, is_approved, approval_log_call_id
-       FROM churn WHERE unregistration_date BETWEEN ? AND ?`,
+       FROM churn WHERE ${CHURN_DATE} BETWEEN ? AND ?`,
       [startDate, endDate],
     );
   }

@@ -5,6 +5,7 @@ import type {
   IChurnRepository,
   IChurnService,
   LogCallWaiver,
+  RawChurnRow,
 } from "../interface/churn.interface";
 
 export class ChurnService implements IChurnService {
@@ -19,23 +20,7 @@ export class ChurnService implements IChurnService {
 
     const validCsIds: number[] = [];
     for (const row of rows) {
-      await this.churnRepository.upsert({
-        customer_service_id: row.customer_service_id,
-        customer_id: row.customer_id,
-        customer_name: row.customer_name,
-        customer_service_account: row.customer_service_account,
-        service_id: row.service_id,
-        service_name: row.service_name,
-        registration_date: row.registration_date,
-        unregistration_date: row.unregistration_date,
-        reason: row.reason,
-        close_status: row.close_status,
-        close_reason: row.close_reason,
-        period: row.period,
-        price: row.price,
-        sales_id: row.sales_id,
-        manager_id: row.manager_id,
-      });
+      await this.upsertRaw(row);
       validCsIds.push(row.customer_service_id);
     }
 
@@ -47,6 +32,35 @@ export class ChurnService implements IChurnService {
     const { waived, reinstated } = await this.syncLogCallWaivers(startDate, endDate);
 
     return { synced: validCsIds.length, deleted: toDelete.length, waived, reinstated };
+  }
+
+  async carryFromBilling(accounts: string[], deductDate: string) {
+    const rows = await this.churnRepository.findFromBillingByAccounts(accounts);
+    for (const row of rows) {
+      await this.upsertRaw(row);
+      await this.churnRepository.setDeductDate(row.customer_service_id, deductDate);
+    }
+    return rows;
+  }
+
+  private upsertRaw(row: RawChurnRow): Promise<void> {
+    return this.churnRepository.upsert({
+      customer_service_id: row.customer_service_id,
+      customer_id: row.customer_id,
+      customer_name: row.customer_name,
+      customer_service_account: row.customer_service_account,
+      service_id: row.service_id,
+      service_name: row.service_name,
+      registration_date: row.registration_date,
+      unregistration_date: row.unregistration_date,
+      reason: row.reason,
+      close_status: row.close_status,
+      close_reason: row.close_reason,
+      period: row.period,
+      price: row.price,
+      sales_id: row.sales_id,
+      manager_id: row.manager_id,
+    });
   }
 
   /**

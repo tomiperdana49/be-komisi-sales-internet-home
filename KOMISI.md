@@ -166,6 +166,17 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
    - **Kecuali sudah membayar Terminasi**: bila layanan punya invoice terminasi (`InvTermination = 1`) yang tidak di-reverse dan **sudah dibayar**, pelanggan sudah melunasi biaya putus kontrak — **bukan churn**. Invoice terminasi yang belum dibayar tetap churn; begitu dibayar, record churn terhapus pada tarikan `churn-crawl` berikutnya (selama periodenya belum ditutup). Contoh: 0200550764 (`aldakel`) berhenti 2 Okt 2026 dan membayar Invoice Terminasi 5 Okt 2026.
 5. Berada dalam cakupan cabang yang valid (lihat _Cakupan Data_ di bawah).
 
+**Churn susulan (dipotong di periode lain):** churn yang terlewat di periodenya sendiri bisa dipotong di periode berikutnya dengan job `churn:carry`:
+
+```
+bun run churn:carry -- --period 202610 --account swandijlw,norisjls
+```
+
+- Layanan diambil apa adanya dari NIS (harus sudah berhenti, `CustStatus = 'NA'`) **tanpa** syarat eligibilitas di atas — keputusan memotongnya ada pada admin yang menjalankan.
+- Record disimpan dengan `deduct_date` = tanggal awal periode tujuan; churn dihitung di periode `deduct_date` (bukan periode tanggal berhenti) dan tidak dihapus `churn-crawl`. Tgl. Berhenti tetap menampilkan tanggal asli dari NIS.
+- Periode yang sudah ditutup ditolak kecuali dengan `--force`. Pembebasan (manual atau Log Call) tetap berlaku seperti churn biasa.
+- Contoh: churn massal Rifqi Anugrah Putra (berhenti 29–30 Mei 2026, terlewat di periode Juni) dipotong di Oktober 2026.
+
 **Pembebasan churn lewat Log Call NIS:** churn bisa dibebaskan (`is_approved`) secara manual oleh admin di *Summary > Churn*, atau otomatis oleh job `churn-crawl` dari Customer Log Call NIS bila log call approver memuat baris berikut (di bagian mana pun dalam teks log call):
 
 ```
