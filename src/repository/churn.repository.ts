@@ -14,7 +14,8 @@ import type {
 // A customer service counts as churned if it unregistered within the
 // window, only lasted up to a year, and the customer had at least one
 // real invoice (excludes services that never actually billed). One that
-// already paid for a full year and stopped after it is not a churn.
+// already paid for a full year and stopped after it, or that paid its
+// termination invoice, is not a churn.
 //
 // The close reason (latest ServiceCloseCategoryDetails row) must also count:
 // closed while Active (2) or at Renewal (3) always does; at New Installation
@@ -86,6 +87,15 @@ const SQL_CHURN_FROM_BILLING = `
           WHERE nci.Id = cit.InvoiceNum AND nci.No = cit.Urut AND nci.Type = 'internet'
         )
     ), FALSE)
+    -- Not a churn once the termination invoice (early-termination fee) is paid.
+    AND NOT EXISTS (
+      SELECT 1
+      FROM CustomerInvoiceTemp cit
+      JOIN NewCustomerInvoice nci ON nci.Id = cit.InvoiceNum AND nci.No = cit.Urut AND nci.Type = 'internet'
+      JOIN NewCustomerInvoiceBatch ncib ON ncib.AI = nci.AI
+      WHERE cit.CustServId = cs.CustServId
+        AND cit.InvTermination = 1 AND cit.Reverse = 0 AND cit.RInvoiceNum = 0
+    )
   HAVING i.TotalInvoice > 0
 `;
 
