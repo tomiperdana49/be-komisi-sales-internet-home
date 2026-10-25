@@ -42,6 +42,19 @@ CREATE TABLE snapshot_adjustment (
     INDEX idx_snapshot_adjustment_ai_invoice (ai_invoice)
 );
 
+-- Every approve/revoke of an invoice's late-payment waiver (snapshots.is_approved),
+-- with who did it, when and why. Kept outside snapshots since re-pulls rebuild those rows.
+-- Migration: run this CREATE TABLE before deploying the BE that writes it.
+CREATE TABLE invoice_approval_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ai_invoice BIGINT NOT NULL,
+    is_approved BOOLEAN NOT NULL,
+    note TEXT NULL,
+    employee_id VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_invoice_approval_log_ai_invoice (ai_invoice)
+);
+
 CREATE TABLE employee (
     id INT PRIMARY KEY,
     employee_id VARCHAR(20) NOT NULL,

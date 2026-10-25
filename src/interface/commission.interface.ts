@@ -34,6 +34,14 @@ export type CommissionSnapshotRow = {
   is_adjusted?: number | boolean;
 };
 
+export type InvoiceApprovalLogRow = {
+  ai_invoice: number;
+  is_approved: number | boolean;
+  note: string | null;
+  employee_id: string;
+  created_at: string;
+};
+
 export interface ISnapshotReadRepository {
   /** Snapshots for one salesperson in a period. Only rows whose `sales` resolves to a real employee. */
   findBySales(employeeId: string, period: string): Promise<CommissionSnapshotRow[]>;
@@ -43,6 +51,10 @@ export interface ISnapshotReadRepository {
   findRecurringByManager(managerId: string, period: string): Promise<CommissionSnapshotRow[]>;
   /** Admin approval for a late-paid invoice, waiving its late-payment penalty (KOMISI.md 1). */
   updateApproval(aiInvoice: number, isApproved: boolean): Promise<void>;
+  /** Records who approved/revoked an invoice's late-payment waiver, when, and why. */
+  insertApprovalLog(aiInvoice: number, isApproved: boolean, note: string | null, employeeId: string): Promise<void>;
+  /** The latest approval-log entry per invoice. */
+  findLatestApprovalLogs(aiInvoices: number[]): Promise<InvoiceApprovalLogRow[]>;
   /** Raw row for one invoice, for building the adjustment form's current values and the audit log's "before" snapshot. */
   findByAiInvoice(aiInvoice: number): Promise<CommissionSnapshotRow | null>;
   /**
@@ -310,6 +322,11 @@ export type ManagerSummaryItem = {
 
 /** One row of the admin "all invoices" table — a line item plus who sold it and their Sales Manager. */
 export type InvoiceSummaryItem = CommissionLineItem & {
+  /** Why, by whom and when the late-payment waiver was approved; null while not approved (or approved before notes were recorded). */
+  approvalNote: string | null;
+  approvedBy: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
   sales: { employeeId: string; name: string; photoProfile: string } | null;
   managerEmployee: { employeeId: string; name: string; photoProfile: string } | null;
   /** The selling Account Manager's branch. */

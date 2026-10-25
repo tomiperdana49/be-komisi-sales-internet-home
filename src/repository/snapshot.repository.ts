@@ -3,6 +3,7 @@ import { SDR_JOB_POSITION } from "../helper/commission.helper";
 import type { ISnapshotRepository } from "../interface/snapshot.interface";
 import type {
   CommissionSnapshotRow,
+  InvoiceApprovalLogRow,
   ISnapshotReadRepository,
 } from "../interface/commission.interface";
 import {
@@ -73,6 +74,23 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
       isApproved ? 1 : 0,
       aiInvoice,
     ]);
+  }
+
+  async insertApprovalLog(aiInvoice: number, isApproved: boolean, note: string | null, employeeId: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO invoice_approval_log (ai_invoice, is_approved, note, employee_id) VALUES (?, ?, ?, ?)`,
+      [aiInvoice, isApproved ? 1 : 0, note, employeeId],
+    );
+  }
+
+  findLatestApprovalLogs(aiInvoices: number[]): Promise<InvoiceApprovalLogRow[]> {
+    if (aiInvoices.length === 0) return Promise.resolve([]);
+    return this.db.query<InvoiceApprovalLogRow[]>(
+      `SELECT l.ai_invoice, l.is_approved, l.note, l.employee_id, l.created_at
+       FROM invoice_approval_log l
+       JOIN (SELECT MAX(id) id FROM invoice_approval_log WHERE ai_invoice IN (?) GROUP BY ai_invoice) latest ON latest.id = l.id`,
+      [aiInvoices],
+    );
   }
 
   async findByAiInvoice(aiInvoice: number): Promise<CommissionSnapshotRow | null> {

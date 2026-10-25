@@ -53,7 +53,12 @@ export class SummaryController {
     const aiInvoice = Number.parseInt(c.req.param("ai")!, 10);
     await this.assertOpen((await this.commissionService.getInvoiceDetail(aiInvoice)).period);
     const body = await c.req.json();
-    await this.commissionService.approveInvoice(aiInvoice, Boolean(body.isApproved));
+    const isApproved = Boolean(body.isApproved);
+    const note = typeof body.note === "string" ? body.note.trim() : "";
+    if (isApproved && !note) {
+      throw new BadRequestException("Alasan approve telat bayar wajib diisi");
+    }
+    await this.commissionService.approveInvoice(aiInvoice, isApproved, isApproved ? note : null, c.get("user").sub);
     return c.json(successResponse("Invoice approval updated successfully"));
   }
 

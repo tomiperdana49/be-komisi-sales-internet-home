@@ -1008,16 +1008,41 @@ export class CommissionService {
         const managerEmployee = manager
           ? { employeeId: manager.employee_id, name: manager.name, photoProfile: manager.photo_profile }
           : null;
-        items.push({ ...item, sales, managerEmployee, branch: e.branch });
+        items.push({
+          ...item,
+          approvalNote: null,
+          approvedBy: null,
+          approvedByName: null,
+          approvedAt: null,
+          sales,
+          managerEmployee,
+          branch: e.branch,
+        });
       }
     });
+
+    // Who approved each waived invoice, when and why (latest log entry while still approved).
+    const approved = items.filter((i) => i.isApproved);
+    const logs = await this.snapshotRepository.findLatestApprovalLogs(approved.map((i) => i.aiInvoice));
+    const logByAi = new Map(logs.filter((l) => Number(l.is_approved) === 1).map((l) => [Number(l.ai_invoice), l]));
+    const approvers = await this.employeeService.findByEmployeeIds([...new Set([...logByAi.values()].map((l) => l.employee_id))]);
+    const approverName = new Map(approvers.map((a) => [a.employee_id, a.name]));
+    for (const item of approved) {
+      const log = logByAi.get(Number(item.aiInvoice));
+      if (!log) continue;
+      item.approvalNote = log.note;
+      item.approvedBy = log.employee_id;
+      item.approvedByName = approverName.get(log.employee_id) ?? null;
+      item.approvedAt = log.created_at;
+    }
 
     return items;
   }
 
-  /** Admin approval for a late-paid invoice, waiving its late-payment penalty. */
-  approveInvoice(aiInvoice: number, isApproved: boolean): Promise<void> {
-    return this.snapshotRepository.updateApproval(aiInvoice, isApproved);
+  /** Admin approval for a late-paid invoice, waiving its late-payment penalty — logged with who, when and why. */
+  async approveInvoice(aiInvoice: number, isApproved: boolean, note: string | null, employeeId: string): Promise<void> {
+    await this.snapshotRepository.updateApproval(aiInvoice, isApproved);
+    await this.snapshotRepository.insertApprovalLog(aiInvoice, isApproved, note, employeeId);
   }
 
   /** Full raw invoice row for the admin adjustment form — every field, not just the summary list's subset. */
