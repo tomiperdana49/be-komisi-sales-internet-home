@@ -8,7 +8,26 @@ import type {
   IChurnService,
   LogCallWaiver,
   RawChurnRow,
+  RawStoppedServiceRow,
+  StoppedServiceItem,
+  ChurnExclusion,
 } from "../interface/churn.interface";
+
+/** The first churn condition (same order as SQL_CHURN_FROM_BILLING) a stopped service fails; null if it's a churn. */
+export function churnExclusion(
+  row: RawStoppedServiceRow,
+  serviceIds: string[],
+  closeReasons: ChurnCloseReasonRule[],
+): ChurnExclusion | null {
+  if (!Number(row.in_branch)) return "branch";
+  if (!row.service_id || !serviceIds.includes(row.service_id)) return "product";
+  if (!Number(row.within_year)) return "over_year";
+  if (!Number(row.TotalInvoice)) return "no_invoice";
+  if (Number(row.paid_12_months)) return "paid_12_months";
+  if (Number(row.termination_paid)) return "termination_paid";
+  if (!countsAsChurnClose(closeReasons, row.close_category_id, row.close_status_id, row.close_reason)) return "close_reason";
+  return null;
+}
 
 export class ChurnService implements IChurnService {
   constructor(private readonly churnRepository: IChurnRepository) {}
@@ -146,8 +165,38 @@ export class ChurnService implements IChurnService {
     return this.churnRepository.findByEmployeeIds(employeeIds, startDate, endDate);
   }
 
+  async getStoppedServices(
+    serviceIds: string[],
+    startDate: string,
+    endDate: string,
+    closeReasons: ChurnCloseReasonRule[],
+  ): Promise<StoppedServiceItem[]> {
+    const rows = await this.churnRepository.findStoppedFromBilling(startDate, endDate);
+    return rows.map((row) => ({
+      customer_service_id: row.customer_service_id,
+      customer_id: row.customer_id,
+      customer_name: row.customer_name,
+      customer_service_account: row.customer_service_account,
+      customer_branch: row.customer_branch,
+      service_id: row.service_id,
+      service_name: row.service_name,
+      registration_date: row.registration_date,
+      unregistration_date: row.unregistration_date,
+      close_status: row.close_status,
+      close_reason: row.close_reason,
+      reason: row.reason,
+      price: Number(row.price ?? 0),
+      sales_id: row.sales_id,
+      exclusion: churnExclusion(row, serviceIds, closeReasons),
+    }));
+  }
+
   getSummary(startDate: string, endDate: string, search?: string): Promise<ChurnSummaryRow[]> {
     return this.churnRepository.findSummary(startDate, endDate, search);
+  }
+
+  getChurnDate(customerServiceId: string): Promise<string | null> {
+    return this.churnRepository.findChurnDate(customerServiceId);
   }
 
   updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void> {

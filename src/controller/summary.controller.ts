@@ -4,13 +4,14 @@ import { inAdminBranch } from "../helper/access.helper";
 import { successResponse } from "../helper/api-response.helper";
 import { isSdr } from "../helper/commission.helper";
 import { resolvePeriodFromQuery } from "../helper/period-query.helper";
-import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
+import { currentCommissionPeriod, getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
 import type { CommissionService } from "../service/commission.service";
 import type { IChurnService } from "../interface/churn.interface";
 import type { IEmployeeService } from "../interface/employee.interface";
 import { ADJUSTABLE_FIELD_COLUMNS, type AdjustableSnapshotFields } from "../interface/adjustment.interface";
 import type { ConsistencyBonusItem, IConsistencyBonusService } from "../interface/consistency-bonus.interface";
 import type { IPeriodClosingService } from "../interface/period-closing.interface";
+import type { ICommissionRulesProvider } from "../interface/commission-rules.interface";
 
 /** Admin-only cross-employee views: every Account Manager/Manager/invoice/churn row for a period — a branch Admin gets only their branch's rows (adminMiddleware). */
 export class SummaryController {
@@ -20,6 +21,7 @@ export class SummaryController {
     private readonly employeeService: IEmployeeService,
     private readonly consistencyBonusService: IConsistencyBonusService,
     private readonly periodClosingService: IPeriodClosingService,
+    private readonly commissionRuleService: ICommissionRulesProvider,
   ) {}
 
   async sales(c: Context) {
@@ -40,8 +42,16 @@ export class SummaryController {
     return c.json(successResponse("Invoice summary retrieved successfully", data));
   }
 
+  /** Closed periods are final: their invoices, churns and bonuses can't change until a Super Admin reopens them. */
+  private async assertOpen(period: string) {
+    if (await this.periodClosingService.isClosed(period)) {
+      throw new BadRequestException(`Periode ${period} sudah ditutup. Buka kembali periodenya untuk mengubah data.`);
+    }
+  }
+
   async approveInvoice(c: Context) {
     const aiInvoice = Number.parseInt(c.req.param("ai")!, 10);
+    await this.assertOpen((await this.commissionService.getInvoiceDetail(aiInvoice)).period);
     const body = await c.req.json();
     await this.commissionService.approveInvoice(aiInvoice, Boolean(body.isApproved));
     return c.json(successResponse("Invoice approval updated successfully"));
@@ -62,6 +72,7 @@ export class SummaryController {
    */
   async adjustInvoice(c: Context) {
     const aiInvoice = Number.parseInt(c.req.param("ai")!, 10);
+    await this.assertOpen((await this.commissionService.getInvoiceDetail(aiInvoice)).period);
     const body = await c.req.json();
     const user = c.get("user");
 
@@ -97,9 +108,60 @@ export class SummaryController {
     return c.json(successResponse("Churn summary retrieved successfully", data));
   }
 
+  /**
+   * Every service stopped (NA) in NIS for the period, live from billing, each
+   * marked churn or with why not, and whether it is on the Churn list (and
+   * waived there). `carried` lists the Churn list's rows whose service isn't
+   * among them (churn:carry, or changed in NIS after a closed period froze
+   * the list), so both pages add up. `closed`: the Churn list is frozen.
+   */
+  async stoppedServices(c: Context) {
+    const period = resolvePeriodFromQuery(c);
+    const { start, end } = getDateRangeForPeriod(period);
+    const startDate = toSqlDate(start);
+    const endDate = toSqlDate(end);
+    const rules = await this.commissionRuleService.getForPeriod(period);
+    const serviceIds = rules.products.filter((p) => p.churn).flatMap((p) => p.serviceIds);
+
+    const [rows, listed, closed] = await Promise.all([
+      this.churnService.getStoppedServices(serviceIds, startDate, endDate, rules.churnCloseReasons),
+      this.churnService.getSummary(startDate, endDate),
+      this.periodClosingService.isClosed(period),
+    ]);
+    const listedById = new Map(listed.map((r) => [Number(r.customer_service_id), r]));
+    const salesIds = [...new Set(rows.map((r) => r.sales_id).filter((id): id is string => !!id))];
+    const employees = new Map((await this.employeeService.findByEmployeeIds(salesIds)).map((e) => [e.employee_id, e]));
+
+    const services = inAdminBranch(
+      c,
+      rows.map((r) => {
+        const sales = r.sales_id ? employees.get(r.sales_id) : undefined;
+        return {
+          ...r,
+          employee_name: sales?.name ?? null,
+          employee_photo: sales?.photo_profile ?? null,
+          employee_branch: sales?.branch ?? null,
+          in_churn_list: listedById.has(Number(r.customer_service_id)),
+          is_approved: !!listedById.get(Number(r.customer_service_id))?.is_approved,
+        };
+      }),
+      (r) => r.employee_branch,
+    );
+    const stoppedIds = new Set(rows.map((r) => Number(r.customer_service_id)));
+    const carried = inAdminBranch(
+      c,
+      listed.filter((r) => !stoppedIds.has(Number(r.customer_service_id))),
+      (r) => r.employee_branch,
+    ).map((r) => ({ customer_service_account: r.customer_service_account, employee_branch: r.employee_branch }));
+    return c.json(successResponse("Stopped services retrieved successfully", { services, carried, closed }));
+  }
+
   /** Waive (approve) a churn so it no longer cuts the AM's commission — a reason is required for the audit trail. */
   async approveChurn(c: Context) {
     const customerServiceId = c.req.param("id")!;
+    const churnDate = await this.churnService.getChurnDate(customerServiceId);
+    if (!churnDate) throw new NotFoundException("Churn tidak ditemukan");
+    await this.assertOpen(currentCommissionPeriod(new Date(`${churnDate}T00:00:00`)));
     const body = await c.req.json();
     const isApproved = Boolean(body.isApproved);
     const note = typeof body.note === "string" ? body.note.trim() : "";
@@ -152,6 +214,7 @@ export class SummaryController {
   async grantConsistencyBonus(c: Context) {
     const employeeId = c.req.param("id")!;
     const period = resolvePeriodFromQuery(c);
+    await this.assertOpen(period);
     const body = await c.req.json();
     const user = c.get("user");
 
@@ -184,6 +247,7 @@ export class SummaryController {
   async revokeConsistencyBonus(c: Context) {
     const employeeId = c.req.param("id")!;
     const period = resolvePeriodFromQuery(c);
+    await this.assertOpen(period);
     await this.consistencyBonusService.revoke(employeeId, period);
     return c.json(successResponse("Consistency bonus revoked successfully"));
   }
@@ -191,7 +255,14 @@ export class SummaryController {
   /** Closed periods (frozen: the import/churn jobs no longer re-crawl them). */
   async periodClosings(c: Context) {
     const rows = await this.periodClosingService.list();
-    const data = rows.map((r) => ({ period: r.period, closedBy: r.closed_by, closedAt: r.closed_at }));
+    const closers = await this.employeeService.findByEmployeeIds([...new Set(rows.map((r) => r.closed_by))]);
+    const nameById = new Map(closers.map((e) => [e.employee_id, e.name]));
+    const data = rows.map((r) => ({
+      period: r.period,
+      closedBy: r.closed_by,
+      closedByName: nameById.get(r.closed_by) ?? null,
+      closedAt: r.closed_at,
+    }));
     return c.json(successResponse("Closed periods retrieved successfully", data));
   }
 

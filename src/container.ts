@@ -130,6 +130,7 @@ class Container {
     this.employeeService,
     this.consistencyBonusService,
     this.periodClosingService,
+    this.commissionRuleService,
   );
   readonly commissionRuleController = new CommissionRuleController(
     this.commissionRuleService,

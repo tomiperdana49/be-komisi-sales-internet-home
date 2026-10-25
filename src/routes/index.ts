@@ -60,6 +60,9 @@ router.get("/summary/invoice/:ai/adjustments", authMiddleware, superAdminMiddlew
   container.summaryController.invoiceAdjustments(c),
 );
 router.get("/summary/churn", authMiddleware, adminMiddleware, (c) => container.summaryController.churn(c));
+router.get("/summary/stopped-services", authMiddleware, adminMiddleware, (c) =>
+  container.summaryController.stoppedServices(c),
+);
 router.post("/summary/churn/:id/approve", authMiddleware, superAdminMiddleware, (c) =>
   container.summaryController.approveChurn(c),
 );

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ChurnService } from "./churn.service";
+import { ChurnService, churnExclusion } from "./churn.service";
 import { DEFAULT_CHURN_CLOSE_REASONS } from "../helper/churn-close-reason.helper";
 import type { ChurnApprovalState, IChurnRepository, WaiverLogCallRow } from "../interface/churn.interface";
 
@@ -107,5 +107,31 @@ describe("ChurnService log-call waivers", () => {
     );
     await sync(service);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("churnExclusion", () => {
+  const churn = {
+    customer_id: "C1", customer_name: null, customer_service_id: 1, customer_service_account: "a", service_id: "HOME100",
+    service_name: null, registration_date: null, unregistration_date: null, reason: null,
+    close_status: "Renewal", close_reason: "Budget not enough", close_category_id: 9, close_status_id: 3,
+    sales_id: null, manager_id: null, subscription: 0, discount: 0, period: 1, price: 0, TotalInvoice: 2,
+    customer_branch: "020", in_branch: 1, within_year: 1, paid_12_months: 0, termination_paid: 0,
+  };
+  const exclusion = (patch: Partial<typeof churn>) =>
+    churnExclusion({ ...churn, ...patch }, ["HOME100"], DEFAULT_CHURN_CLOSE_REASONS);
+
+  test("a service meeting every condition is a churn", () => {
+    expect(exclusion({})).toBeNull();
+  });
+
+  test("names the first condition a service fails, in query order", () => {
+    expect(exclusion({ in_branch: 0, service_id: "DEDICATED" })).toBe("branch");
+    expect(exclusion({ service_id: "DEDICATED", within_year: 0 })).toBe("product");
+    expect(exclusion({ within_year: 0 })).toBe("over_year");
+    expect(exclusion({ TotalInvoice: 0 })).toBe("no_invoice");
+    expect(exclusion({ paid_12_months: 1 })).toBe("paid_12_months");
+    expect(exclusion({ termination_paid: 1 })).toBe("termination_paid");
+    expect(exclusion({ close_reason: "Poor Quality Product" })).toBe("close_reason");
   });
 });

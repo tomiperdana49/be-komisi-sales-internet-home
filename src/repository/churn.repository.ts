@@ -8,6 +8,7 @@ import type {
   IChurnRepository,
   LogCallWaiver,
   RawChurnRow,
+  RawStoppedServiceRow,
   WaiverLogCallRow,
 } from "../interface/churn.interface";
 
@@ -20,8 +21,7 @@ import type {
 // Its close reason (latest ServiceCloseCategoryDetails row) must also count;
 // that is filtered in ChurnService against the period's Aturan Komisi
 // (countsAsChurnClose), so the query returns the raw ids and names.
-const SQL_CHURN_SELECT = `
-  SELECT
+const SQL_CHURN_COLUMNS = `
       cs.CustId AS customer_id,
       c.CustName AS customer_name,
       cs.CustServId AS customer_service_id,
@@ -42,6 +42,9 @@ const SQL_CHURN_SELECT = `
       IFNULL(itm.Month, 1) AS period,
       (cs.Subscription - cs.Discount) / IFNULL(itm.Month, 1) AS price,
       i.TotalInvoice
+`;
+
+const SQL_CHURN_FROM = `
   FROM CustomerServices cs
   LEFT JOIN Customer c ON c.CustId = cs.CustId
   LEFT JOIN Services s ON s.ServiceId = cs.ServiceId
@@ -59,21 +62,22 @@ const SQL_CHURN_SELECT = `
   LEFT JOIN ServiceCloseStatusExisting scs ON scs.id = scd.closeCatExistingStatus
 `;
 
-const SQL_CHURN_FROM_BILLING = `${SQL_CHURN_SELECT}
-  WHERE cs.ServiceId IN (?)
-    AND cs.CustStatus = 'NA'
-    AND cs.CustUnregDate BETWEEN ? AND ?
-    AND cs.CustUnregDate <= DATE_ADD(cs.CustRegDate, INTERVAL 1 YEAR)
-    AND (
+const SQL_CHURN_SELECT = `SELECT ${SQL_CHURN_COLUMNS} ${SQL_CHURN_FROM}`;
+
+// Branches whose services count for commission.
+const SQL_IN_BRANCH = `(
       IFNULL(c.DisplayBranchId, c.BranchId) IN ('020', '062', '025', '027', '029')
       OR (
         IFNULL(c.DisplayBranchId, c.BranchId) = '028'
         AND cs.SalesId NOT IN ('0208801')
       )
-    )
-    -- Not a churn once 12 full months were paid (monthly or prepaid) and it
-    -- stopped after the 12th: the customer finished a year and didn't renew.
-    AND NOT IFNULL((
+    )`;
+
+const SQL_WITHIN_YEAR = `cs.CustUnregDate <= DATE_ADD(cs.CustRegDate, INTERVAL 1 YEAR)`;
+
+// 12 full months were paid (monthly or prepaid) and it stopped after the
+// 12th: the customer finished a year and didn't renew.
+const SQL_PAID_12_MONTHS = `IFNULL((
       SELECT SUM(PERIOD_DIFF(cit.AkhirPeriode, cit.AwalPeriode) + 1) >= 12
         AND cs.CustUnregDate >= LAST_DAY(STR_TO_DATE(CONCAT(PERIOD_ADD(MIN(cit.AwalPeriode), 11), '01'), '%Y%m%d'))
       FROM CustomerInvoiceTemp cit
@@ -85,17 +89,42 @@ const SQL_CHURN_FROM_BILLING = `${SQL_CHURN_SELECT}
           JOIN NewCustomerInvoiceBatch ncib ON ncib.AI = nci.AI
           WHERE nci.Id = cit.InvoiceNum AND nci.No = cit.Urut AND nci.Type = 'internet'
         )
-    ), FALSE)
-    -- Not a churn once the termination invoice (early-termination fee) is paid.
-    AND NOT EXISTS (
+    ), FALSE)`;
+
+// The termination invoice (early-termination fee) is paid.
+const SQL_TERMINATION_PAID = `EXISTS (
       SELECT 1
       FROM CustomerInvoiceTemp cit
       JOIN NewCustomerInvoice nci ON nci.Id = cit.InvoiceNum AND nci.No = cit.Urut AND nci.Type = 'internet'
       JOIN NewCustomerInvoiceBatch ncib ON ncib.AI = nci.AI
       WHERE cit.CustServId = cs.CustServId
         AND cit.InvTermination = 1 AND cit.Reverse = 0 AND cit.RInvoiceNum = 0
-    )
+    )`;
+
+const SQL_CHURN_FROM_BILLING = `${SQL_CHURN_SELECT}
+  WHERE cs.ServiceId IN (?)
+    AND cs.CustStatus = 'NA'
+    AND cs.CustUnregDate BETWEEN ? AND ?
+    AND ${SQL_WITHIN_YEAR}
+    AND ${SQL_IN_BRANCH}
+    AND NOT ${SQL_PAID_12_MONTHS}
+    AND NOT ${SQL_TERMINATION_PAID}
   HAVING i.TotalInvoice > 0
+`;
+
+// Every service stopped (NA) in the window, whatever its product or branch,
+// with each churn condition above as a flag — for the admin's "Layanan NA"
+// review of why a stopped service is or isn't a churn.
+const SQL_STOPPED_IN_RANGE = `SELECT ${SQL_CHURN_COLUMNS},
+      IFNULL(c.DisplayBranchId, c.BranchId) AS customer_branch,
+      ${SQL_IN_BRANCH} AS in_branch,
+      ${SQL_WITHIN_YEAR} AS within_year,
+      ${SQL_PAID_12_MONTHS} AS paid_12_months,
+      ${SQL_TERMINATION_PAID} AS termination_paid
+  ${SQL_CHURN_FROM}
+  WHERE cs.CustStatus = 'NA'
+    AND cs.CustUnregDate BETWEEN ? AND ?
+  ORDER BY cs.CustUnregDate DESC
 `;
 
 // Churns deducted by hand in a later period (churn:carry): the named stopped
@@ -119,9 +148,21 @@ export class ChurnRepository implements IChurnRepository {
     return this.billingDb.query<RawChurnRow[]>(SQL_CHURN_FROM_BILLING, [serviceIds, startDate, endDate]);
   }
 
+  findStoppedFromBilling(startDate: string, endDate: string): Promise<RawStoppedServiceRow[]> {
+    return this.billingDb.query<RawStoppedServiceRow[]>(SQL_STOPPED_IN_RANGE, [startDate, endDate]);
+  }
+
   findFromBillingByAccounts(accounts: string[]): Promise<RawChurnRow[]> {
     if (accounts.length === 0) return Promise.resolve([]);
     return this.billingDb.query<RawChurnRow[]>(SQL_CHURN_BY_ACCOUNT, [accounts]);
+  }
+
+  async findChurnDate(customerServiceId: string): Promise<string | null> {
+    const rows = await this.appDb.query<{ churn_date: string }[]>(
+      `SELECT DATE_FORMAT(${CHURN_DATE}, '%Y-%m-%d') AS churn_date FROM churn WHERE customer_service_id = ?`,
+      [customerServiceId],
+    );
+    return rows[0]?.churn_date ?? null;
   }
 
   async setDeductDate(customerServiceId: number, deductDate: string): Promise<void> {
