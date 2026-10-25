@@ -152,7 +152,26 @@ export class SummaryController {
       c,
       listed.filter((r) => !stoppedIds.has(Number(r.customer_service_id))),
       (r) => r.employee_branch,
-    ).map((r) => ({ customer_service_account: r.customer_service_account, employee_branch: r.employee_branch }));
+    ).map((r) => ({
+      customer_service_id: r.customer_service_id,
+      customer_id: r.customer_id,
+      customer_name: r.customer_name,
+      customer_service_account: r.customer_service_account,
+      service_id: r.service_id,
+      service_name: r.service_name,
+      registration_date: r.registration_date,
+      unregistration_date: r.unregistration_date,
+      deduct_date: r.deduct_date,
+      close_status: r.close_status,
+      close_reason: r.close_reason,
+      reason: r.reason,
+      price: Number(r.price ?? 0),
+      sales_id: r.sales_id,
+      is_approved: !!r.is_approved,
+      employee_name: r.employee_name,
+      employee_photo: r.employee_photo,
+      employee_branch: r.employee_branch,
+    }));
     return c.json(successResponse("Stopped services retrieved successfully", { services, carried, closed }));
   }
 
