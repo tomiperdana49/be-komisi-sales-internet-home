@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_CHURN_CLOSE_REASONS, normalizeCloseReason } from "../helper/churn-close-reason.helper";
 
 const percent = z.number().min(0).max(100);
 const count = z.number().int().min(0);
@@ -32,6 +33,23 @@ const productSchema = z.object({
 
 const tier = <T extends z.ZodRawShape>(shape: T) => z.array(z.object(shape)).min(1);
 
+export const CHURN_CLOSE_STATUSES = ["New Installation", "Active to NA", "Renewal", "System"] as const;
+export type ChurnCloseStatus = (typeof CHURN_CLOSE_STATUSES)[number];
+
+/** Whether a service closed with this NIS close reason (within its close status) counts as churn. */
+const churnCloseReasonSchema = z.object({
+  status: z.enum(CHURN_CLOSE_STATUSES),
+  /** Kategori Close Reason — shown only; matching uses status + reason. */
+  category: z.string().trim().default(""),
+  /** Reason name as in NIS (ServiceCloseCategoryDetail.name). */
+  reason: z.string().trim().min(1),
+  /** Explanation shown next to the reason, e.g. "deal batal sebelum aktif". */
+  note: z.string().trim().default(""),
+  effectFrom: z.enum(["Operational", "Contract"]),
+  churn: z.boolean(),
+});
+export type ChurnCloseReasonRule = z.output<typeof churnCloseReasonSchema>;
+
 export const commissionRulesSchema = z
   .object({
     products: z.array(productSchema),
@@ -41,6 +59,11 @@ export const commissionRulesSchema = z
      * up on that period's next import, not in a preview.
      */
     excludedRecurringCategories: z.array(z.string().trim().min(1)).default(["Domain"]),
+    /**
+     * Effect of each NIS close reason on churn. Applied by churn-crawl when it
+     * pulls a period's churns, so a change shows up on that period's next crawl.
+     */
+    churnCloseReasons: z.array(churnCloseReasonSchema).default(() => structuredClone(DEFAULT_CHURN_CLOSE_REASONS)),
     rates: z.object({
       prorate: percent,
       setup: percent,
@@ -106,6 +129,15 @@ export const commissionRulesSchema = z
         }
       }
     };
+    const seenReasons = new Set<string>();
+    for (const r of rules.churnCloseReasons) {
+      const key = `${r.status}|${normalizeCloseReason(r.reason)}`;
+      if (seenReasons.has(key)) {
+        ctx.addIssue({ code: "custom", message: `Alasan close "${r.reason}" ditulis dua kali untuk status ${r.status}` });
+      }
+      seenReasons.add(key);
+    }
+
     ascending(rules.bonus.tiers.map((t) => t.at), "Tier bonus bulanan");
     ascending(rules.manager.teamThresholds.map((t) => t.teamSize), "Jumlah AM pada threshold tim");
     ascending([...rules.manager.newCommissionTiers].reverse().map((t) => t.minAchievement), "Tier overriding New (dari besar ke kecil)");

@@ -17,10 +17,9 @@ import type {
 // already paid for a full year and stopped after it, or that paid its
 // termination invoice, is not a churn.
 //
-// The close reason (latest ServiceCloseCategoryDetails row) must also count:
-// closed while Active (2) or at Renewal (3) always does; at New Installation
-// (1) only "Paid not yet to install"; SYSTEM (4) never. Services with no
-// close-category row (legacy closings) still count.
+// Its close reason (latest ServiceCloseCategoryDetails row) must also count;
+// that is filtered in ChurnService against the period's Aturan Komisi
+// (countsAsChurnClose), so the query returns the raw ids and names.
 const SQL_CHURN_SELECT = `
   SELECT
       cs.CustId AS customer_id,
@@ -34,6 +33,8 @@ const SQL_CHURN_SELECT = `
       cs.CustCloseReason AS reason,
       scs.name AS close_status,
       TRIM(scdd.name) AS close_reason,
+      scd.id AS close_category_id,
+      scd.closeCatExistingStatus AS close_status_id,
       cs.SalesId AS sales_id,
       cs.ManagerSalesId AS manager_id,
       cs.Subscription AS subscription,
@@ -63,11 +64,6 @@ const SQL_CHURN_FROM_BILLING = `${SQL_CHURN_SELECT}
     AND cs.CustStatus = 'NA'
     AND cs.CustUnregDate BETWEEN ? AND ?
     AND cs.CustUnregDate <= DATE_ADD(cs.CustRegDate, INTERVAL 1 YEAR)
-    AND (
-      scd.id IS NULL
-      OR scd.closeCatExistingStatus IN (2, 3)
-      OR (scd.closeCatExistingStatus = 1 AND TRIM(scdd.name) = 'Paid not yet to install')
-    )
     AND (
       IFNULL(c.DisplayBranchId, c.BranchId) IN ('020', '062', '025', '027', '029')
       OR (

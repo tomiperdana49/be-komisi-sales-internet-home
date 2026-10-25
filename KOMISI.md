@@ -150,17 +150,20 @@ Setiap record Churn yang masuk (dan bukan `is_approved`) akan mengurangi total p
 1. Status pelanggan `CustStatus = 'NA'` (non-aktif).
 2. Tanggal berhenti (`CustUnregDate`) berada dalam **periode berjalan**.
 3. **Berhenti ≤ 1 tahun sejak registrasi** (`CustUnregDate <= CustRegDate + 1 tahun`). Pelanggan yang berhenti setelah > 1 tahun **tidak** dihitung sebagai churn.
-3a. **Alasan berhenti (Close Category NIS)** termasuk yang berefek churn. Dibaca dari baris terakhir `ServiceCloseCategoryDetails` layanan tersebut, dikelompokkan menurut status saat ditutup (`closeCatExistingStatus`):
+3a. **Alasan berhenti (Close Category NIS)** termasuk yang berefek churn, menurut tab **Churn** di *Aturan Komisi* (versi yang berlaku untuk periode tersebut; bawaan = tabel di bawah, `DEFAULT_CHURN_CLOSE_REASONS` di `src/helper/churn-close-reason.helper.ts`). Dibaca dari baris terakhir `ServiceCloseCategoryDetails` layanan tersebut dan dicocokkan dari **status saat ditutup** (`closeCatExistingStatus`) + **nama alasan** di NIS — huruf besar/kecil, spasi, keterangan dalam kurung, dan kata "take" diabaikan (kategori di NIS sudah beberapa kali berganti nama, nama alasannya tidak). Berlaku saat `churn-crawl` menarik periode tersebut (`countsAsChurnClose`).
 
    | Status saat ditutup | Alasan | Churn? |
    |---|---|---|
    | **New Installation** (1) | *Paid not yet to install* | **Ya** |
    | **New Installation** (1) | Unreachable area, Slow Installation, Budget not enough (deal batal sebelum aktif), Get best offering from Competitor (sebelum aktif), Lose Contact, Event sudah selesai | Tidak |
-   | **Active to NA** (2) | Semua alasan (Poor Quality Product, Bad Communication Service, Solving Problem too long & slow, Customer Issue, Unreachable area (migrasi tidak cover), Budget not enough, Get best offering from Competitor, Product Unavailable, All fine but benefits not needed, Lose Contact, Merger Services) | **Ya** |
-   | **Renewal** (3) | Semua alasan (Poor Quality Product, Bad Communication Service, Customer Issue, Decision from the Head Office, Product Unavailable, Budget not enough, Get best offering from Competitor, All fine but benefits not needed, Lose Contact) | **Ya** |
-   | **SYSTEM** (4) | WHMCS, System Error | Tidak |
+   | **Active to NA** (2) | Bad Communication Service, Solving Problem too long & slow, Customer Issue, Unreachable area (migrasi tidak cover), Budget not enough (price), Get best offering from Competitor, Product Unavailable, All fine but benefits not needed, Lose Contact, Merger Services | **Ya** |
+   | **Active to NA** (2) | Poor Quality Product | Tidak |
+   | **Renewal** (3) | Bad Communication Service, Customer Issue, Decision from the Head Office, Product Unavailable, Budget not enough (price), Get best offering from Competitor, All fine but benefits not needed, Lose Contact | **Ya** |
+   | **Renewal** (3) | Poor Quality Product | Tidak |
+   | **System** (4) | WHMCS, System Error | Tidak |
 
-   Layanan yang ditutup sebelum ada Close Category (tidak punya baris `ServiceCloseCategoryDetails`) tetap dihitung churn bila syarat lain terpenuhi.
+   **Hanya alasan yang dicentang Churn yang dihitung**; alasan yang tidak dicentang atau tidak ada di tabel bukan churn — alasan baru di NIS harus ditambahkan admin agar ikut terhitung. Layanan yang ditutup sebelum ada Close Category (tidak punya baris `ServiceCloseCategoryDetails`) tetap dihitung churn bila syarat lain terpenuhi; status lain (mis. 0 / kosong) tidak. Kolom *Kategori* dan *Effect from* (Operational/Contract) hanya keterangan. Catatan: pelanggan New Installation yang sudah bayar lalu batal (PPN sudah dibayar finance) termasuk churn karena sudah masuk revenue — itulah alasan *Paid not yet to install* = Ya.
+
 4. Pelanggan **pernah memiliki minimal 1 invoice** (`HAVING TotalInvoice > 0`).
    - **Kecuali sudah membayar 12 bulan**: bila invoice non-prorata yang tidak di-reverse dan **sudah dibayar** menagih total **≥ 12 bulan** (bulanan maupun prepaid) dan tanggal berhenti ≥ akhir bulan ke-12 sejak bulan tagihan pertama, pelanggan dianggap sudah berlangganan setahun dan tidak memperpanjang — **bukan churn**. Contoh: bulanan registrasi 9 Jul 2025, membayar Jul 2025–Jun 2026, berhenti 1 Jul 2026; atau prepaid tahunan Okt 2025–Sep 2026 berhenti 1 Okt 2026. Pelanggan tahunan yang berhenti di tengah kontrak, atau bulanan yang menunggak sehingga belum lunas 12 bulan, tetap churn.
    - **Kecuali sudah membayar Terminasi**: bila layanan punya invoice terminasi (`InvTermination = 1`) yang tidak di-reverse dan **sudah dibayar**, pelanggan sudah melunasi biaya putus kontrak — **bukan churn**. Invoice terminasi yang belum dibayar tetap churn; begitu dibayar, record churn terhapus pada tarikan `churn-crawl` berikutnya (selama periodenya belum ditutup). Contoh: 0200550764 (`aldakel`) berhenti 2 Okt 2026 dan membayar Invoice Terminasi 5 Okt 2026.

@@ -1,3 +1,5 @@
+import type { ChurnCloseReasonRule } from "./commission-rules.interface";
+
 // Raw row from the billing DB — a service unregistered within the window.
 export type RawChurnRow = {
   customer_id: string;
@@ -12,6 +14,9 @@ export type RawChurnRow = {
   /** NIS close category: status when closed (e.g. "Renewal") and the reason picked; null for legacy closings. */
   close_status: string | null;
   close_reason: string | null;
+  /** Latest ServiceCloseCategoryDetails row and its closeCatExistingStatus; null for legacy closings. */
+  close_category_id: number | null;
+  close_status_id: number | null;
   sales_id: string | null;
   manager_id: string | null;
   subscription: unknown;
@@ -128,6 +133,7 @@ export interface IChurnService {
     serviceIds: string[],
     startDate: string,
     endDate: string,
+    closeReasons: ChurnCloseReasonRule[],
   ): Promise<{ synced: number; deleted: number; waived: number; reinstated: number }>;
   getByEmployeeId(employeeId: string, startDate: string, endDate: string): Promise<ChurnRow[]>;
   getByEmployeeIds(

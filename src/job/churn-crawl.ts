@@ -7,13 +7,19 @@ async function runPeriod(period: string) {
   const startDate = toSqlDate(start);
   const endDate = toSqlDate(end);
 
-  // Products flagged "churn" in that period's Aturan Komisi decide which services count.
+  // Products flagged "churn" in that period's Aturan Komisi decide which services count,
+  // and its close-reason table which closings do.
   const rules = await container.commissionRuleService.getForPeriod(period);
   const serviceIds = rules.products.filter((p) => p.churn).flatMap((p) => p.serviceIds);
 
   console.log(`Mengambil data churn untuk periode ${startDate} s.d. ${endDate} (ServiceId: ${serviceIds.join(", ") || "-"})...`);
 
-  const { synced, deleted, waived, reinstated } = await container.churnService.syncFromBilling(serviceIds, startDate, endDate);
+  const { synced, deleted, waived, reinstated } = await container.churnService.syncFromBilling(
+    serviceIds,
+    startDate,
+    endDate,
+    rules.churnCloseReasons,
+  );
 
   console.log(
     `Selesai. Disinkronkan: ${synced}, dihapus (orphan): ${deleted}, dibebaskan via Log Call: ${waived}, dibatalkan: ${reinstated}.`,

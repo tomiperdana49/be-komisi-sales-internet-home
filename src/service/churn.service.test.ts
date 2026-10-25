@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ChurnService } from "./churn.service";
+import { DEFAULT_CHURN_CLOSE_REASONS } from "../helper/churn-close-reason.helper";
 import type { ChurnApprovalState, IChurnRepository, WaiverLogCallRow } from "../interface/churn.interface";
 
 function setup(logCalls: WaiverLogCallRow[], states: ChurnApprovalState[]) {
@@ -41,7 +42,8 @@ const state = (
   is_approved: approved ? 1 : 0,
   approval_log_call_id: logCallId,
 });
-const sync = (service: ChurnService) => service.syncFromBilling(["BFLITE"], "2026-09-26", "2026-10-25");
+const sync = (service: ChurnService) =>
+  service.syncFromBilling(["BFLITE"], "2026-09-26", "2026-10-25", DEFAULT_CHURN_CLOSE_REASONS);
 
 describe("ChurnService log-call waivers", () => {
   test("Churn = false waives the log call's customer's churn", async () => {

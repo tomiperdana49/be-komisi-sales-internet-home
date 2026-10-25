@@ -1,4 +1,6 @@
+import { countsAsChurnClose } from "../helper/churn-close-reason.helper";
 import { CHURN_WAIVER_APPROVERS, parseChurnDirectives } from "../helper/churn-waiver.helper";
+import type { ChurnCloseReasonRule } from "../interface/commission-rules.interface";
 import type {
   ChurnRow,
   ChurnSummaryRow,
@@ -15,8 +17,11 @@ export class ChurnService implements IChurnService {
     serviceIds: string[],
     startDate: string,
     endDate: string,
+    closeReasons: ChurnCloseReasonRule[],
   ): Promise<{ synced: number; deleted: number; waived: number; reinstated: number }> {
-    const rows = await this.churnRepository.findFromBilling(serviceIds, startDate, endDate);
+    const rows = (await this.churnRepository.findFromBilling(serviceIds, startDate, endDate)).filter((row) =>
+      countsAsChurnClose(closeReasons, row.close_category_id, row.close_status_id, row.close_reason),
+    );
 
     const validCsIds: number[] = [];
     for (const row of rows) {
