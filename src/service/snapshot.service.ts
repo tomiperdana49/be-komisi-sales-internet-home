@@ -32,6 +32,7 @@ export class SnapshotService implements ISnapshotService {
       subscription,
       parseNumber(input.lineRental),
       parseDate(input.paidDate),
+      parseDate(input.activationDate),
       parseIntOrNull(input.bulan),
       parseIntOrNull(input.telatBulan) ?? 0,
       type,

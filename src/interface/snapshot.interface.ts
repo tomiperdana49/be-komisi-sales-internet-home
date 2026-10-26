@@ -25,6 +25,8 @@ export type RawSnapshotInput = {
   vendor: Scalar;
   lineRental: Scalar;
   paidDate: Scalar;
+  /** New-customer rows: the service's first activation; null if not activated yet. */
+  activationDate?: Scalar;
   bulan: Scalar;
   telatBulan: Scalar;
   biayaReferral: Scalar;

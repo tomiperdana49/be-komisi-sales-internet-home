@@ -17,6 +17,9 @@ CREATE TABLE snapshots(
     subscription DECIMAL(18,2) NULL,
     line_rental DECIMAL(18,2) NULL,
     paid_date DATE NULL,
+    -- New-customer rows: the service's first activation (null = not activated yet).
+    -- Migration: ALTER TABLE snapshots ADD COLUMN activation_date DATE NULL AFTER paid_date;
+    activation_date DATE NULL,
     month INT NULL,
     late_month INT DEFAULT 0,
     type ENUM('new','prorate','upgrade','recurring') NULL DEFAULT NULL,

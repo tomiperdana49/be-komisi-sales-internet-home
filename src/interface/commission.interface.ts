@@ -21,6 +21,7 @@ export type CommissionSnapshotRow = {
   subscription: number | null;
   line_rental: number | null;
   paid_date: Date | string | null;
+  activation_date?: Date | string | null;
   month: number | null;
   late_month: number | null;
   type: SnapshotType | null;
@@ -105,6 +106,8 @@ export type CommissionLineItem = {
   isApproved: boolean;
   isAdjusted: boolean;
   paidDate: string | null;
+  /** New-customer rows: the service's first activation; null for recurring or not activated yet. */
+  activationDate: string | null;
   subscription: number;
   mrc: number;
   referralFee: number;
