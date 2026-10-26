@@ -112,6 +112,8 @@ export type CommissionLineItem = {
   mrc: number;
   referralFee: number;
   referralType: string | null;
+  /** Reseller the referral fee goes to. */
+  referralName: string | null;
   baseCommission: number;
   commissionPercentage: number;
   commission: number;
@@ -151,6 +153,12 @@ export type SalesCommissionResult = {
     subscription: number;
     mrc: number;
   };
+  /** Recurring invoices (incl. renewals): referral fee cut from the commission basis (OTC referrals cut nothing). */
+  recurringReferralFee: number;
+  /** Recurring invoices (incl. renewals): late-payment cut from the basis left after referral; approved invoices cut nothing. */
+  recurringLatePenalty: number;
+  /** The recurring invoices behind recurringLatePenalty, each with its cut. */
+  recurringLateItems: ManagerRecurringBasisItem[];
   items: CommissionLineItem[];
 };
 
@@ -240,6 +248,10 @@ export type ManagerRecurringBasisItem = {
   lateMonth: number;
   paidDate: string | null;
   amount: number;
+  /** Late items: the referral cut, the amount the late cut was taken from (subscription − referral) and its percentage. */
+  referral?: number;
+  basis?: number;
+  percentage?: number;
 };
 
 export type ManagerCommissionResult = {

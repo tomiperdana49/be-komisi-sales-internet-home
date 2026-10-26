@@ -179,6 +179,13 @@ export function resolveTarget(
 }
 
 /** Late-payment deduction per month late, capped. Waived entirely for approved invoices. */
+/** Late-payment cut in percent for this many months late: latePerMonth each, capped at lateMax. */
+export function latePenaltyPercent(rules: CommissionRules, lateMonth: number | null | undefined): number {
+  if (!lateMonth || lateMonth <= 0) return 0;
+  const { latePerMonth, lateMax } = rules.penalties;
+  return Math.min(Number(lateMonth) * latePerMonth, lateMax);
+}
+
 export function applyLateMonthPenalty(
   rules: CommissionRules,
   amount: number,
@@ -188,9 +195,7 @@ export function applyLateMonthPenalty(
   const approved = isApproved === true || isApproved === 1 || isApproved === "1";
   if (approved || !lateMonth || lateMonth <= 0) return amount;
 
-  const { latePerMonth, lateMax } = rules.penalties;
-  const deduction = Math.min(Number(lateMonth) * (latePerMonth / 100), lateMax / 100);
-  return amount * (1 - deduction);
+  return amount * (1 - latePenaltyPercent(rules, lateMonth) / 100);
 }
 
 /**

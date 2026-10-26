@@ -1,5 +1,6 @@
 import {
   applyLateMonthPenalty,
+  latePenaltyPercent,
   calculateAchievement,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
@@ -415,7 +416,14 @@ export class CommissionService {
       teamRecurringSubscriptionNet += net;
       recurringReferralDeduction += subscription - basis;
       recurringLatePenalty += basis - net;
-      if (basis - net > 0) recurringLateItems.push(toBasisItem(row, basis - net));
+      if (basis - net > 0) {
+        recurringLateItems.push({
+          ...toBasisItem(row, basis - net),
+          referral: subscription - basis,
+          basis,
+          percentage: latePenaltyPercent(rules, toNumber(row.late_month)),
+        });
+      }
     }
 
     const recurringCommissionRate = getManagerRecurringRate(rules, performance.isTargetAchieved);
@@ -602,6 +610,7 @@ export class CommissionService {
       mrc,
       referralFee: toNumber(row.referral_fee),
       referralType: row.referral_type,
+      referralName: row.referral_name,
       baseCommission,
       commissionPercentage: ratePercentage,
       commission: baseCommission * (ratePercentage / 100),
@@ -749,6 +758,7 @@ export class CommissionService {
         mrc,
         referralFee: toNumber(row.referral_fee),
         referralType: row.referral_type,
+        referralName: row.referral_name,
         baseCommission,
         commissionPercentage,
         commission,
@@ -772,6 +782,37 @@ export class CommissionService {
 
     const { achievementStatus, motivation } = calculateAchievement(rules, status, activityCount, manualTarget?.target);
 
+    // What comes off the recurring invoices' subscription before the rate
+    // (same split as the manager's recurring basis): the referral cut, then
+    // the late-payment cut on what's left. Shown on the Subscription Recurring card.
+    let recurringReferralFee = 0;
+    let recurringLatePenalty = 0;
+    const recurringLateItems: ManagerRecurringBasisItem[] = [];
+    for (const item of items) {
+      if (item.type !== "recurring" && !item.isRenewal) continue;
+      const basis = getCommissionBasis(item.subscription, item.referralFee, item.referralType);
+      const latePenalty = basis - applyLateMonthPenalty(rules, basis, item.lateMonth, item.isApproved);
+      recurringReferralFee += item.subscription - basis;
+      recurringLatePenalty += latePenalty;
+      if (latePenalty > 0) {
+        recurringLateItems.push({
+          aiInvoice: item.aiInvoice,
+          customerId: item.customerId,
+          customerName: item.customerName,
+          serviceId: item.serviceId,
+          sales: employeeId,
+          salesName: null,
+          subscription: item.subscription,
+          lateMonth: item.lateMonth,
+          paidDate: item.paidDate,
+          amount: latePenalty,
+          referral: item.subscription - basis,
+          basis,
+          percentage: latePenaltyPercent(rules, item.lateMonth),
+        });
+      }
+    }
+
     return {
       period,
       startDate,
@@ -792,6 +833,9 @@ export class CommissionService {
       breakdown,
       byServiceGroup,
       deduction,
+      recurringReferralFee,
+      recurringLatePenalty,
+      recurringLateItems,
       items,
     };
   }
