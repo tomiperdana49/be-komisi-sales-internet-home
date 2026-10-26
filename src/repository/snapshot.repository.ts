@@ -161,9 +161,21 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
     types: string[],
   ): Promise<void> {
     await this.db.withTransaction(async (txQuery) => {
+      // Also an adjusted row whose type an admin changed away from these types
+      // (e.g. a recurring invoice made "new"): its original type is in the
+      // adjustment log, and re-inserting it would count the invoice twice.
       const adjustedRows = await txQuery<{ ai_invoice: number }[]>(
-        "SELECT ai_invoice FROM snapshots WHERE period = ? AND type IN (?) AND is_adjusted = TRUE",
-        [period, types],
+        `SELECT s.ai_invoice FROM snapshots s
+         WHERE s.period = ? AND s.is_adjusted = TRUE
+           AND (
+             s.type IN (?)
+             OR EXISTS (
+               SELECT 1 FROM snapshot_adjustment sa
+               WHERE sa.ai_invoice = s.ai_invoice
+                 AND JSON_UNQUOTE(JSON_EXTRACT(sa.old_value, '$.type')) IN (?)
+             )
+           )`,
+        [period, types, types],
       );
       const adjustedAiInvoices = new Set(adjustedRows.map((r) => r.ai_invoice));
 
