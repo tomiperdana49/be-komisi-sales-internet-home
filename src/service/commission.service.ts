@@ -1072,6 +1072,7 @@ export class CommissionService {
       subscription: row.subscription,
       lineRental: row.line_rental,
       paidDate: row.paid_date ? toSqlDate(new Date(row.paid_date)) : null,
+      activationDate: row.activation_date ? toSqlDate(new Date(row.activation_date)) : null,
       month: row.month,
       lateMonth: row.late_month,
       type: row.type,
