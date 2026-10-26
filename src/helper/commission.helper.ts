@@ -144,13 +144,25 @@ export function isNusaSelecta(rules: CommissionRules, serviceId: string | null |
 }
 
 /**
+ * NusaSelecta Prime 100 promo (Rp50.000 / 30 days, SE Sept 2026): earns
+ * commission like any New sale, but 3 promo units weigh as 1 normal-price
+ * Basic/Prime unit toward New Achievement (so 9 promo = 1 Achievement).
+ */
+export const NUSASELECTA_PROMO = { serviceId: "NFSP100", price: 50000, unitsPerBasicPrime: 3 } as const;
+
+export function isNusaSelectaPromo(serviceId: string | null | undefined, subscription: unknown): boolean {
+  return serviceId === NUSASELECTA_PROMO.serviceId && Number(subscription) === NUSASELECTA_PROMO.price;
+}
+
+/**
  * NusaSelecta units are grouped before counting toward the monthly target:
  * every 3 Basic/Prime = 1, every 2 Ultra = 1, plus a leftover 2 Basic/Prime
- * + 1 Ultra combination = 1. Units that don't complete a group still earn
+ * + 1 Ultra combination = 1. Promo units first convert to Basic/Prime units
+ * (NUSASELECTA_PROMO). Units that don't complete a group still earn
  * commission but add nothing to the target.
  */
-export function calculateNusaSelectaActivity(basicPrime: number, ultra: number): number {
-  const bp = Math.max(0, basicPrime);
+export function calculateNusaSelectaActivity(basicPrime: number, ultra: number, promo = 0): number {
+  const bp = Math.max(0, basicPrime) + Math.floor(Math.max(0, promo) / NUSASELECTA_PROMO.unitsPerBasicPrime);
   const ul = Math.max(0, ultra);
 
   let achievement = Math.floor(bp / 3) + Math.floor(ul / 2);

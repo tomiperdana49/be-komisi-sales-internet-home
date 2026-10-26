@@ -125,6 +125,7 @@ Pencapaian "New Achievement" didasarkan khusus pada produk tipe baru (New) setel
   2. Setiap **2 unit** Ultra 200 (`NFSP200`) = **1 Achievement** (berlaku kelipatan).
   3. **Kombinasi sisa**: apabila tersisa **2 unit** Basic/Prime **dan** **1 unit** Ultra 200, kombinasi ketiga unit tersebut = **1 Achievement**.
   4. Sisa unit yang **tidak** memenuhi ketentuan di atas **tidak** dihitung ke target bulanan — komisinya tetap dibayar, tapi tidak menambah New Achievement.
+  5. **Promo NusaSelecta Prime 100 Rp50.000/30 hari** (SE September 2026, untuk customer terpilih): setiap **3 unit promo = 1 unit** Basic/Prime harga normal, lalu ikut pengelompokan di atas — jadi 9 promo = 1 Achievement, 1 Basic + 6 promo = 1, 2 Basic + 3 promo = 1, 6 promo + 1 Ultra = 1, 1 Basic + 3 promo + 1 Ultra = 1. Promo yang tidak mencukupi tetap dapat komisi (rate 1 bulan × Rp50.000). Invoice promo dikenali dari `NFSP100` + langganan baru Rp50.000 + invoice pertama + periode tagihan ±30 hari (`NUSASELECTA_PROMO`); untuk cabang 028 (iForte) invoice ini dikecualikan dari syarat langganan baru > Rp110.000. Paket harian/mingguan dan selisih upgrade Rp10.000 tidak termasuk.
 
   > **Contoh:** 5 Basic + 3 Ultra → `floor(5/3)=1` + `floor(3/2)=1` = 2, lalu sisa `2 Basic + 1 Ultra` → +1 = **3 Achievement**. (Aturan lama: Basic/Prime per 2, Ultra 200 dihitung 1:1 — kini sudah tidak berlaku.)
 

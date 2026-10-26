@@ -134,9 +134,10 @@ export type SalesCommissionResult = {
   manualTarget: ManualTarget | null;
   /**
    * NusaSelecta New units sold (before churn), by group. They earn commission per unit
-   * but only count toward New Achievement in groups (3 Basic/Prime or 2 Ultra = 1).
+   * but only count toward New Achievement in groups (3 Basic/Prime or 2 Ultra = 1;
+   * `promo` = Prime 100 promo units, 3 of which weigh as 1 Basic/Prime).
    */
-  nusaSelectaNewUnits: { basicPrime: number; ultra: number };
+  nusaSelectaNewUnits: { basicPrime: number; ultra: number; promo: number };
   achievementStatus: string;
   motivation: string;
   bonusBulanan: number;

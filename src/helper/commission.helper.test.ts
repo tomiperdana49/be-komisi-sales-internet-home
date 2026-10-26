@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { DEFAULT_COMMISSION_RULES } from "./commission-rules.default";
 import {
   netCommissionBasis,
+  calculateNusaSelectaActivity,
+  isNusaSelectaPromo,
   calculateCommission,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
@@ -245,5 +247,25 @@ describe("netCommissionBasis", () => {
   test("approved invoices and OTC referrals cut nothing for that part", () => {
     expect(netCommissionBasis(rules, "202610", 3_000_000, 300_000, null, 1, true).net).toBe(2_700_000);
     expect(netCommissionBasis(rules, "202610", 3_000_000, 300_000, "OTC", 1, false).net).toBe(2_700_000);
+  });
+});
+
+describe("NusaSelecta Prime 100 promo (SE Sept 2026)", () => {
+  test("only Prime 100 at Rp50.000 is promo", () => {
+    expect(isNusaSelectaPromo("NFSP100", "50000.00")).toBe(true);
+    expect(isNusaSelectaPromo("NFSP100", 150000)).toBe(false);
+    expect(isNusaSelectaPromo("NFSP030", 50000)).toBe(false);
+  });
+
+  test("every row of the SE table is 1 New Achievement", () => {
+    // [Basic 30 normal, Prime 100 promo, Ultra 200 normal]
+    for (const [basic, promo, ultra] of [[0, 9, 0], [1, 6, 0], [2, 3, 0], [0, 6, 1], [1, 3, 1]]) {
+      expect(calculateNusaSelectaActivity(basic!, ultra!, promo)).toBe(1);
+    }
+  });
+
+  test("fewer than 9 promo alone add nothing to the target", () => {
+    expect(calculateNusaSelectaActivity(0, 0, 8)).toBe(0);
+    expect(calculateNusaSelectaActivity(0, 0, 18)).toBe(2);
   });
 });

@@ -15,6 +15,8 @@ import {
   hasCommissionRate,
   isDomainService,
   isNusaBasicPrime,
+  isNusaSelectaPromo,
+  NUSASELECTA_PROMO,
   isNusaSelecta,
   isNusaUltra,
   isSdr,
@@ -856,6 +858,7 @@ export class CommissionService {
   ) {
     let basicPrime = 0;
     let ultra = 0;
+    let promo = 0;
     let standard = 0;
     const customerHasSetup = new Set<string>();
 
@@ -864,20 +867,22 @@ export class CommissionService {
       if (bucket === "setup") customerHasSetup.add(row.customer_id);
       if (bucket !== "new") continue;
 
-      if (isNusaBasicPrime(rules, row.service_id)) basicPrime++;
+      if (isNusaSelectaPromo(row.service_id, row.subscription)) promo++;
+      else if (isNusaBasicPrime(rules, row.service_id)) basicPrime++;
       else if (isNusaUltra(rules, row.service_id)) ultra++;
       else standard++;
     }
 
     if (!groupNusaSelecta) {
-      let net = standard + basicPrime + ultra;
+      // Promo units still need 9 for one Achievement, like the AM grouping.
+      let net = standard + basicPrime + ultra + Math.floor(promo / (NUSASELECTA_PROMO.unitsPerBasicPrime * 3));
       for (const churn of churnRows) {
         if (!churn.is_approved) net--;
       }
-      return { activityCount: net, grossNusaSelectaActivity: 0, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra } };
+      return { activityCount: net, grossNusaSelectaActivity: 0, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra, promo } };
     }
 
-    const grossNusaSelectaActivity = calculateNusaSelectaActivity(basicPrime, ultra);
+    const grossNusaSelectaActivity = calculateNusaSelectaActivity(basicPrime, ultra, promo);
 
     let netBasicPrime = basicPrime;
     let netUltra = ultra;
@@ -892,9 +897,9 @@ export class CommissionService {
 
     // Not floored at 0: churn beyond a person's own sales still reduces team
     // achievement, matching the per-product team totals.
-    const activityCount = netStandard + calculateNusaSelectaActivity(netBasicPrime, netUltra);
+    const activityCount = netStandard + calculateNusaSelectaActivity(netBasicPrime, netUltra, promo);
 
-    return { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra } };
+    return { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra, promo } };
   }
 
   /**

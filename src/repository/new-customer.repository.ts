@@ -55,8 +55,15 @@ WHERE cit.RInvoiceNum = 0
       IFNULL(c.DisplayBranchId, c.BranchId) IN ('020', '062', '025', '027', '029')
       OR (
         IFNULL(c.DisplayBranchId, c.BranchId) IN ('028')
-        AND nciic.new_subscription > 110000
         AND cs.SalesId NOT IN ('0208801')
+        AND (
+          nciic.new_subscription > 110000
+          -- NusaSelecta Prime 100 promo, Rp50.000 / 30 days (NUSASELECTA_PROMO).
+          OR (
+            cs.ServiceId = 'NFSP100' AND nciic.new_subscription = 50000 AND nciic.counter = 1
+            AND DATEDIFF(cit.InvoicePeriodEnd, cit.InvoicePeriodStart) >= 28
+          )
+        )
       )
     )
     AND nciic.new_subscription > 0
