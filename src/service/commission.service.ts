@@ -1,13 +1,12 @@
 import {
-  applyLateMonthPenalty,
   latePenaltyPercent,
+  netCommissionBasis,
   calculateAchievement,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
   calculateCommission,
   calculateManagerPerformance,
   calculateNusaSelectaActivity,
-  getCommissionBasis,
   getManagerNewCommissionBasis,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
@@ -411,16 +410,17 @@ export class CommissionService {
     const recurringLateItems: ManagerRecurringBasisItem[] = [];
     for (const row of recurringRows) {
       const subscription = toNumber(row.subscription);
-      const basis = getCommissionBasis(subscription, toNumber(row.referral_fee), row.referral_type);
-      const net = applyLateMonthPenalty(rules, basis, row.late_month, row.is_approved);
+      const { net, referralCut, lateCut, lateBasis } = netCommissionBasis(
+        rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
+      );
       teamRecurringSubscriptionNet += net;
-      recurringReferralDeduction += subscription - basis;
-      recurringLatePenalty += basis - net;
-      if (basis - net > 0) {
+      recurringReferralDeduction += referralCut;
+      recurringLatePenalty += lateCut;
+      if (lateCut > 0) {
         recurringLateItems.push({
-          ...toBasisItem(row, basis - net),
-          referral: subscription - basis,
-          basis,
+          ...toBasisItem(row, lateCut),
+          referral: referralCut,
+          basis: lateBasis,
           percentage: latePenaltyPercent(rules, toNumber(row.late_month)),
         });
       }
@@ -436,7 +436,7 @@ export class CommissionService {
     // the only commission stream they actually feed.
     const croRecurring = recurringRows
       .filter((row) => row.sales === CRO_PLACEHOLDER)
-      .map((row) => this.valueManagerRecurringRow(rules, row, recurringCommissionRate));
+      .map((row) => this.valueManagerRecurringRow(rules, period, row, recurringCommissionRate));
 
     // Team Production by Service shows the manager area's FULL production:
     // Customer Relation Officer recurring rows (6.D) fold into byServiceGroup,
@@ -575,14 +575,16 @@ export class CommissionService {
    */
   private valueManagerRecurringRow(
     rules: CommissionRules,
+    period: string,
     row: CommissionSnapshotRow,
     ratePercentage: number,
   ): CommissionLineItem {
     const months = Math.max(toNumber(row.month) || 1, 1);
     const subscription = toNumber(row.subscription);
     const mrc = subscription / months;
-    const basis = getCommissionBasis(subscription, toNumber(row.referral_fee), row.referral_type);
-    const baseCommission = applyLateMonthPenalty(rules, basis, row.late_month, row.is_approved);
+    const { net: baseCommission } = netCommissionBasis(
+      rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
+    );
 
     return {
       aiInvoice: row.ai_invoice,
@@ -687,17 +689,16 @@ export class CommissionService {
 
       const subscription = toNumber(row.subscription);
       const mrc = subscription / months;
-      const basis = getCommissionBasis(
-        subscription,
-        toNumber(row.referral_fee),
-        row.referral_type,
+      // Referral and late-payment cuts are already taken here (order depends on the period).
+      const { net } = netCommissionBasis(
+        rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
       );
 
       const { commission, commissionPercentage, baseCommission } = calculateCommission(
         rules,
-        basis,
-        row.late_month,
-        row.is_approved,
+        net,
+        0,
+        true,
         {
           category,
           type,
@@ -790,9 +791,10 @@ export class CommissionService {
     const recurringLateItems: ManagerRecurringBasisItem[] = [];
     for (const item of items) {
       if (item.type !== "recurring" && !item.isRenewal) continue;
-      const basis = getCommissionBasis(item.subscription, item.referralFee, item.referralType);
-      const latePenalty = basis - applyLateMonthPenalty(rules, basis, item.lateMonth, item.isApproved);
-      recurringReferralFee += item.subscription - basis;
+      const { referralCut, lateCut: latePenalty, lateBasis: basis } = netCommissionBasis(
+        rules, period, item.subscription, item.referralFee, item.referralType, item.lateMonth, item.isApproved,
+      );
+      recurringReferralFee += referralCut;
       recurringLatePenalty += latePenalty;
       if (latePenalty > 0) {
         recurringLateItems.push({
@@ -806,7 +808,7 @@ export class CommissionService {
           lateMonth: item.lateMonth,
           paidDate: item.paidDate,
           amount: latePenalty,
-          referral: item.subscription - basis,
+          referral: referralCut,
           basis,
           percentage: latePenaltyPercent(rules, item.lateMonth),
         });

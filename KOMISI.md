@@ -30,6 +30,7 @@ Dokumen ini fokus pada **aturan bisnis perhitungan komisi**.
      - **Pengecualian**: Produk tipe **Prorate**, **Upgrade**, dan **Recurring** dibebaskan dari penalti performa ini (langsung mengambil Dasar Komisi tanpa potongan 70%).
 - **Base Commission (Dasar Komisi Akhir)**: Dihitung dengan rumus:
   `Base Commission = Commission Basis * (1 - Total Persentase Penalti)`.
+- **⚠️ Urutan referral & telat bayar mulai periode Oktober 2026 (`202610`)**: potongan telat bayar dihitung dari **subscription penuh**, lalu referral fee dikurangi sesudahnya: `(Subscription − Telat% × Subscription − Referral) × (1 − penalti target)`. Contoh: Rp3.000.000, telat 1 bulan, referral Rp300.000 → Rp3.000.000 − Rp300.000 − Rp300.000 = **Rp2.400.000**. Periode sebelumnya tetap memakai urutan lama (referral dulu, lalu telat dari sisanya → Rp2.430.000). Lihat `netCommissionBasis` / `LATE_BEFORE_REFERRAL_SINCE` di `commission.helper.ts`; berlaku untuk komisi AM, overriding SM, dan baris Customer Relation Officer.
 
 #### 1.3 Kenaikan Harga Saat Perpanjangan (Renewal)
 

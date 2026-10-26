@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_COMMISSION_RULES } from "./commission-rules.default";
 import {
+  netCommissionBasis,
   calculateCommission,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
@@ -223,5 +224,26 @@ describe("validation", () => {
     edited.rates.prorate = 120;
     edited.bonus.tiers = [{ at: 17, amount: 1 }, { at: 15, amount: 2 }];
     expect(issues(edited).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("netCommissionBasis", () => {
+  const rules = structuredClone(DEFAULT_COMMISSION_RULES);
+
+  test("from October 2026: late cut on the full subscription, then the referral", () => {
+    expect(netCommissionBasis(rules, "202610", 3_000_000, 300_000, null, 1, false)).toEqual({
+      net: 2_400_000, referralCut: 300_000, lateCut: 300_000, lateBasis: 3_000_000,
+    });
+  });
+
+  test("before October 2026: referral first, then the late cut on what's left", () => {
+    expect(netCommissionBasis(rules, "202609", 3_000_000, 300_000, null, 1, false)).toEqual({
+      net: 2_430_000, referralCut: 300_000, lateCut: 270_000, lateBasis: 2_700_000,
+    });
+  });
+
+  test("approved invoices and OTC referrals cut nothing for that part", () => {
+    expect(netCommissionBasis(rules, "202610", 3_000_000, 300_000, null, 1, true).net).toBe(2_700_000);
+    expect(netCommissionBasis(rules, "202610", 3_000_000, 300_000, "OTC", 1, false).net).toBe(2_700_000);
   });
 });

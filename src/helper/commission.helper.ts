@@ -211,6 +211,35 @@ export function getCommissionBasis(
   return referralType === "OTC" ? subscription : subscription - referralFee;
 }
 
+/** From this period on, the late-payment cut is taken from the full subscription and the referral fee comes off after it. */
+export const LATE_BEFORE_REFERRAL_SINCE = "202610";
+
+/**
+ * What an invoice's commission is calculated on, after the referral fee and
+ * the late-payment cut (before the New performance penalty). From
+ * LATE_BEFORE_REFERRAL_SINCE: subscription − late% × subscription − referral
+ * (e.g. 3,000,000 − 10% − 300,000 = 2,400,000). Earlier periods keep the old
+ * order: (subscription − referral) − late% of that (= 2,430,000).
+ */
+export function netCommissionBasis(
+  rules: CommissionRules,
+  period: string,
+  subscription: number,
+  referralFee: number,
+  referralType: string | null | undefined,
+  lateMonth: number | null | undefined,
+  isApproved: unknown,
+): { net: number; referralCut: number; lateCut: number; lateBasis: number } {
+  const referralCut = subscription - getCommissionBasis(subscription, referralFee, referralType);
+  if (period >= LATE_BEFORE_REFERRAL_SINCE) {
+    const lateCut = subscription - applyLateMonthPenalty(rules, subscription, lateMonth, isApproved);
+    return { net: Math.max(0, subscription - lateCut - referralCut), referralCut, lateCut, lateBasis: subscription };
+  }
+  const basis = subscription - referralCut;
+  const lateCut = basis - applyLateMonthPenalty(rules, basis, lateMonth, isApproved);
+  return { net: basis - lateCut, referralCut, lateCut, lateBasis: basis };
+}
+
 /** True when a service has a configured New/Upgrade rate. */
 export function hasCommissionRate(rules: CommissionRules, serviceId: string | null | undefined): boolean {
   return Boolean(findProduct(rules, serviceId));
