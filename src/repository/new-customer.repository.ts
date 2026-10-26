@@ -62,7 +62,14 @@ WHERE cit.RInvoiceNum = 0
     AND nciic.new_subscription > 0
     AND (
       (DATE(nci.InsertDate) BETWEEN ? AND ?)
-      OR (nci2.TransDate IS NOT NULL AND IFNULL(nciic.trx_date, nci2.TransDate) BETWEEN ? AND ?))
+      OR (nci2.TransDate IS NOT NULL AND IFNULL(nciic.trx_date, nci2.TransDate) BETWEEN ? AND ?)
+      -- Paid earlier but activated in the period: counts here (activationCommissionDate).
+      OR EXISTS (
+        SELECT 1 FROM CustomerServicesHistoryNew h
+        WHERE h.cust_serv_id = cs.CustServId
+          AND (h.description LIKE 'Free\n%' OR h.description LIKE 'Activation\n%')
+          AND DATE(h.insert_time) BETWEEN ? AND ?
+      ))
     AND cs.CustServId IS NOT NULL
 GROUP BY nci.AI
 ORDER BY nci.AI)
@@ -199,6 +206,7 @@ SELECT
     s.ServiceId \`Service Id\`,
     s.ServiceGroup AS \`Category\`,
     IFNULL(csa.first_active, cs.CustActivationDate) AS \`Awal Aktif\`,
+    csa.first_active AS \`Aktivasi Tercatat\`,
     IF(ss.NormalUpCeil > ss.NormalDownCeil, FLOOR(ss.NormalUpCeil/1024), FLOOR(ss.NormalDownCeil/1024)) AS \`Bandwidth (Mbps)\`,
     v.Vendor,
     vt.tagihan \`Line Rental\`,

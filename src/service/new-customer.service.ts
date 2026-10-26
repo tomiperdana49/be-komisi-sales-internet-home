@@ -109,6 +109,35 @@ export function isPaidInPeriod(transactionDateRaw: unknown, start: Date, end: Da
   return paymentDate >= start && paymentDate <= end;
 }
 
+/** Payments from this date on (the October 2026 period) wait for the service's activation. */
+export const ACTIVATION_RULE_SINCE = "2026-09-26";
+
+/**
+ * The date an internet invoice of a new service counts on: its payment, or
+ * the service's first activation when that's later — paid in October but
+ * activated in November counts in November. A service never activated yet
+ * (still BL with no Activation in its history) doesn't count yet (null).
+ * Payments before ACTIVATION_RULE_SINCE keep counting on the payment date, so
+ * periods already closed under the old rule aren't counted twice.
+ */
+export function activationCommissionDate(
+  transactionDateRaw: unknown,
+  activationDateRaw: unknown,
+  notYetActivated: boolean,
+): unknown {
+  const toDate = (v: unknown) => {
+    if (v === null || v === undefined || v === "") return null;
+    const d = new Date(v as any);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  const payment = toDate(transactionDateRaw);
+  if (!payment) return transactionDateRaw;
+  if (payment < new Date(`${ACTIVATION_RULE_SINCE}T00:00:00`)) return transactionDateRaw;
+  if (notYetActivated) return null;
+  const activation = toDate(activationDateRaw);
+  return activation && activation > payment ? activationDateRaw : transactionDateRaw;
+}
+
 export class NewCustomerService implements INewCustomerService {
   // `type` values this domain writes — used to scope replaceForPeriod so a
   // re-run never touches the old-customer (recurring) rows for the same period.
@@ -131,7 +160,7 @@ export class NewCustomerService implements INewCustomerService {
     // and running them concurrently on the pool has been observed to trip a
     // "Connection lost" error against this server.
     const invoiceRows = await this.newCustomerRepository.findInvoices([
-      startStr, endStr, startStr, endStr,
+      startStr, endStr, startStr, endStr, startStr, endStr,
       startStr, endStr, startStr, endStr,
       startStr, endStr, startStr, endStr,
     ]);
@@ -157,8 +186,11 @@ export class NewCustomerService implements INewCustomerService {
     const results: RawSnapshotInput[] = [];
 
     for (const inv of invoiceRows) {
+      // CSID comes back as a string from the invoice UNION but a number from
+      // the account query; without the cast every invoice fell back to the
+      // customer's last service.
       const account =
-        (inv.CSID && accountByCsid.get(inv.CSID)) || accountByCid.get(inv.CID);
+        (inv.CSID && accountByCsid.get(Number(inv.CSID))) || accountByCid.get(inv.CID);
 
       let late: number | null = null;
       if (account && (account.CustStatus !== "BL" || inv.SG === "ST" || inv.SG === "Alat")) {
@@ -168,7 +200,15 @@ export class NewCustomerService implements INewCustomerService {
       let isPaid = 0;
       let inputPaymentDate: unknown = null;
       let aiReceipt: number | null = null;
-      if (isPaidInPeriod(inv["Tanggal Transaksi Pembayaran"], start, end)) {
+      const isInternetInvoice = inv.SG !== "Alat" && inv.SG !== "ST";
+      const commissionDate = isInternetInvoice
+        ? activationCommissionDate(
+            inv["Tanggal Transaksi Pembayaran"],
+            account?.["Awal Aktif"] ?? null,
+            !!account && !account["Aktivasi Tercatat"] && account.CustStatus === "BL",
+          )
+        : inv["Tanggal Transaksi Pembayaran"];
+      if (isPaidInPeriod(commissionDate, start, end)) {
         isPaid = 1;
         inputPaymentDate = inv["Tanggal Input Pembayaran"];
         aiReceipt = inv["AI Receipt"];

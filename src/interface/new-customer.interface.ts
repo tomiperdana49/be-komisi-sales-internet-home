@@ -33,6 +33,10 @@ export type NewCustomerAccountRow = {
   "Nama Service": string | null;
   "Service Id": string | null;
   "Bandwidth (Mbps)": number | null;
+  /** First Free/Activation entry in the service history, else CustActivationDate. */
+  "Awal Aktif"?: unknown;
+  /** First Free/Activation entry in the service history; null if none recorded. */
+  "Aktivasi Tercatat"?: unknown;
   Vendor: string | null;
   Sales: string | null;
   "Manager Sales": string | null;
