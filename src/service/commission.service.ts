@@ -1127,13 +1127,15 @@ export class CommissionService {
     const employees = await this.employeeService.findByEmployeeIds(employeeIds);
     const nameByEmployeeId = new Map(employees.map((e) => [e.employee_id, e.name]));
 
+    // The driver may already hand JSON columns back parsed.
+    const parseJson = (value: unknown) => (typeof value === "string" ? JSON.parse(value) : value);
     return rows.map((row) => ({
       id: row.id,
       aiInvoice: row.ai_invoice,
       employeeId: row.employee_id,
       employeeName: nameByEmployeeId.get(row.employee_id) ?? null,
-      oldValue: JSON.parse(row.old_value),
-      newValue: JSON.parse(row.new_value),
+      oldValue: parseJson(row.old_value),
+      newValue: parseJson(row.new_value),
       note: row.note,
       createdAt: row.created_at,
     }));
