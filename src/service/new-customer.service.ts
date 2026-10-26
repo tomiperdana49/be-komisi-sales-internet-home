@@ -96,6 +96,19 @@ function getLateInMonth(dueDate: unknown, paymentDateRaw: unknown): number | nul
   return result || null;
 }
 
+/**
+ * A new-customer invoice counts in the period its payment transaction falls
+ * in. The invoice query also matches invoices created in the period, so one
+ * paid before it was created (paid 22 Sep, invoiced 26 Sep) would otherwise
+ * count again in the next period.
+ */
+export function isPaidInPeriod(transactionDateRaw: unknown, start: Date, end: Date): boolean {
+  if (transactionDateRaw === null || transactionDateRaw === undefined) return false;
+  const paymentDate = new Date(transactionDateRaw as any);
+  if (Number.isNaN(paymentDate.getTime())) return false;
+  return paymentDate >= start && paymentDate <= end;
+}
+
 export class NewCustomerService implements INewCustomerService {
   // `type` values this domain writes — used to scope replaceForPeriod so a
   // re-run never touches the old-customer (recurring) rows for the same period.
@@ -155,14 +168,10 @@ export class NewCustomerService implements INewCustomerService {
       let isPaid = 0;
       let inputPaymentDate: unknown = null;
       let aiReceipt: number | null = null;
-      const transPaymentDateRaw = inv["Tanggal Transaksi Pembayaran"];
-      if (transPaymentDateRaw !== null && transPaymentDateRaw !== undefined) {
-        const paymentDate = new Date(transPaymentDateRaw as any);
-        if (!Number.isNaN(paymentDate.getTime()) && paymentDate <= end) {
-          isPaid = 1;
-          inputPaymentDate = inv["Tanggal Input Pembayaran"];
-          aiReceipt = inv["AI Receipt"];
-        }
+      if (isPaidInPeriod(inv["Tanggal Transaksi Pembayaran"], start, end)) {
+        isPaid = 1;
+        inputPaymentDate = inv["Tanggal Input Pembayaran"];
+        aiReceipt = inv["AI Receipt"];
       }
 
       let serviceLabel = serviceLabelByAi.get(inv["AI Invoice"]) ?? "";
