@@ -20,6 +20,7 @@ function toCrawled(emp: NusaworkEmployeeRaw, managerId: string | null, hasDashbo
     branch: emp.branch_name,
     managerId,
     status: emp.status_join,
+    signDate: emp.sign_date ?? null,
     hasDashboard,
     isAdmin: false,
   };

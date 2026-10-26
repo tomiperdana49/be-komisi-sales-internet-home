@@ -11,6 +11,8 @@ export type NusaworkEmployeeRaw = {
   job_level: string;
   branch_name: string;
   status_join: string;
+  /** When the current status was signed (e.g. made Permanent); null if never. */
+  sign_date?: string | null;
   id_report_to_value: string | null;
 };
 
@@ -27,6 +29,8 @@ export type CrawledEmployee = {
   branch: string;
   managerId: string | null;
   status: string;
+  /** Nusawork sign_date of the current status (YYYY-MM-DD), if any. */
+  signDate?: string | null;
   hasDashboard?: boolean;
   isAdmin: boolean;
 };

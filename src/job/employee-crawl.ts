@@ -2,6 +2,7 @@ import { container } from "../container";
 import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
 import { isSdr } from "../helper/commission.helper";
 import { resolveJobPeriods } from "./job-periods";
+import { statusForPeriod } from "../helper/employee-status.helper";
 
 async function run() {
   const crawledIds: string[] = [];
@@ -29,12 +30,13 @@ async function run() {
     await container.employeeService.upsertEmployee({ ...employee, isAdmin: adminIds.has(employee.employeeId) });
     for (const { startDate, endDate, targets: amTargets, sdrTargets } of periods) {
       const targets = isSdr(employee.jobPosition) ? sdrTargets : amTargets;
+      const status = statusForPeriod(employee.status, employee.signDate, startDate);
       await container.employeeService.upsertStatusPeriod(
         employee.employeeId,
         startDate,
         endDate,
-        employee.status,
-        employee.status === "Permanent" ? targets.permanent : targets.probation,
+        status,
+        status === "Permanent" ? targets.permanent : targets.probation,
       );
     }
     crawledIds.push(employee.employeeId);
