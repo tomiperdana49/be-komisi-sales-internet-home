@@ -21,6 +21,7 @@ export type CommissionSnapshotRow = {
   subscription: number | null;
   line_rental: number | null;
   paid_date: Date | string | null;
+  transaction_date?: Date | string | null;
   activation_date?: Date | string | null;
   month: number | null;
   late_month: number | null;
@@ -106,6 +107,8 @@ export type CommissionLineItem = {
   isApproved: boolean;
   isAdjusted: boolean;
   paidDate: string | null;
+  /** Payment transaction date — what places the invoice in a period; paidDate is finance's input date. */
+  transactionDate: string | null;
   /** New-customer rows: the service's first activation; null for recurring or not activated yet. */
   activationDate: string | null;
   subscription: number;
@@ -248,6 +251,7 @@ export type ManagerRecurringBasisItem = {
   subscription: number;
   lateMonth: number;
   paidDate: string | null;
+  transactionDate: string | null;
   amount: number;
   /** Late items: the referral cut, the amount the late cut was taken from (subscription − referral) and its percentage. */
   referral?: number;

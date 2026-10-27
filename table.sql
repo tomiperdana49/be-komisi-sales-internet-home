@@ -20,6 +20,10 @@ CREATE TABLE snapshots(
     -- New-customer rows: the service's first activation (null = not activated yet).
     -- Migration: ALTER TABLE snapshots ADD COLUMN activation_date DATE NULL AFTER paid_date;
     activation_date DATE NULL,
+    -- Payment transaction date (the date that places the invoice in a period);
+    -- paid_date is finance's input date.
+    -- Migration: ALTER TABLE snapshots ADD COLUMN transaction_date DATE NULL AFTER paid_date;
+    transaction_date DATE NULL,
     month INT NULL,
     late_month INT DEFAULT 0,
     type ENUM('new','prorate','upgrade','recurring') NULL DEFAULT NULL,

@@ -433,6 +433,7 @@ export class CommissionService {
       subscription: toNumber(row.subscription),
       lateMonth: toNumber(row.late_month),
       paidDate: row.paid_date ? toSqlDate(new Date(row.paid_date)) : null,
+      transactionDate: row.transaction_date ? toSqlDate(new Date(row.transaction_date)) : null,
       amount,
     });
 
@@ -507,6 +508,7 @@ export class CommissionService {
           subscription: item.subscription,
           lateMonth: item.lateMonth,
           paidDate: item.paidDate,
+          transactionDate: item.transactionDate,
           amount: item.subscription,
         })),
     );
@@ -639,6 +641,7 @@ export class CommissionService {
       isApproved: Boolean(row.is_approved),
       isAdjusted: Boolean(row.is_adjusted),
       paidDate: row.paid_date ? toSqlDate(new Date(row.paid_date)) : null,
+      transactionDate: row.transaction_date ? toSqlDate(new Date(row.transaction_date)) : null,
       activationDate: row.activation_date ? toSqlDate(new Date(row.activation_date)) : null,
       subscription,
       mrc,
@@ -786,6 +789,7 @@ export class CommissionService {
         isApproved: Boolean(row.is_approved),
         isAdjusted: Boolean(row.is_adjusted),
         paidDate: row.paid_date ? toSqlDate(new Date(row.paid_date)) : null,
+        transactionDate: row.transaction_date ? toSqlDate(new Date(row.transaction_date)) : null,
         activationDate: row.activation_date ? toSqlDate(new Date(row.activation_date)) : null,
         subscription,
         mrc,
@@ -840,6 +844,7 @@ export class CommissionService {
           subscription: item.subscription,
           lateMonth: item.lateMonth,
           paidDate: item.paidDate,
+          transactionDate: item.transactionDate,
           amount: latePenalty,
           referral: referralCut,
           basis,
@@ -1156,6 +1161,7 @@ export class CommissionService {
       subscription: row.subscription,
       lineRental: row.line_rental,
       paidDate: row.paid_date ? toSqlDate(new Date(row.paid_date)) : null,
+      transactionDate: row.transaction_date ? toSqlDate(new Date(row.transaction_date)) : null,
       activationDate: row.activation_date ? toSqlDate(new Date(row.activation_date)) : null,
       month: row.month,
       lateMonth: row.late_month,

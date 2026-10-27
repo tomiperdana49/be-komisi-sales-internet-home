@@ -227,6 +227,7 @@ export class OldCustomerService implements IOldCustomerService {
         vendor,
         lineRental,
         paidDate: inv["Tanggal Input Pembayaran"] as any,
+        transactionDate: inv["Tanggal Transaksi Pembayaran"] as any,
         bulan: inv.Bulan,
         telatBulan: late,
         // Referral fee comes from the reseller spreadsheet, keyed by account name; prorata invoices carry none.

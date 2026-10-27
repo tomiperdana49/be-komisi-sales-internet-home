@@ -199,6 +199,7 @@ export class NewCustomerService implements INewCustomerService {
 
       let isPaid = 0;
       let inputPaymentDate: unknown = null;
+      let transactionDate: unknown = null;
       let aiReceipt: number | null = null;
       const isInternetInvoice = inv.SG !== "Alat" && inv.SG !== "ST";
       const notYetActivated = !!account && !account["Aktivasi Tercatat"] && account.CustStatus === "BL";
@@ -209,6 +210,7 @@ export class NewCustomerService implements INewCustomerService {
       if (isPaidInPeriod(commissionDate, start, end)) {
         isPaid = 1;
         inputPaymentDate = inv["Tanggal Input Pembayaran"];
+        transactionDate = inv["Tanggal Transaksi Pembayaran"];
         aiReceipt = inv["AI Receipt"];
       }
 
@@ -301,6 +303,7 @@ export class NewCustomerService implements INewCustomerService {
         vendor,
         lineRental,
         paidDate: inputPaymentDate as any,
+        transactionDate: transactionDate as any,
         activationDate: activationDate as any,
         bulan,
         telatBulan: late,

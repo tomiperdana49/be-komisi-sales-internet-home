@@ -25,6 +25,8 @@ export type RawSnapshotInput = {
   vendor: Scalar;
   lineRental: Scalar;
   paidDate: Scalar;
+  /** Payment transaction date (Tanggal Transaksi Pembayaran); paidDate is finance's input date. */
+  transactionDate?: Scalar;
   /** New-customer rows: the service's first activation; null if not activated yet. */
   activationDate?: Scalar;
   bulan: Scalar;

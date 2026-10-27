@@ -19,6 +19,8 @@ export type AdjustableSnapshotFields = {
   subscription?: number | null;
   lineRental?: number | null;
   paidDate?: string | null;
+  /** Payment transaction date (shown as Tgl. Bayar); informational only. */
+  transactionDate?: string | null;
   /** The service's first activation (shown as Tgl. Aktif); informational only. */
   activationDate?: string | null;
   month?: number | null;
@@ -46,6 +48,7 @@ export const ADJUSTABLE_FIELD_COLUMNS: Record<keyof AdjustableSnapshotFields, st
   subscription: "subscription",
   lineRental: "line_rental",
   paidDate: "paid_date",
+  transactionDate: "transaction_date",
   activationDate: "activation_date",
   month: "month",
   lateMonth: "late_month",
