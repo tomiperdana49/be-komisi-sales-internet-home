@@ -4,6 +4,7 @@ import type { ISnapshotRepository } from "../interface/snapshot.interface";
 import type {
   CommissionSnapshotRow,
   InvoiceApprovalLogRow,
+  SnapshotAdjustmentLogRow,
   ISnapshotReadRepository,
 } from "../interface/commission.interface";
 import {
@@ -89,6 +90,15 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
       `SELECT l.ai_invoice, l.is_approved, l.note, l.employee_id, l.created_at
        FROM invoice_approval_log l
        JOIN (SELECT MAX(id) id FROM invoice_approval_log WHERE ai_invoice IN (?) GROUP BY ai_invoice) latest ON latest.id = l.id`,
+      [aiInvoices],
+    );
+  }
+
+  findAdjustments(aiInvoices: number[]): Promise<SnapshotAdjustmentLogRow[]> {
+    if (aiInvoices.length === 0) return Promise.resolve([]);
+    return this.db.query<SnapshotAdjustmentLogRow[]>(
+      `SELECT ai_invoice, note, employee_id, created_at FROM snapshot_adjustment
+       WHERE ai_invoice IN (?) ORDER BY id`,
       [aiInvoices],
     );
   }

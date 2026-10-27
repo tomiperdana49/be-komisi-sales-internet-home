@@ -214,11 +214,21 @@ export class CommissionService {
     const status = statusPeriod?.status ?? null;
     const target = manualTarget?.target ?? resolveTarget(rules, period, status, statusPeriod?.target);
     const churnRules = await this.getChurnRules(rows, period, rules, sdr);
+    const approverIds = [...new Set(rows.map((r) => r.approved_by).filter((id): id is string => !!id))];
+    const approvers = approverIds.length > 0 ? await this.employeeService.findByEmployeeIds(approverIds) : [];
+    const approverName = new Map(approvers.map((a) => [a.employee_id, a.name]));
 
     return rows.map((churn) => {
       const { mrc, commission, commissionPercentage } = this.valueChurn(churnRules(churn), churn, status, target);
       // serviceGroup lets the FE put each churn back under the group it was deducted from.
-      return { ...churn, mrc, commission, commissionPercentage, serviceGroup: getServiceGroupLabel(rules, churn.service_id) };
+      return {
+        ...churn,
+        approved_by_name: churn.approved_by ? (approverName.get(churn.approved_by) ?? null) : null,
+        mrc,
+        commission,
+        commissionPercentage,
+        serviceGroup: getServiceGroupLabel(rules, churn.service_id),
+      };
     });
   }
 
@@ -470,6 +480,7 @@ export class CommissionService {
     const croRecurring = recurringRows
       .filter((row) => row.sales === CRO_PLACEHOLDER)
       .map((row) => this.valueManagerRecurringRow(rules, period, row, recurringCommissionRate));
+    await this.attachApprovals(croRecurring);
 
     // Team Production by Service shows the manager area's FULL production:
     // Customer Relation Officer recurring rows (6.D) fold into byServiceGroup,
@@ -639,7 +650,14 @@ export class CommissionService {
       month: months,
       lateMonth: toNumber(row.late_month),
       isApproved: Boolean(row.is_approved),
+      approvalNote: null,
+      approvedBy: null,
+      approvedByName: null,
+      approvedAt: null,
       isAdjusted: Boolean(row.is_adjusted),
+      adjustmentNote: null,
+      adjustedByName: null,
+      adjustedAt: null,
       paidDate: row.paid_date ? toSqlDate(new Date(row.paid_date)) : null,
       transactionDate: row.transaction_date ? toSqlDate(new Date(row.transaction_date)) : null,
       activationDate: row.activation_date ? toSqlDate(new Date(row.activation_date)) : null,
@@ -787,7 +805,14 @@ export class CommissionService {
         month: months,
         lateMonth: toNumber(row.late_month),
         isApproved: Boolean(row.is_approved),
+        approvalNote: null,
+        approvedBy: null,
+        approvedByName: null,
+        approvedAt: null,
         isAdjusted: Boolean(row.is_adjusted),
+        adjustmentNote: null,
+        adjustedByName: null,
+        adjustedAt: null,
         paidDate: row.paid_date ? toSqlDate(new Date(row.paid_date)) : null,
         transactionDate: row.transaction_date ? toSqlDate(new Date(row.transaction_date)) : null,
         activationDate: row.activation_date ? toSqlDate(new Date(row.activation_date)) : null,
@@ -825,6 +850,8 @@ export class CommissionService {
     // the late-payment cut on what's left. Shown on the Subscription Recurring card.
     let recurringReferralFee = 0;
     let recurringLatePenalty = 0;
+    await this.attachApprovals(items);
+
     const recurringLateItems: ManagerRecurringBasisItem[] = [];
     for (const item of items) {
       if (item.type !== "recurring" && !item.isRenewal) continue;
@@ -1101,10 +1128,6 @@ export class CommissionService {
           : null;
         items.push({
           ...item,
-          approvalNote: null,
-          approvedBy: null,
-          approvedByName: null,
-          approvedAt: null,
           sales,
           managerEmployee,
           branch: e.branch,
@@ -1112,22 +1135,42 @@ export class CommissionService {
       }
     });
 
-    // Who approved each waived invoice, when and why (latest log entry while still approved).
+    return items;
+  }
+
+  /**
+   * Who approved each waived invoice, when and why (latest log entry while
+   * still approved), and the latest manual adjustment of each adjusted row.
+   */
+  private async attachApprovals(items: CommissionLineItem[]): Promise<void> {
     const approved = items.filter((i) => i.isApproved);
-    const logs = await this.snapshotRepository.findLatestApprovalLogs(approved.map((i) => i.aiInvoice));
+    const adjusted = items.filter((i) => i.isAdjusted);
+    if (approved.length === 0 && adjusted.length === 0) return;
+    const [logs, adjustments] = await Promise.all([
+      this.snapshotRepository.findLatestApprovalLogs(approved.map((i) => i.aiInvoice)),
+      this.snapshotRepository.findAdjustments(adjusted.map((i) => i.aiInvoice)),
+    ]);
     const logByAi = new Map(logs.filter((l) => Number(l.is_approved) === 1).map((l) => [Number(l.ai_invoice), l]));
-    const approvers = await this.employeeService.findByEmployeeIds([...new Set([...logByAi.values()].map((l) => l.employee_id))]);
-    const approverName = new Map(approvers.map((a) => [a.employee_id, a.name]));
+    const adjustmentsByAi = Map.groupBy(adjustments, (a) => Number(a.ai_invoice));
+    const employeeIds = [...new Set([...logByAi.values(), ...adjustments].map((l) => l.employee_id))];
+    const employees = employeeIds.length > 0 ? await this.employeeService.findByEmployeeIds(employeeIds) : [];
+    const nameById = new Map(employees.map((a) => [a.employee_id, a.name]));
     for (const item of approved) {
       const log = logByAi.get(Number(item.aiInvoice));
       if (!log) continue;
       item.approvalNote = log.note;
       item.approvedBy = log.employee_id;
-      item.approvedByName = approverName.get(log.employee_id) ?? null;
+      item.approvedByName = nameById.get(log.employee_id) ?? null;
       item.approvedAt = log.created_at;
     }
-
-    return items;
+    for (const item of adjusted) {
+      const history = adjustmentsByAi.get(Number(item.aiInvoice));
+      const latest = history?.at(-1);
+      if (!history || !latest) continue;
+      item.adjustmentNote = history.map((a) => a.note).filter(Boolean).join("; ");
+      item.adjustedByName = nameById.get(latest.employee_id) ?? latest.employee_id;
+      item.adjustedAt = latest.created_at;
+    }
   }
 
   /** Admin approval for a late-paid invoice, waiving its late-payment penalty — logged with who, when and why. */

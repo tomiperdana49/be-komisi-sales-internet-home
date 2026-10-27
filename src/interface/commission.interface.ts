@@ -44,6 +44,13 @@ export type InvoiceApprovalLogRow = {
   created_at: string;
 };
 
+export type SnapshotAdjustmentLogRow = {
+  ai_invoice: number;
+  note: string;
+  employee_id: string;
+  created_at: string;
+};
+
 export interface ISnapshotReadRepository {
   /** Snapshots for one salesperson in a period. Only rows whose `sales` resolves to a real employee. */
   findBySales(employeeId: string, period: string): Promise<CommissionSnapshotRow[]>;
@@ -57,6 +64,8 @@ export interface ISnapshotReadRepository {
   insertApprovalLog(aiInvoice: number, isApproved: boolean, note: string | null, employeeId: string): Promise<void>;
   /** The latest approval-log entry per invoice. */
   findLatestApprovalLogs(aiInvoices: number[]): Promise<InvoiceApprovalLogRow[]>;
+  /** Every manual adjustment of these invoices, oldest first. */
+  findAdjustments(aiInvoices: number[]): Promise<SnapshotAdjustmentLogRow[]>;
   /** Raw row for one invoice, for building the adjustment form's current values and the audit log's "before" snapshot. */
   findByAiInvoice(aiInvoice: number): Promise<CommissionSnapshotRow | null>;
   /**
@@ -105,7 +114,16 @@ export type CommissionLineItem = {
   month: number;
   lateMonth: number;
   isApproved: boolean;
+  /** Why, by whom and when the late-payment waiver was approved; null while not approved (or approved before notes were recorded). */
+  approvalNote: string | null;
+  approvedBy: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
   isAdjusted: boolean;
+  /** Manual adjustments of an adjusted row: every note oldest first, and by whom and when the latest was made; null otherwise. */
+  adjustmentNote: string | null;
+  adjustedByName: string | null;
+  adjustedAt: string | null;
   paidDate: string | null;
   /** Payment transaction date — what places the invoice in a period; paidDate is finance's input date. */
   transactionDate: string | null;
@@ -342,11 +360,6 @@ export type ManagerSummaryItem = {
 
 /** One row of the admin "all invoices" table — a line item plus who sold it and their Sales Manager. */
 export type InvoiceSummaryItem = CommissionLineItem & {
-  /** Why, by whom and when the late-payment waiver was approved; null while not approved (or approved before notes were recorded). */
-  approvalNote: string | null;
-  approvedBy: string | null;
-  approvedByName: string | null;
-  approvedAt: string | null;
   sales: { employeeId: string; name: string; photoProfile: string } | null;
   managerEmployee: { employeeId: string; name: string; photoProfile: string } | null;
   /** The selling Account Manager's branch. */

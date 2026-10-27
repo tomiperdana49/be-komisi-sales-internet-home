@@ -44,7 +44,7 @@ function engine(
   const rulesFor = typeof homeRules === "function" ? homeRules : () => homeRules;
   const manual = manualTarget === null ? null : { target: manualTarget, startPeriod: "202610", endPeriod: "202612" };
   return new CommissionService(
-    { findBySales: async () => rows, findRecurringByManager: async () => [] } as any,
+    { findBySales: async () => rows, findRecurringByManager: async () => [], findLatestApprovalLogs: async () => [], findAdjustments: async () => [] } as any,
     { getByEmployeeId: async () => churn } as any,
     {
       getStatusByPeriod: async () => ({ status, target: 12 }),
