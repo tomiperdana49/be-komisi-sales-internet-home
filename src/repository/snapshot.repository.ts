@@ -164,11 +164,14 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
       // Also an adjusted row whose type an admin changed away from these types
       // (e.g. a recurring invoice made "new"): its original type is in the
       // adjustment log, and re-inserting it would count the invoice twice.
+      // Likewise an invoice an admin moved to another period (period edited
+      // by hand, e.g. a wrong NIS activation date): it counts there, not here.
       const adjustedRows = await txQuery<{ ai_invoice: number }[]>(
         `SELECT s.ai_invoice FROM snapshots s
-         WHERE s.period = ? AND s.is_adjusted = TRUE
+         WHERE s.is_adjusted = TRUE
            AND (
-             s.type IN (?)
+             s.period != ?
+             OR s.type IN (?)
              OR EXISTS (
                SELECT 1 FROM snapshot_adjustment sa
                WHERE sa.ai_invoice = s.ai_invoice
