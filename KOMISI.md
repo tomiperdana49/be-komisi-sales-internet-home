@@ -198,6 +198,7 @@ Churn = false
 - `price = (Subscription − Discount) / periode(bulan)`, minimal periode 1.
 - `MRC churn = price / periode`.
 - `Commission churn` dihitung memakai `calculateCommission` dengan asumsi kategori `home`, tipe `new`, dan `activityCount` disamakan dengan Target Aktivitas sales tersebut (dianggap capai target, tanpa penalti performa & tanpa late penalty).
+- Rate-nya diambil dari **Aturan Komisi periode layanan itu dijual** (periode tanggal registrasi), bukan periode churn — potongan mengembalikan komisi New yang dulu didapat. Contoh: HOMESTD100 yang dijual Maret 2026 dan churn Oktober 2026 dipotong 28,57% (rate lama), bukan 27% (rate mulai Oktober 2026). Registrasi kosong atau di periode yang sama/sesudahnya memakai aturan periode churn.
 
 ---
 

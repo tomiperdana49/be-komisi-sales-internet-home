@@ -27,7 +27,7 @@ import {
   toNumber,
   type SnapshotType,
 } from "../helper/commission.helper";
-import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
+import { commissionPeriodOf, getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
 import type {
   CommissionBreakdown,
   CommissionLineItem,
@@ -168,6 +168,35 @@ export class CommissionService {
   }
 
   /**
+   * The rules each churn is valued with: those of the period the service
+   * was sold in (its registration date), so the deduction takes back the
+   * rate the New sale earned rather than today's rate (KOMISI.md 3).
+   * Churns sold in this period or later, or without a date, use `rules`.
+   */
+  private async getChurnRules(
+    churnRows: ChurnRow[],
+    period: string,
+    rules: CommissionRules,
+    sdr: boolean,
+  ): Promise<(churn: ChurnRow) => CommissionRules> {
+    const soldPeriod = (churn: ChurnRow) => {
+      const p = commissionPeriodOf(churn.registration_date);
+      return p && p < period ? p : period;
+    };
+    const periods = [...new Set(churnRows.map(soldPeriod))].filter((p) => p !== period);
+    const byPeriod = new Map<string, CommissionRules>([[period, rules]]);
+    await Promise.all(
+      periods.map(async (p) => {
+        byPeriod.set(
+          p,
+          sdr ? rulesForSdr(await this.sdrRulesProvider.getForPeriod(p)) : await this.rulesProvider.getForPeriod(p),
+        );
+      }),
+    );
+    return (churn) => byPeriod.get(soldPeriod(churn))!;
+  }
+
+  /**
    * Itemized churn rows for one salesperson in a period, each valued the
    * same way as the deduction it feeds into — what fed the deduction total.
    */
@@ -176,7 +205,7 @@ export class CommissionService {
     const startDate = toSqlDate(start);
     const endDate = toSqlDate(end);
 
-    const [rows, statusPeriod, { rules }, manualTarget] = await Promise.all([
+    const [rows, statusPeriod, { rules, isSdr: sdr }, manualTarget] = await Promise.all([
       this.churnService.getByEmployeeId(employeeId, startDate, endDate),
       this.employeeService.getStatusByPeriod(employeeId, startDate, endDate),
       this.getRulesFor(employeeId, period),
@@ -184,9 +213,10 @@ export class CommissionService {
     ]);
     const status = statusPeriod?.status ?? null;
     const target = manualTarget?.target ?? resolveTarget(rules, period, status, statusPeriod?.target);
+    const churnRules = await this.getChurnRules(rows, period, rules, sdr);
 
     return rows.map((churn) => {
-      const { mrc, commission, commissionPercentage } = this.valueChurn(rules, churn, status, target);
+      const { mrc, commission, commissionPercentage } = this.valueChurn(churnRules(churn), churn, status, target);
       // serviceGroup lets the FE put each churn back under the group it was deducted from.
       return { ...churn, mrc, commission, commissionPercentage, serviceGroup: getServiceGroupLabel(rules, churn.service_id) };
     });
@@ -775,6 +805,7 @@ export class CommissionService {
 
     const deduction = this.applyChurnDeduction(
       rules,
+      await this.getChurnRules(churnRows, period, rules, sdr),
       churnRows,
       status,
       target,
@@ -905,7 +936,8 @@ export class CommissionService {
   /**
    * What one unapproved churn is worth: valued at the New rate assuming
    * target was met, so the deduction itself isn't discounted by the
-   * performance penalty.
+   * performance penalty. `rules` are those of the period it was sold in
+   * (getChurnRules).
    */
   private valueChurn(rules: CommissionRules, churn: ChurnRow, status: string | null, target: number) {
     const price = toNumber(churn.price);
@@ -933,6 +965,7 @@ export class CommissionService {
    */
   private applyChurnDeduction(
     rules: CommissionRules,
+    churnRules: (churn: ChurnRow) => CommissionRules,
     churnRows: ChurnRow[],
     status: string | null,
     target: number,
@@ -945,7 +978,7 @@ export class CommissionService {
     for (const churn of churnRows) {
       if (churn.is_approved) continue;
 
-      const { price, mrc, commission } = this.valueChurn(rules, churn, status, target);
+      const { price, mrc, commission } = this.valueChurn(churnRules(churn), churn, status, target);
 
       deduction.count += 1;
       deduction.commission += commission;

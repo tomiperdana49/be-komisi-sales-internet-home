@@ -26,7 +26,10 @@ export class SdrCommissionRuleService extends RuleSetService<SdrCommissionRules>
   /** What every SDR's commission would be for `period` under a draft, next to what it is now. Read-only. */
   async preview(id: number, period: string, engine: CommissionService) {
     const draftRules = await this.getDraftRules(id);
-    const draftEngine = engine.withSdrRules({ getForPeriod: async () => draftRules });
+    const draftEngine = engine.withSdrRules({
+      // Earlier periods keep their published rules (churn is valued at its sale period's rules).
+      getForPeriod: async (p: string) => (p >= period ? draftRules : this.getForPeriod(p)),
+    });
 
     const [currentSales, draftSales] = await Promise.all([
       engine.getSalesSummary(period),

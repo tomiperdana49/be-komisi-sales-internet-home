@@ -44,6 +44,13 @@ export function currentCommissionPeriod(now = new Date()): string {
   return now.getDate() > 25 ? shiftPeriod(base, 1) : base;
 }
 
+/** The commission period a date (Date or YYYY-MM-DD) falls in; null when there is no valid date. */
+export function commissionPeriodOf(date: unknown): string | null {
+  if (!date) return null;
+  const d = date instanceof Date ? date : new Date(`${String(date).slice(0, 10)}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : currentCommissionPeriod(d);
+}
+
 /**
  * Periods an hourly job crawls when no --period is given: the running one
  * and the one before it, so payments finance enters late (after the month

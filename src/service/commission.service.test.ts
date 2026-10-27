@@ -38,9 +38,10 @@ function engine(
   status = "Permanent",
   manualTarget: number | null = null,
   jobPosition = "Account Manager",
-  churn: { service_id: string; price: number; period: number; is_approved: boolean }[] = [],
-  homeRules: CommissionRules = DEFAULT_COMMISSION_RULES,
+  churn: { service_id: string; price: number; period: number; is_approved: boolean; registration_date?: string }[] = [],
+  homeRules: CommissionRules | ((period: string) => CommissionRules) = DEFAULT_COMMISSION_RULES,
 ) {
+  const rulesFor = typeof homeRules === "function" ? homeRules : () => homeRules;
   const manual = manualTarget === null ? null : { target: manualTarget, startPeriod: "202610", endPeriod: "202612" };
   return new CommissionService(
     { findBySales: async () => rows, findRecurringByManager: async () => [] } as any,
@@ -50,7 +51,7 @@ function engine(
       findByEmployeeId: async (id: string) => ({ employee_id: id, job_position: jobPosition }),
     } as any,
     { getAmount: async () => 0 } as any,
-    { getForPeriod: async () => homeRules },
+    { getForPeriod: async (period: string) => rulesFor(period) },
     { getActive: async () => manual },
     { getForPeriod: async () => DEFAULT_SDR_RULES },
   );
@@ -171,5 +172,34 @@ describe("Sales Development Representative (SDR)", () => {
 
     expect(result.activityCount).toBe(38);
     expect(result.deduction.count).toBe(1);
+  });
+});
+
+describe("churn valued at the rules of the period it was sold in", () => {
+  // October 2026 lowered HOMESTD100 from 28.57% to 27% (SE-023/DIR/MAN-MDN/X/2026).
+  const october: CommissionRules = {
+    ...DEFAULT_COMMISSION_RULES,
+    products: DEFAULT_COMMISSION_RULES.products.map((p) =>
+      p.serviceIds.includes("HOMESTD100") ? { ...p, rate1: 27 } : p,
+    ),
+  };
+  const rulesFor = (period: string) => (period >= "202610" ? october : DEFAULT_COMMISSION_RULES);
+  const churnOf = (registration_date?: string) => [
+    { service_id: "HOMESTD100", price: 297_500, period: 1, is_approved: false, registration_date },
+  ];
+
+  test("a churn sold before the rate change is deducted at the old rate", async () => {
+    const svc = engine([], "Permanent", null, "Account Manager", churnOf("2026-03-11"), rulesFor);
+    const [churn] = await svc.getSalesChurn("S1", "202610");
+    expect(churn!.commissionPercentage).toBe(28.57);
+    const result = await svc.getSalesCommission("S1", "202610");
+    expect(result.breakdown.new.commission).toBeCloseTo(-297_500 * 0.2857, 2);
+  });
+
+  test("a churn sold in the current period, or without a date, uses the current rate", async () => {
+    for (const reg of ["2026-10-01", undefined]) {
+      const [churn] = await engine([], "Permanent", null, "Account Manager", churnOf(reg), rulesFor).getSalesChurn("S1", "202610");
+      expect(churn!.commissionPercentage).toBe(27);
+    }
   });
 });

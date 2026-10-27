@@ -30,7 +30,10 @@ export class CommissionRuleService extends RuleSetService<CommissionRules> imple
    */
   async preview(id: number, period: string, engine: CommissionService) {
     const draftRules = await this.getDraftRules(id);
-    const draftEngine = engine.withRules({ getForPeriod: async () => draftRules });
+    const draftEngine = engine.withRules({
+      // Earlier periods keep their published rules (churn is valued at its sale period's rules).
+      getForPeriod: async (p: string) => (p >= period ? draftRules : this.getForPeriod(p)),
+    });
 
     const [currentSales, draftSales, currentManagers, draftManagers] = await Promise.all([
       engine.getSalesSummary(period),
