@@ -124,6 +124,11 @@ function isExcludedFromCommission(rules: CommissionRules, row: CommissionSnapsho
   return false;
 }
 
+/** Dasar Komisi Recurring: recurring subscription after the referral and late-payment cuts (what the AM page shows). */
+function recurringCommissionBasis(r: SalesCommissionResult): number {
+  return r.breakdown.recurring.subscription - r.recurringReferralFee - r.recurringLatePenalty;
+}
+
 export class CommissionService {
   constructor(
     private readonly snapshotRepository: ISnapshotReadRepository,
@@ -551,7 +556,8 @@ export class CommissionService {
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.alat.subscription,
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
         newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.alat.commission,
-        recurringSubscription: r.breakdown.recurring.subscription,
+        // Dasar Komisi Recurring, as on the AM page: after the referral and late-payment cuts.
+        recurringSubscription: recurringCommissionBasis(r),
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription,
         otherCommission,
@@ -560,7 +566,7 @@ export class CommissionService {
         consistencyBonus: r.consistencyBonus,
         totalCommission: r.total.commission + r.bonusBulanan + r.bonusKelebihanService + r.consistencyBonus,
         managerNewCommission: getManagerNewCommissionBasis(r.breakdown) * (newCommissionRate / 100),
-        managerRecurringCommission: r.breakdown.recurring.subscription * (recurringCommissionRate / 100),
+        managerRecurringCommission: recurringCommissionBasis(r) * (recurringCommissionRate / 100),
         newService: serviceGroups.map((name) => ({
           name,
           count: r.byServiceGroup[name]?.new.count ?? 0,
@@ -1062,7 +1068,7 @@ export class CommissionService {
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.alat.subscription,
         newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.alat.commission,
-        recurringSubscription: r.breakdown.recurring.subscription,
+        recurringSubscription: recurringCommissionBasis(r),
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription: r.breakdown.setup.subscription,
         otherCommission: r.breakdown.setup.commission,
