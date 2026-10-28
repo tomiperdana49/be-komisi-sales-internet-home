@@ -294,6 +294,9 @@ export type ManagerCommissionResult = {
     newSubscription: number;
     newMrc: number;
     recurringSubscription: number;
+    /** Members' recurring referral and late-payment cuts: recurringSubscription minus these = the members' Dasar (Subscription Recurring column). */
+    recurringReferralFee: number;
+    recurringLatePenalty: number;
     /**
      * Same totals, split out per service group. New* fields only ever
      * populate for Home/Nusafiber/NusaSelecta; Digital Business and Access

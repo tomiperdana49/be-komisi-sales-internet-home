@@ -424,6 +424,8 @@ export class CommissionService {
       newSubscription: 0,
       newMrc: 0,
       recurringSubscription: 0,
+      recurringReferralFee: 0,
+      recurringLatePenalty: 0,
       byServiceGroup: emptyGroupTotals(),
       personalByServiceGroup: emptyGroupTotals(),
     };
@@ -433,6 +435,8 @@ export class CommissionService {
       teamTotals.newSubscription += r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription;
       teamTotals.newMrc += r.breakdown.new.mrc + r.breakdown.upgrade.mrc;
       teamTotals.recurringSubscription += r.breakdown.recurring.subscription;
+      teamTotals.recurringReferralFee += r.recurringReferralFee;
+      teamTotals.recurringLatePenalty += r.recurringLatePenalty;
       addGroupTotals(teamTotals.byServiceGroup, r.byServiceGroup);
     }
 
