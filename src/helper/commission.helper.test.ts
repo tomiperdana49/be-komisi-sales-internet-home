@@ -14,7 +14,6 @@ import {
   resolveBusinessOperation,
   toCommissionCategory,
   getManagerNewCommissionBasis,
-  rulesForManagerPersonal,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getTeamTargetThreshold,
@@ -147,15 +146,6 @@ describe("referral deduction", () => {
     expect(getCommissionBasis(5_000_000, 499_900, "Monthly")).toBe(4_500_100);
     expect(getCommissionBasis(5_000_000, 499_900, null)).toBe(4_500_100);
     expect(getCommissionBasis(5_000_000, 499_900, "OTC")).toBe(5_000_000);
-  });
-});
-
-describe("manager personal Digital Business Internal rate", () => {
-  test("takes the manager rate from October 2026 only", () => {
-    const rules = clone();
-    expect(rulesForManagerPersonal(rules, "202609").rates.digitalBusinessInternal).toBe(rules.rates.digitalBusinessInternal);
-    expect(rulesForManagerPersonal(rules, "202610").rates.digitalBusinessInternal).toBe(2);
-    expect(rulesForManagerPersonal(rules, "202610").rates.digitalBusinessResell).toBe(rules.rates.digitalBusinessResell);
   });
 });
 

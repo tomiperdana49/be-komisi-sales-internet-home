@@ -156,6 +156,5 @@ export const DEFAULT_COMMISSION_RULES: CommissionRules = deepFreeze({
     recurringDigitalBusinessInternalMissedTarget: 0.5,
     recurringDigitalBusinessResellOnTarget: 0.5,
     recurringDigitalBusinessResellMissedTarget: 0.25,
-    personalDigitalBusinessInternal: 2,
   },
 });
