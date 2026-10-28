@@ -412,7 +412,7 @@ export class CommissionService {
         target.newSubscription += g.new.subscription + (g.prorate?.subscription ?? 0) + (g.upgrade?.subscription ?? 0);
         // MRC is the monthly charge: prorate (part of a first month) and Alat (one-off) carry none (same as the AM page).
         target.newMrc += g.new.mrc + (g.upgrade?.mrc ?? 0);
-        target.newCommission += g.new.commission + (g.prorate?.commission ?? 0) + (g.alat?.commission ?? 0);
+        target.newCommission += g.new.commission + (g.prorate?.commission ?? 0) + (g.upgrade?.commission ?? 0);
         target.recurringSubscription += g.recurring.subscription;
         target.recurringCommission += g.recurring.commission;
       }
@@ -558,7 +558,7 @@ export class CommissionService {
     const members = coveredTeam.map((e, i) => {
       const r = memberResults[i]!;
       const otherSubscription = r.breakdown.alat.subscription + r.breakdown.setup.subscription;
-      const otherCommission = r.breakdown.setup.commission;
+      const otherCommission = r.breakdown.alat.commission + r.breakdown.setup.commission;
 
       return {
         employeeId: e.employee_id,
@@ -570,7 +570,9 @@ export class CommissionService {
         motivation: r.motivation,
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription,
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
-        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.alat.commission,
+        // Komisi New/Alat & Setup follow the Subscription columns (the AM page's split); the
+        // Overriding New basis (New + Prorate + Alat) is teamTotals.newCommission.
+        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission,
         // Dasar Komisi Recurring, as on the AM page: after the referral and late-payment cuts.
         recurringSubscription: recurringCommissionBasis(r),
         recurringCommission: r.breakdown.recurring.commission,
@@ -1090,11 +1092,11 @@ export class CommissionService {
         activityCount: r.activityCount,
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription,
-        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.alat.commission,
+        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission,
         recurringSubscription: recurringCommissionBasis(r),
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription: r.breakdown.alat.subscription + r.breakdown.setup.subscription,
-        otherCommission: r.breakdown.setup.commission,
+        otherCommission: r.breakdown.alat.commission + r.breakdown.setup.commission,
         bonusBulanan: r.bonusBulanan,
         bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
