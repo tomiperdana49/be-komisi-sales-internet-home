@@ -732,7 +732,10 @@ export class CommissionService {
     targetOverride?: number,
     /** This employee's Bonus Konsistensi amount for the period. Defaults to a fresh lookup (0 if never granted) when omitted. */
     consistencyBonusOverride?: number,
-    /** Drops Alat rows entirely — a Manager's personal sales earn nothing on Alat (KOMISI.md 6.F). */
+    /**
+     * Drops Alat rows — a Manager's personal sales earn nothing on Alat (KOMISI.md 6.F),
+     * unless an admin marked the row (is_adjusted) to be paid by hand.
+     */
     excludeAlat = false,
   ): Promise<SalesCommissionResult> {
     const { start, end } = getDateRangeForPeriod(period);
@@ -755,7 +758,7 @@ export class CommissionService {
     const rows = allRows.filter(
       (row) =>
         !isExcludedFromCommission(rules, row) &&
-        !(excludeAlat && toCommissionCategory(row.category) === "alat"),
+        !(excludeAlat && toCommissionCategory(row.category) === "alat" && !row.is_adjusted),
     );
 
     const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =

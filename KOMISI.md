@@ -334,7 +334,7 @@ Invoice yang kolom `sales`-nya berisi `Customer Relation Officer` **tetap dihitu
 Manager Area juga bisa memiliki data penjualan atas namanya sendiri (invoice dengan `sales_id` = employee ID manager), sama seperti sales biasa. Komisi ini **berdiri sendiri** di luar komisi overriding tim.
 
 - **Rate & perhitungan**: memakai aturan yang sama persis dengan Sales (Bagian 2) — tabel rate New/Upgrade, prorate 10%, recurring, setup, termasuk penalti keterlambatan pembayaran.
-- **Alat tidak dihitung**: invoice kategori Alat atas nama manager tidak mendapat komisi dan tidak ditampilkan di penjualan pribadi manager.
+- **Alat tidak dihitung**: invoice kategori Alat atas nama manager tidak mendapat komisi dan tidak ditampilkan di penjualan pribadi manager. **Pengecualian manual**: baris Alat yang ditandai admin (`is_adjusted`, dicatat di `snapshot_adjustment`) tetap dihitung dengan rate Alat biasa — mis. Alat pribadi Roni Oktober 2026 (ptpancaranjatinusa, benny99xy) sesuai sheet tim.
 - **⚠️ Penentu "capai target" berbeda**: status capai / tidak capai target untuk komisi pribadi manager **diambil dari capaian target Manager** (Bagian 6.A & 6.B — persentase capaian tim terhadap ambang batas dinamis sesuai jumlah bawahan), **bukan** dari aturan sales individual `New Achievement >= 12`. Status ini menentukan:
   - **Rate recurring**: 1.5% bila capai target, 0.5% bila tidak (untuk pegawai Permanent).
   - **Penalti performa 70%** pada tipe New.
