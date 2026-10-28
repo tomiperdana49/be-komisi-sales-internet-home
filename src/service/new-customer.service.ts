@@ -72,12 +72,13 @@ function mapCategory(sg: string | null, serviceName: string | null): string {
     case "DO":
     case "CM":
     case "ZH":
-    // Prepaid/newer Digital Business groups in NIS (Zoho, web hosting, Zoom, PrivyID, Google Cloud).
+    // Prepaid/newer Digital Business groups in NIS (Zoho, web hosting, Zoom, PrivyID, Google Cloud, Nettify TV).
     case "ZHP":
     case "WHP":
     case "ZO":
     case "PV":
     case "GCP":
+    case "TV":
     case "NW":
       return "Digital Business";
     default:
