@@ -568,13 +568,22 @@ export function getManagerNewCommissionRate(rules: CommissionRules, achievementP
   return tiers.find((t) => achievementPercentage >= t.minAchievement)?.rate ?? 0;
 }
 
+/** From this period Alat (Overriding New) and CPE Rental (Overriding Recurring) are no longer passed to the SM. */
+export const MANAGER_ALAT_CPE_RULE_SINCE = "202610";
+
 /**
  * KOMISI.md 6.C: the part of a team member's commission the manager's
- * Overriding New is taken from — New, Prorate and Alat. Upgrade and Setup
- * are left out.
+ * Overriding New is taken from — New and Prorate, plus Alat before
+ * MANAGER_ALAT_CPE_RULE_SINCE. Upgrade and Setup are left out.
  */
-export function getManagerNewCommissionBasis(breakdown: CommissionBreakdown): number {
-  return breakdown.new.commission + breakdown.prorate.commission + breakdown.alat.commission;
+export function getManagerNewCommissionBasis(breakdown: CommissionBreakdown, period: string): number {
+  const alat = period >= MANAGER_ALAT_CPE_RULE_SINCE ? 0 : breakdown.alat.commission;
+  return breakdown.new.commission + breakdown.prorate.commission + alat;
+}
+
+/** KOMISI.md 6.D: CPE Rental recurring stays out of the Overriding Recurring from MANAGER_ALAT_CPE_RULE_SINCE. */
+export function isExcludedFromManagerRecurring(period: string, category: string | null | undefined): boolean {
+  return period >= MANAGER_ALAT_CPE_RULE_SINCE && category?.trim() === "CPE Rental";
 }
 
 /** Manager's flat rate on the team's recurring subscription. */

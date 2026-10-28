@@ -8,6 +8,7 @@ import {
   calculateManagerPerformance,
   calculateNusaSelectaActivity,
   getManagerNewCommissionBasis,
+  isExcludedFromManagerRecurring,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getRecurringServiceGroupLabel,
@@ -428,7 +429,7 @@ export class CommissionService {
       personalByServiceGroup: emptyGroupTotals(),
     };
     for (const r of memberResults) {
-      teamTotals.newCommission += getManagerNewCommissionBasis(r.breakdown);
+      teamTotals.newCommission += getManagerNewCommissionBasis(r.breakdown, period);
       teamTotals.recurringCommission += r.breakdown.recurring.commission;
       teamTotals.newSubscription += r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription;
       teamTotals.newMrc += r.breakdown.new.mrc + r.breakdown.upgrade.mrc;
@@ -473,8 +474,15 @@ export class CommissionService {
     let recurringReferralDeduction = 0;
     let recurringLatePenalty = 0;
     const recurringLateItems: ManagerRecurringBasisItem[] = [];
+    let recurringCpeExcluded = 0;
+    const recurringCpeItems: ManagerRecurringBasisItem[] = [];
     for (const row of recurringRows) {
       const subscription = toNumber(row.subscription);
+      if (isExcludedFromManagerRecurring(period, row.category)) {
+        recurringCpeExcluded += subscription;
+        recurringCpeItems.push(toBasisItem(row, subscription));
+        continue;
+      }
       const { net, referralCut, lateCut, lateBasis } = netCommissionBasis(
         rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
       );
@@ -551,6 +559,7 @@ export class CommissionService {
     const recurringOtherAdjustment =
       teamRecurringSubscription -
       recurringRenewalExcluded -
+      recurringCpeExcluded -
       recurringReferralDeduction -
       recurringLatePenalty -
       teamRecurringSubscriptionNet;
@@ -571,7 +580,7 @@ export class CommissionService {
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription,
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
         // Komisi New/Alat & Setup follow the Subscription columns (the AM page's split); the
-        // Overriding New basis (New + Prorate + Alat) is teamTotals.newCommission.
+        // Overriding New basis is teamTotals.newCommission (getManagerNewCommissionBasis).
         newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission,
         // Dasar Komisi Recurring, as on the AM page: after the referral and late-payment cuts.
         recurringSubscription: recurringCommissionBasis(r),
@@ -582,9 +591,9 @@ export class CommissionService {
         bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
         totalCommission: r.total.commission + r.bonusBulanan + r.bonusKelebihanService + r.consistencyBonus,
-        managerNewCommission: getManagerNewCommissionBasis(r.breakdown) * (newCommissionRate / 100),
+        managerNewCommission: getManagerNewCommissionBasis(r.breakdown, period) * (newCommissionRate / 100),
         managerRecurringCommission: r.items
-          .filter((item) => item.type === "recurring")
+          .filter((item) => item.type === "recurring" && !isExcludedFromManagerRecurring(period, item.category))
           .reduce((sum, item) => sum + item.baseCommission * (managerRecurringRate({ category: item.category, business_operation: item.businessOperation }) / 100), 0),
         newService: serviceGroups.map((name) => ({
           name,
@@ -627,10 +636,12 @@ export class CommissionService {
         recurringBasis: {
           teamSubscription: teamRecurringSubscription,
           renewalExcluded: recurringRenewalExcluded,
+          cpeExcluded: recurringCpeExcluded,
           referralDeduction: recurringReferralDeduction,
           latePenalty: recurringLatePenalty,
           otherAdjustment: recurringOtherAdjustment,
           renewalItems: recurringRenewalItems,
+          cpeItems: recurringCpeItems,
           lateItems: recurringLateItems,
         },
       },

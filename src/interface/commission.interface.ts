@@ -244,16 +244,20 @@ export type ManagerOverride = {
   /**
    * How the "Subscription Recurring" Total tim card (teamSubscription) gets
    * down to teamRecurringSubscriptionNet:
-   * teamSubscription − renewalExcluded − referralDeduction − latePenalty − otherAdjustment.
+   * teamSubscription − renewalExcluded − cpeExcluded − referralDeduction − latePenalty − otherAdjustment.
    */
   recurringBasis: {
     teamSubscription: number;
     renewalExcluded: number;
+    /** CPE Rental recurring left out of the Overriding Recurring (isExcludedFromManagerRecurring). */
+    cpeExcluded: number;
     referralDeduction: number;
     latePenalty: number;
     otherAdjustment: number;
     /** Invoices behind renewalExcluded; amount = subscription left out of the pool. */
     renewalItems: ManagerRecurringBasisItem[];
+    /** Invoices behind cpeExcluded; amount = subscription left out of the pool. */
+    cpeItems: ManagerRecurringBasisItem[];
     /** Invoices behind latePenalty; amount = late-payment cut on that invoice. */
     lateItems: ManagerRecurringBasisItem[];
   };
@@ -288,7 +292,7 @@ export type ManagerCommissionResult = {
   override: ManagerOverride;
   /** Team's raw production totals (the "pot" before the manager's override cut). */
   teamTotals: {
-    /** Overriding New basis: the team's New + Prorate + Alat commission (getManagerNewCommissionBasis). */
+    /** Overriding New basis: the team's New + Prorate (+ Alat before October 2026) commission (getManagerNewCommissionBasis). */
     newCommission: number;
     recurringCommission: number;
     newSubscription: number;

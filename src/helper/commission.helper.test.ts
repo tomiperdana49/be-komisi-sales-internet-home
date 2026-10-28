@@ -14,6 +14,7 @@ import {
   resolveBusinessOperation,
   toCommissionCategory,
   getManagerNewCommissionBasis,
+  isExcludedFromManagerRecurring,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getTeamTargetThreshold,
@@ -160,7 +161,28 @@ describe("manager Overriding New basis", () => {
       setup: stats(60000),
       recurring: stats(70000),
     };
-    expect(getManagerNewCommissionBasis(breakdown)).toBe(1110);
+    expect(getManagerNewCommissionBasis(breakdown, "202609")).toBe(1110);
+  });
+
+  test("leaves Alat out from October 2026", () => {
+    const stats = (commission: number) => ({ count: 1, commission, subscription: 0, mrc: 0 });
+    const breakdown = {
+      new: stats(1000),
+      prorate: stats(100),
+      alat: stats(10),
+      upgrade: stats(50000),
+      setup: stats(60000),
+      recurring: stats(70000),
+    };
+    expect(getManagerNewCommissionBasis(breakdown, "202610")).toBe(1100);
+  });
+});
+
+describe("manager Overriding Recurring exclusions", () => {
+  test("leaves CPE Rental out from October 2026", () => {
+    expect(isExcludedFromManagerRecurring("202609", "CPE Rental")).toBe(false);
+    expect(isExcludedFromManagerRecurring("202610", "CPE Rental")).toBe(true);
+    expect(isExcludedFromManagerRecurring("202610", "FO")).toBe(false);
   });
 });
 
