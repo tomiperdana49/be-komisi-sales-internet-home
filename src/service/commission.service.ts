@@ -9,6 +9,7 @@ import {
   calculateNusaSelectaActivity,
   getManagerNewCommissionBasis,
   rulesForManagerPersonal,
+  MANAGER_PERSONAL_ALAT_SINCE,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getRecurringServiceGroupLabel,
@@ -734,8 +735,8 @@ export class CommissionService {
     /** This employee's Bonus Konsistensi amount for the period. Defaults to a fresh lookup (0 if never granted) when omitted. */
     consistencyBonusOverride?: number,
     /**
-     * A Manager's personal sales (KOMISI.md 6.F): Alat rows are dropped (they earn
-     * nothing) and Digital Business Internal takes the manager's own rate.
+     * A Manager's personal sales (KOMISI.md 6.F): Digital Business Internal takes the
+     * manager's own rate, and Alat rows are dropped before MANAGER_PERSONAL_ALAT_SINCE.
      */
     managerPersonal = false,
   ): Promise<SalesCommissionResult> {
@@ -759,7 +760,7 @@ export class CommissionService {
     const rows = allRows.filter(
       (row) =>
         !isExcludedFromCommission(rules, row) &&
-        !(managerPersonal && toCommissionCategory(row.category) === "alat"),
+        !(managerPersonal && period < MANAGER_PERSONAL_ALAT_SINCE && toCommissionCategory(row.category) === "alat"),
     );
 
     const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =

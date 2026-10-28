@@ -333,7 +333,7 @@ Manager Area juga bisa memiliki data penjualan atas namanya sendiri (invoice den
 
 - **Rate & perhitungan**: memakai aturan yang sama persis dengan Sales (Bagian 2) — tabel rate New/Upgrade, prorate 10%, recurring, setup, termasuk penalti keterlambatan pembayaran.
 - **Digital Business Internal & IP Public milik SM sendiri = 2%** (mulai periode **Oktober 2026**, sheet tim: "Komisi Cust lama Data Center"), menggantikan rate AM 1%; tidak bergantung target. Resell tetap 0.5%. Bisa diubah di *Aturan Komisi > SM* (`manager.personalDigitalBusinessInternal`). Lihat `rulesForManagerPersonal`.
-- **Alat tidak dihitung**: invoice kategori Alat atas nama manager tidak mendapat komisi dan tidak ditampilkan di penjualan pribadi manager.
+- **Alat**: sebelum periode Oktober 2026 invoice kategori Alat atas nama manager tidak mendapat komisi dan tidak ditampilkan di penjualan pribadi manager. **Mulai Oktober 2026** Alat milik SM sendiri dihitung seperti AM (2% bila dibundel Setup, 1% standalone), mengikuti sheet tim ("komisi alat 2%"). Alat pribadi SM tidak ikut dasar Overriding New (penjualan pribadi memang tidak masuk hitungan tim). Lihat `MANAGER_PERSONAL_ALAT_SINCE`.
 - **⚠️ Penentu "capai target" berbeda**: status capai / tidak capai target untuk komisi pribadi manager **diambil dari capaian target Manager** (Bagian 6.A & 6.B — persentase capaian tim terhadap ambang batas dinamis sesuai jumlah bawahan), **bukan** dari aturan sales individual `New Achievement >= 12`. Status ini menentukan:
   - **Rate recurring**: 1.5% bila capai target, 0.5% bila tidak (untuk pegawai Permanent).
   - **Penalti performa 70%** pada tipe New.

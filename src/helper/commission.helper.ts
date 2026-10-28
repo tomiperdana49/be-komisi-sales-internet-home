@@ -571,6 +571,9 @@ export function getManagerNewCommissionRate(rules: CommissionRules, achievementP
 /** From this period a manager's own Digital Business Internal & IP Public recurring takes rules.manager.personalDigitalBusinessInternal (the team sheet's Data Center 2%). */
 export const MANAGER_PERSONAL_DB_INTERNAL_SINCE = "202610";
 
+/** Until this period a manager's own Alat earned nothing; from it they earn the Alat rate like an AM (the team sheet's Komisi Alat 2%). */
+export const MANAGER_PERSONAL_ALAT_SINCE = "202610";
+
 /** Rules for a manager's personal sales (KOMISI.md 6.F): the sales rules, with the manager's own Digital Business Internal rate. */
 export function rulesForManagerPersonal(rules: CommissionRules, period: string): CommissionRules {
   if (period < MANAGER_PERSONAL_DB_INTERNAL_SINCE) return rules;
