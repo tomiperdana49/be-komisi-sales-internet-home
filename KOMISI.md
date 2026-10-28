@@ -291,9 +291,9 @@ Manager mengambil komisi overriding yang diproses dari total kue komisi produk N
 > **⚠️ Komisi Prorate & Alat kini diperlakukan sama dengan Komisi New**:
 > Transaksi Prorate (penyesuaian tagihan masa aktif awal pelanggan baru) dan Alat (penjualan perangkat keras pelanggan) ikut menyumbang ke komisi overriding New Manager bersama dengan transaksi New. Dasar pengenaan overriding New Manager dihitung dari:
 > `Dasar Overriding New Manager = Total Komisi New Tim + Total Komisi Prorate Tim + Total Komisi Alat Tim`.
-> Di tabel Anggota Tim dan Summary, kolom Komisi New = New + Prorate + Upgrade (sama dengan halaman AM) dan komisi Alat ada di kolom Komisi Alat & Setup; angka dasar overriding ada di kartu Rincian Komisi Manager.
+> Pada tampilan laporan summary, komisi Prorate dan Alat juga digabungkan ke kolom New Commission.
 
-> **⚠️ Mulai periode Oktober 2026: Alat, Setup & CPE tidak dibawa ke SM** (info Pak Vian, mengikuti sheet dashboard). `Dasar Overriding New Manager = Total Komisi New Tim + Total Komisi Prorate Tim` — komisi Alat tim tidak ikut lagi (Setup memang tidak pernah ikut), dan recurring **CPE Rental** tim tidak ikut dasar Overriding Recurring (Bagian D). AM tetap mendapat komisi Alat, Setup dan CPE Rental-nya sendiri. Lihat `MANAGER_ALAT_CPE_RULE_SINCE`, `getManagerNewCommissionBasis`, `isExcludedFromManagerRecurring`.
+> **⚠️ Mulai periode Oktober 2026 komisi Upgrade tim juga ikut** (mengikuti sheet tim): `Dasar Overriding New Manager = Komisi New + Prorate + Upgrade + Alat Tim`, dan kolom Komisi New di tabel Anggota Tim & Summary memakai rumus yang sama. Alat hanya dikeluarkan dari angka **Subscription** New (pindah ke Subscription Alat & Setup), komisinya tetap dihitung. Setup tetap tidak ikut. Lihat `MANAGER_NEW_UPGRADE_SINCE`.
 
 - Jika Capaian `>= 150%` = Manager dikalikan **60%** dari kue New, Prorate & Alat Commission.
 - Jika Capaian `>= 125%` = Manager dikalikan **50%**.
@@ -302,7 +302,7 @@ Manager mengambil komisi overriding yang diproses dari total kue komisi produk N
 - Jika Capaian `< 50%` = Manager mendapatkan **0%** bagian dari produk New, Prorate & Alat.
 
 **D. Komisi Recurring (Pemasukan Berulang dari Tim)**
-Dihitung flat bulanan sebagai overriding insentif pendapatan pasif. Mulai Oktober 2026 recurring **CPE Rental** tidak ikut dasarnya (tampil sebagai baris "CPE Rental (tidak dihitung SM)" di kartu Rincian):
+Dihitung flat bulanan sebagai overriding insentif pendapatan pasif:
 
 Rate-nya per invoice, menurut jenis customer lama (mulai periode **Oktober 2026**; bisa diubah di *Aturan Komisi > SM*):
 

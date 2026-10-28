@@ -8,7 +8,6 @@ import {
   calculateManagerPerformance,
   calculateNusaSelectaActivity,
   getManagerNewCommissionBasis,
-  isExcludedFromManagerRecurring,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getRecurringServiceGroupLabel,
@@ -413,7 +412,7 @@ export class CommissionService {
         target.newSubscription += g.new.subscription + (g.prorate?.subscription ?? 0) + (g.upgrade?.subscription ?? 0);
         // MRC is the monthly charge: prorate (part of a first month) and Alat (one-off) carry none (same as the AM page).
         target.newMrc += g.new.mrc + (g.upgrade?.mrc ?? 0);
-        target.newCommission += g.new.commission + (g.prorate?.commission ?? 0) + (g.upgrade?.commission ?? 0);
+        target.newCommission += g.new.commission + (g.prorate?.commission ?? 0) + (g.upgrade?.commission ?? 0) + (g.alat?.commission ?? 0);
         target.recurringSubscription += g.recurring.subscription;
         target.recurringCommission += g.recurring.commission;
       }
@@ -474,15 +473,8 @@ export class CommissionService {
     let recurringReferralDeduction = 0;
     let recurringLatePenalty = 0;
     const recurringLateItems: ManagerRecurringBasisItem[] = [];
-    let recurringCpeExcluded = 0;
-    const recurringCpeItems: ManagerRecurringBasisItem[] = [];
     for (const row of recurringRows) {
       const subscription = toNumber(row.subscription);
-      if (isExcludedFromManagerRecurring(period, row.category)) {
-        recurringCpeExcluded += subscription;
-        recurringCpeItems.push(toBasisItem(row, subscription));
-        continue;
-      }
       const { net, referralCut, lateCut, lateBasis } = netCommissionBasis(
         rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
       );
@@ -559,7 +551,6 @@ export class CommissionService {
     const recurringOtherAdjustment =
       teamRecurringSubscription -
       recurringRenewalExcluded -
-      recurringCpeExcluded -
       recurringReferralDeduction -
       recurringLatePenalty -
       teamRecurringSubscriptionNet;
@@ -567,7 +558,7 @@ export class CommissionService {
     const members = coveredTeam.map((e, i) => {
       const r = memberResults[i]!;
       const otherSubscription = r.breakdown.alat.subscription + r.breakdown.setup.subscription;
-      const otherCommission = r.breakdown.alat.commission + r.breakdown.setup.commission;
+      const otherCommission = r.breakdown.setup.commission;
 
       return {
         employeeId: e.employee_id,
@@ -579,9 +570,9 @@ export class CommissionService {
         motivation: r.motivation,
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription,
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
-        // Komisi New/Alat & Setup follow the Subscription columns (the AM page's split); the
-        // Overriding New basis is teamTotals.newCommission (getManagerNewCommissionBasis).
-        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission,
+        // Komisi New = New + Prorate + Upgrade + Alat, as the team sheet; only Alat's
+        // subscription sits in Alat & Setup. Overriding New basis: teamTotals.newCommission.
+        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission + r.breakdown.alat.commission,
         // Dasar Komisi Recurring, as on the AM page: after the referral and late-payment cuts.
         recurringSubscription: recurringCommissionBasis(r),
         recurringCommission: r.breakdown.recurring.commission,
@@ -593,7 +584,7 @@ export class CommissionService {
         totalCommission: r.total.commission + r.bonusBulanan + r.bonusKelebihanService + r.consistencyBonus,
         managerNewCommission: getManagerNewCommissionBasis(r.breakdown, period) * (newCommissionRate / 100),
         managerRecurringCommission: r.items
-          .filter((item) => item.type === "recurring" && !isExcludedFromManagerRecurring(period, item.category))
+          .filter((item) => item.type === "recurring")
           .reduce((sum, item) => sum + item.baseCommission * (managerRecurringRate({ category: item.category, business_operation: item.businessOperation }) / 100), 0),
         newService: serviceGroups.map((name) => ({
           name,
@@ -636,12 +627,10 @@ export class CommissionService {
         recurringBasis: {
           teamSubscription: teamRecurringSubscription,
           renewalExcluded: recurringRenewalExcluded,
-          cpeExcluded: recurringCpeExcluded,
           referralDeduction: recurringReferralDeduction,
           latePenalty: recurringLatePenalty,
           otherAdjustment: recurringOtherAdjustment,
           renewalItems: recurringRenewalItems,
-          cpeItems: recurringCpeItems,
           lateItems: recurringLateItems,
         },
       },
@@ -1103,11 +1092,11 @@ export class CommissionService {
         activityCount: r.activityCount,
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription,
-        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission,
+        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission + r.breakdown.alat.commission,
         recurringSubscription: recurringCommissionBasis(r),
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription: r.breakdown.alat.subscription + r.breakdown.setup.subscription,
-        otherCommission: r.breakdown.alat.commission + r.breakdown.setup.commission,
+        otherCommission: r.breakdown.setup.commission,
         bonusBulanan: r.bonusBulanan,
         bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
