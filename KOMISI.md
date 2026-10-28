@@ -302,8 +302,15 @@ Manager mengambil komisi overriding yang diproses dari total kue komisi produk N
 **D. Komisi Recurring (Pemasukan Berulang dari Tim)**
 Dihitung flat bulanan sebagai overriding insentif pendapatan pasif:
 
-- Apabila Manager berstatus **Capai Target**, Rate Recurring Manager adalah **0.90%** dari total uang _Recurring Subscription_ timnya.
-- Apabila Manager berstatus **Tidak Capai Target**, Rate Recurring diturunkan menjadi **0.50%** dari total pengumpulan langganan anggota timnya.
+Rate-nya per invoice, menurut jenis customer lama (mulai periode **Oktober 2026**; bisa diubah di *Aturan Komisi > SM*):
+
+| Jenis recurring tim | Capai Target | Tidak Capai Target |
+|---|---|---|
+| Customer lama **akses** (semua kategori selain di bawah) | **0.90%** | **0.50%** |
+| **Digital Business Internal** & **IP Public** | **1%** | **0.50%** |
+| **Digital Business Resell** | **0.50%** | **0.25%** |
+
+Contoh: tim dengan recurring akses Rp57.299.800 dan IP Public Rp2.000.000, Capai Target → 0.9% × 57.299.800 + 1% × 2.000.000 = Rp535.698. Dasarnya tetap subscription setelah referral fee dan potongan telat bayar. Lihat `getManagerRecurringRate`.
 
 **⚠️ Invoice tanpa sales (`Customer Relation Officer`)**
 

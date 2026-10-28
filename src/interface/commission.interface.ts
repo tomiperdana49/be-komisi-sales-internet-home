@@ -239,6 +239,8 @@ export type ManagerOverride = {
   recurringCommission: number;
   /** NET recurring subscription behind the override, incl. CRO placeholder rows outside the team roster. */
   teamRecurringSubscriptionNet: number;
+  /** teamRecurringSubscriptionNet split by overriding rate (KOMISI.md 6.D): access, Digital Business Internal (incl. IP Public), Digital Business Resell. */
+  recurringByKind: Record<"access" | "digitalBusinessInternal" | "digitalBusinessResell", { basis: number; rate: number }>;
   /**
    * How the "Subscription Recurring" Total tim card (teamSubscription) gets
    * down to teamRecurringSubscriptionNet:

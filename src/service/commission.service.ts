@@ -456,7 +456,19 @@ export class CommissionService {
       amount,
     });
 
+    const isTargetAchieved = performance.isTargetAchieved;
+    const managerRecurringRate = (row: { category: string | null; business_operation?: string | null }) =>
+      getManagerRecurringRate(rules, isTargetAchieved, row.category, row.business_operation);
+    // 6.D: access recurring and Digital Business (Internal incl. IP Public / Resell) carry their own rates.
+    const recurringBasisByKind = { access: 0, digitalBusinessInternal: 0, digitalBusinessResell: 0 };
+    const recurringKind = (row: CommissionSnapshotRow): keyof typeof recurringBasisByKind => {
+      const category = row.category?.trim();
+      if (category !== "Digital Business" && category !== "IP Public") return "access";
+      return resolveBusinessOperation(row.category, row.business_operation) === "Internal" ? "digitalBusinessInternal" : "digitalBusinessResell";
+    };
+
     let teamRecurringSubscriptionNet = 0;
+    let overrideRecurringCommission = 0;
     let recurringReferralDeduction = 0;
     let recurringLatePenalty = 0;
     const recurringLateItems: ManagerRecurringBasisItem[] = [];
@@ -466,6 +478,8 @@ export class CommissionService {
         rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
       );
       teamRecurringSubscriptionNet += net;
+      overrideRecurringCommission += net * (managerRecurringRate(row) / 100);
+      recurringBasisByKind[recurringKind(row)] += net;
       recurringReferralDeduction += referralCut;
       recurringLatePenalty += lateCut;
       if (lateCut > 0) {
@@ -478,9 +492,9 @@ export class CommissionService {
       }
     }
 
-    const recurringCommissionRate = getManagerRecurringRate(rules, performance.isTargetAchieved);
-    const overrideRecurringCommission =
-      teamRecurringSubscriptionNet * (recurringCommissionRate / 100);
+    const recurringCommissionRate = getManagerRecurringRate(rules, isTargetAchieved);
+    const recurringDigitalBusinessInternalRate = getManagerRecurringRate(rules, isTargetAchieved, "IP Public");
+    const recurringDigitalBusinessResellRate = getManagerRecurringRate(rules, isTargetAchieved, "Digital Business", "Resell");
 
     // KOMISI.md 6.D: Customer Relation Officer rows have no real salesperson,
     // so they never appear in any team member's own invoice list — surfaced
@@ -488,7 +502,7 @@ export class CommissionService {
     // the only commission stream they actually feed.
     const croRecurring = recurringRows
       .filter((row) => row.sales === CRO_PLACEHOLDER)
-      .map((row) => this.valueManagerRecurringRow(rules, period, row, recurringCommissionRate));
+      .map((row) => this.valueManagerRecurringRow(rules, period, row, managerRecurringRate(row)));
     await this.attachApprovals(croRecurring);
 
     // Team Production by Service shows the manager area's FULL production:
@@ -566,7 +580,9 @@ export class CommissionService {
         consistencyBonus: r.consistencyBonus,
         totalCommission: r.total.commission + r.bonusBulanan + r.bonusKelebihanService + r.consistencyBonus,
         managerNewCommission: getManagerNewCommissionBasis(r.breakdown) * (newCommissionRate / 100),
-        managerRecurringCommission: recurringCommissionBasis(r) * (recurringCommissionRate / 100),
+        managerRecurringCommission: r.items
+          .filter((item) => item.type === "recurring")
+          .reduce((sum, item) => sum + item.baseCommission * (managerRecurringRate({ category: item.category, business_operation: item.businessOperation }) / 100), 0),
         newService: serviceGroups.map((name) => ({
           name,
           count: r.byServiceGroup[name]?.new.count ?? 0,
@@ -599,6 +615,12 @@ export class CommissionService {
         recurringCommissionRate,
         recurringCommission: overrideRecurringCommission,
         teamRecurringSubscriptionNet,
+        /** 6.D split of teamRecurringSubscriptionNet by rate: access, Digital Business Internal (incl. IP Public), Resell. */
+        recurringByKind: {
+          access: { basis: recurringBasisByKind.access, rate: recurringCommissionRate },
+          digitalBusinessInternal: { basis: recurringBasisByKind.digitalBusinessInternal, rate: recurringDigitalBusinessInternalRate },
+          digitalBusinessResell: { basis: recurringBasisByKind.digitalBusinessResell, rate: recurringDigitalBusinessResellRate },
+        },
         recurringBasis: {
           teamSubscription: teamRecurringSubscription,
           renewalExcluded: recurringRenewalExcluded,

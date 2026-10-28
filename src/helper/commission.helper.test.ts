@@ -15,6 +15,7 @@ import {
   toCommissionCategory,
   getManagerNewCommissionBasis,
   getManagerNewCommissionRate,
+  getManagerRecurringRate,
   getTeamTargetThreshold,
   hasCommissionRate,
   resolveTarget,
@@ -275,5 +276,32 @@ describe("NusaSelecta Prime 100 promo (SE Sept 2026)", () => {
   test("fewer than 9 promo alone add nothing to the target", () => {
     expect(calculateNusaSelectaActivity(0, 0, 8)).toBe(0);
     expect(calculateNusaSelectaActivity(0, 0, 18)).toBe(2);
+  });
+});
+
+describe("manager overriding recurring rate by customer type (from October 2026)", () => {
+  const rules = DEFAULT_COMMISSION_RULES;
+
+  test("access, Digital Business Internal & IP Public, and Resell each take their own rate", () => {
+    expect(getManagerRecurringRate(rules, true, "FO Prepaid", null)).toBe(0.9);
+    expect(getManagerRecurringRate(rules, false, "FO Prepaid", null)).toBe(0.5);
+    expect(getManagerRecurringRate(rules, true, "IP Public", null)).toBe(1);
+    expect(getManagerRecurringRate(rules, true, "Digital Business", "Internal")).toBe(1);
+    expect(getManagerRecurringRate(rules, false, "Digital Business", "Internal")).toBe(0.5);
+    expect(getManagerRecurringRate(rules, true, "Digital Business", "Resell")).toBe(0.5);
+    expect(getManagerRecurringRate(rules, false, "Digital Business", "Resell")).toBe(0.25);
+  });
+
+  test("Freddy's October recurring: 0.9% on access + 1% on IP Public = Rp535.698", () => {
+    const total = 57_299_800 * getManagerRecurringRate(rules, true, "FO Prepaid") / 100
+      + 2_000_000 * getManagerRecurringRate(rules, true, "IP Public") / 100;
+    expect(Math.round(total)).toBe(535_698);
+  });
+
+  test("rule sets saved before these rates existed get the defaults", () => {
+    const { recurringDigitalBusinessInternalOnTarget, recurringDigitalBusinessInternalMissedTarget, recurringDigitalBusinessResellOnTarget, recurringDigitalBusinessResellMissedTarget, ...oldManager } = rules.manager;
+    const parsed = commissionRulesSchema.parse({ ...rules, manager: oldManager });
+    expect(parsed.manager.recurringDigitalBusinessInternalOnTarget).toBe(1);
+    expect(parsed.manager.recurringDigitalBusinessResellMissedTarget).toBe(0.25);
   });
 });

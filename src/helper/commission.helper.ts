@@ -578,6 +578,25 @@ export function getManagerNewCommissionBasis(breakdown: CommissionBreakdown): nu
 }
 
 /** Manager's flat rate on the team's recurring subscription. */
-export function getManagerRecurringRate(rules: CommissionRules, isTargetAchieved: boolean): number {
-  return isTargetAchieved ? rules.manager.recurringOnTarget : rules.manager.recurringMissedTarget;
+/**
+ * Manager overriding rate on one team recurring invoice (KOMISI.md 6.D): Digital
+ * Business (IP Public as Internal) has its own Internal/Resell rates; every
+ * other category takes the access rate. Pass no category for the access rate.
+ */
+export function getManagerRecurringRate(
+  rules: CommissionRules,
+  isTargetAchieved: boolean,
+  category?: string | null,
+  businessOperation?: string | null,
+): number {
+  const m = rules.manager;
+  const isDigitalBusiness = category?.trim() === "Digital Business" || category?.trim() === "IP Public";
+  const operation = isDigitalBusiness ? resolveBusinessOperation(category, businessOperation) : null;
+  if (operation === "Internal") {
+    return isTargetAchieved ? m.recurringDigitalBusinessInternalOnTarget : m.recurringDigitalBusinessInternalMissedTarget;
+  }
+  if (operation === "Resell") {
+    return isTargetAchieved ? m.recurringDigitalBusinessResellOnTarget : m.recurringDigitalBusinessResellMissedTarget;
+  }
+  return isTargetAchieved ? m.recurringOnTarget : m.recurringMissedTarget;
 }

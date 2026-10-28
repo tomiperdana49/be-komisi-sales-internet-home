@@ -101,8 +101,17 @@ export const commissionRulesSchema = z
       /** Threshold % by total team size; the last entry also covers every larger team. */
       teamThresholds: tier({ teamSize: z.number().int().min(1), percent: z.number().min(0).max(500) }),
       newCommissionTiers: tier({ minAchievement: z.number().min(0), rate: percent }),
+      /** Overriding rate on the team's old-customer access recurring (every category except Digital Business / IP Public). */
       recurringOnTarget: percent,
       recurringMissedTarget: percent,
+      /**
+       * Overriding rate on the team's Digital Business recurring (IP Public counts as Internal).
+       * Defaults apply to rule sets saved before these existed (from October 2026).
+       */
+      recurringDigitalBusinessInternalOnTarget: percent.default(1),
+      recurringDigitalBusinessInternalMissedTarget: percent.default(0.5),
+      recurringDigitalBusinessResellOnTarget: percent.default(0.5),
+      recurringDigitalBusinessResellMissedTarget: percent.default(0.25),
     }),
   })
   .superRefine((rules, ctx) => {
