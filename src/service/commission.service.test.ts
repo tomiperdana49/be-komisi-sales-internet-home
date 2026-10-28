@@ -203,3 +203,29 @@ describe("churn valued at the rules of the period it was sold in", () => {
     }
   });
 });
+
+describe("license resells earn no recurring commission from October 2026", () => {
+  const license = (period: string) =>
+    row({
+      period,
+      type: "recurring",
+      category: "Digital Business",
+      business_operation: "Resell",
+      service_id: "CPANELDS",
+      service_name: "Lisensi CPanel Dedicated Server",
+      subscription: 1_000_000,
+      month: 1,
+    });
+
+  test("is dropped from October", async () => {
+    const result = await engine([license("202610")]).getSalesCommission("S1", "202610");
+    expect(result.items).toHaveLength(0);
+    expect(result.breakdown.recurring.commission).toBe(0);
+  });
+
+  test("still counts in September", async () => {
+    const result = await engine([license("202609")]).getSalesCommission("S1", "202609");
+    expect(result.items).toHaveLength(1);
+    expect(result.breakdown.recurring.commission).toBe(5_000);
+  });
+});

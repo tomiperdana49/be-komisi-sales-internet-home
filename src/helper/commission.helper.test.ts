@@ -10,6 +10,7 @@ import {
   getCommissionBasis,
   getCommissionPercentage,
   isDomainService,
+  isLicenseService,
   resolveBusinessOperation,
   toCommissionCategory,
   getManagerNewCommissionBasis,
@@ -128,6 +129,13 @@ describe("IP Public and Domain recurring", () => {
   test("Domain is recognised by service name, not category", () => {
     expect(isDomainService("Domain International (.COM)")).toBe(true);
     expect(isDomainService("Co-location Server 2U")).toBe(false);
+  });
+
+  test("License resells are recognised by service name, from October 2026", () => {
+    expect(isLicenseService("Lisensi CPanel Dedicated Server", "202610")).toBe(true);
+    expect(isLicenseService("License windows server 16 core", "202612")).toBe(true);
+    expect(isLicenseService("Lisensi CloudLinux OS", "202609")).toBe(false);
+    expect(isLicenseService("Google Workspace Business Starter", "202610")).toBe(false);
   });
 });
 

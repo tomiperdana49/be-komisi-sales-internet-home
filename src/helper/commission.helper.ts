@@ -107,6 +107,14 @@ export function isDomainService(serviceName: string | null | undefined): boolean
   return /^domain\b/i.test(serviceName?.trim() ?? "");
 }
 
+/** First period in which license services stop earning recurring commission (KOMISI.md, Digital Business). */
+export const LICENSE_RULE_SINCE = "202610";
+
+/** License resells (e.g. "Lisensi CPanel Dedicated Server", "License windows server 16 core") earn no recurring commission from LICENSE_RULE_SINCE. */
+export function isLicenseService(serviceName: string | null | undefined, period: string): boolean {
+  return period >= LICENSE_RULE_SINCE && /^(lisensi|license)\b/i.test(serviceName?.trim() ?? "");
+}
+
 export function getServiceGroupLabel(rules: CommissionRules, serviceId: string | null | undefined): ServiceGroupLabel {
   const group = findProduct(rules, serviceId)?.group;
   if (group === "Nusafiber") return "Nusafiber";

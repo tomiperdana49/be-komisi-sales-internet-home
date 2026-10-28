@@ -14,6 +14,7 @@ import {
   getServiceGroupLabel,
   hasCommissionRate,
   isDomainService,
+  isLicenseService,
   isNusaBasicPrime,
   isNusaSelectaPromo,
   NUSASELECTA_PROMO,
@@ -100,8 +101,9 @@ function resolveBucket(row: CommissionSnapshotRow): SnapshotType | "alat" | "set
  * NusaSelecta packages earn nothing on recurring — only New/Upgrade/Prorate
  * (KOMISI.md 2.A). These rows are dropped outright rather than rated at 0%,
  * matching the legacy behaviour of filtering them in the query. Domain
- * services are dropped from recurring the same way, even when billing files
- * them under Digital Business.
+ * services — and, from LICENSE_RULE_SINCE, license resells — are dropped
+ * from recurring the same way, even when billing files them under Digital
+ * Business.
  *
  * Home-category New/Upgrade sales of a service with no configured rate are
  * dropped the same way: they earn no commission AND give no New Achievement
@@ -112,6 +114,7 @@ function isExcludedFromCommission(rules: CommissionRules, row: CommissionSnapsho
   const bucket = resolveBucket(row);
   if (bucket === "recurring" && isNusaSelecta(rules, row.service_id)) return true;
   if (bucket === "recurring" && isDomainService(row.service_name)) return true;
+  if (bucket === "recurring" && isLicenseService(row.service_name, row.period)) return true;
 
   const category = toCommissionCategory(row.category);
   if (category === "home" && (bucket === "new" || bucket === "upgrade")) {
