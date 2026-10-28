@@ -568,6 +568,15 @@ export function getManagerNewCommissionRate(rules: CommissionRules, achievementP
   return tiers.find((t) => achievementPercentage >= t.minAchievement)?.rate ?? 0;
 }
 
+/** From this period a manager's own Digital Business Internal & IP Public recurring takes rules.manager.personalDigitalBusinessInternal (the team sheet's Data Center 2%). */
+export const MANAGER_PERSONAL_DB_INTERNAL_SINCE = "202610";
+
+/** Rules for a manager's personal sales (KOMISI.md 6.F): the sales rules, with the manager's own Digital Business Internal rate. */
+export function rulesForManagerPersonal(rules: CommissionRules, period: string): CommissionRules {
+  if (period < MANAGER_PERSONAL_DB_INTERNAL_SINCE) return rules;
+  return { ...rules, rates: { ...rules.rates, digitalBusinessInternal: rules.manager.personalDigitalBusinessInternal } };
+}
+
 /** From this period Upgrade commission also feeds the SM's Overriding New (the team sheet's Komisi New). */
 export const MANAGER_NEW_UPGRADE_SINCE = "202610";
 

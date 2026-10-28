@@ -112,6 +112,8 @@ export const commissionRulesSchema = z
       recurringDigitalBusinessInternalMissedTarget: percent.default(0.5),
       recurringDigitalBusinessResellOnTarget: percent.default(0.5),
       recurringDigitalBusinessResellMissedTarget: percent.default(0.25),
+      /** The manager's OWN Digital Business Internal & IP Public recurring (KOMISI.md 6.F), from MANAGER_PERSONAL_DB_INTERNAL_SINCE. */
+      personalDigitalBusinessInternal: percent.default(2),
     }),
   })
   .superRefine((rules, ctx) => {
