@@ -8,7 +8,6 @@ import {
   calculateManagerPerformance,
   calculateNusaSelectaActivity,
   getManagerNewCommissionBasis,
-  MANAGER_PERSONAL_ALAT_SINCE,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getRecurringServiceGroupLabel,
@@ -733,8 +732,8 @@ export class CommissionService {
     targetOverride?: number,
     /** This employee's Bonus Konsistensi amount for the period. Defaults to a fresh lookup (0 if never granted) when omitted. */
     consistencyBonusOverride?: number,
-    /** A Manager's personal sales (KOMISI.md 6.F): Alat rows are dropped before MANAGER_PERSONAL_ALAT_SINCE. */
-    managerPersonal = false,
+    /** Drops Alat rows entirely — a Manager's personal sales earn nothing on Alat (KOMISI.md 6.F). */
+    excludeAlat = false,
   ): Promise<SalesCommissionResult> {
     const { start, end } = getDateRangeForPeriod(period);
     const startDate = toSqlDate(start);
@@ -756,7 +755,7 @@ export class CommissionService {
     const rows = allRows.filter(
       (row) =>
         !isExcludedFromCommission(rules, row) &&
-        !(managerPersonal && period < MANAGER_PERSONAL_ALAT_SINCE && toCommissionCategory(row.category) === "alat"),
+        !(excludeAlat && toCommissionCategory(row.category) === "alat"),
     );
 
     const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =

@@ -316,6 +316,8 @@ Contoh: tim dengan recurring akses Rp57.299.800 dan IP Public Rp2.000.000, Capai
 
 **⚠️ Invoice tanpa sales (`Customer Relation Officer`)**
 
+**Penjualan SM sendiri tidak masuk dasar Overriding Recurring** (mulai periode Oktober 2026): di NIS kadang kolom manager customer pribadi SM diisi SM itu sendiri (mis. Jayagharaj); invoice tersebut sudah dapat komisi di Penjualan Pribadi, jadi tidak dihitung lagi di overriding. Lihat `MANAGER_OWN_SALES_OUT_OF_POOL_SINCE`.
+
 Invoice yang kolom `sales`-nya berisi `Customer Relation Officer` **tetap dihitung** ke komisi recurring manager, selama kolom `manager` invoice tersebut menunjuk ke manager yang bersangkutan.
 
 - `Customer Relation Officer` adalah **placeholder**, bukan pegawai — dipakai saat nama sales di sumber data tidak cocok dengan pegawai manapun (lihat `resolveSales`). Invoice ini karenanya **tidak menghasilkan komisi sales pribadi**, tapi **tetap masuk** ke total _Recurring Subscription_ tim manager.
@@ -332,7 +334,7 @@ Invoice yang kolom `sales`-nya berisi `Customer Relation Officer` **tetap dihitu
 Manager Area juga bisa memiliki data penjualan atas namanya sendiri (invoice dengan `sales_id` = employee ID manager), sama seperti sales biasa. Komisi ini **berdiri sendiri** di luar komisi overriding tim.
 
 - **Rate & perhitungan**: memakai aturan yang sama persis dengan Sales (Bagian 2) — tabel rate New/Upgrade, prorate 10%, recurring, setup, termasuk penalti keterlambatan pembayaran.
-- **Alat**: sebelum periode Oktober 2026 invoice kategori Alat atas nama manager tidak mendapat komisi dan tidak ditampilkan di penjualan pribadi manager. **Mulai Oktober 2026** Alat milik SM sendiri dihitung seperti AM (2% bila dibundel Setup, 1% standalone), mengikuti sheet tim ("komisi alat 2%"). Alat pribadi SM tidak ikut dasar Overriding New (penjualan pribadi memang tidak masuk hitungan tim). Lihat `MANAGER_PERSONAL_ALAT_SINCE`.
+- **Alat tidak dihitung**: invoice kategori Alat atas nama manager tidak mendapat komisi dan tidak ditampilkan di penjualan pribadi manager.
 - **⚠️ Penentu "capai target" berbeda**: status capai / tidak capai target untuk komisi pribadi manager **diambil dari capaian target Manager** (Bagian 6.A & 6.B — persentase capaian tim terhadap ambang batas dinamis sesuai jumlah bawahan), **bukan** dari aturan sales individual `New Achievement >= 12`. Status ini menentukan:
   - **Rate recurring**: 1.5% bila capai target, 0.5% bila tidak (untuk pegawai Permanent).
   - **Penalti performa 70%** pada tipe New.

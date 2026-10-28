@@ -568,8 +568,8 @@ export function getManagerNewCommissionRate(rules: CommissionRules, achievementP
   return tiers.find((t) => achievementPercentage >= t.minAchievement)?.rate ?? 0;
 }
 
-/** Until this period a manager's own Alat earned nothing; from it they earn the Alat rate like an AM (the team sheet's Komisi Alat 2%). */
-export const MANAGER_PERSONAL_ALAT_SINCE = "202610";
+/** From this period a manager's own recurring sales stay out of their Overriding Recurring pool (closed periods before it keep their paid figures). */
+export const MANAGER_OWN_SALES_OUT_OF_POOL_SINCE = "202610";
 
 /** From this period Upgrade commission also feeds the SM's Overriding New (the team sheet's Komisi New). */
 export const MANAGER_NEW_UPGRADE_SINCE = "202610";
