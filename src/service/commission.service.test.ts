@@ -204,7 +204,7 @@ describe("churn valued at the rules of the period it was sold in", () => {
   });
 });
 
-describe("license resells earn no recurring commission from October 2026", () => {
+describe("license resells earn no recurring commission from August 2026", () => {
   const license = (period: string) =>
     row({
       period,
@@ -223,8 +223,8 @@ describe("license resells earn no recurring commission from October 2026", () =>
     expect(result.breakdown.recurring.commission).toBe(0);
   });
 
-  test("still counts in September", async () => {
-    const result = await engine([license("202609")]).getSalesCommission("S1", "202609");
+  test("still counts in July", async () => {
+    const result = await engine([license("202607")]).getSalesCommission("S1", "202607");
     expect(result.items).toHaveLength(1);
     expect(result.breakdown.recurring.commission).toBe(5_000);
   });

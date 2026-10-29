@@ -13,6 +13,7 @@ export type ConsistencyBonusRow = {
 
 export interface IConsistencyBonusRepository {
   findByEmployeeIdsAndPeriod(employeeIds: string[], period: string): Promise<ConsistencyBonusRow[]>;
+  findGrantedPeriods(employeeId: string, periods: string[]): Promise<string[]>;
   upsert(
     employeeId: string,
     period: string,
@@ -33,6 +34,8 @@ export interface IConsistencyBonusService {
   getAmountsByEmployeeIds(employeeIds: string[], period: string): Promise<Map<string, number>>;
   /** Full grant rows (amount/note/grantedBy/createdAt) for many employees in a period — for the admin listing page. */
   getGrantsByEmployeeIds(employeeIds: string[], period: string): Promise<Map<string, ConsistencyBonusRow>>;
+  /** Which of `periods` have a manual Bonus Konsistensi grant (not other manual amounts such as Komisi Event). */
+  getGrantedPeriods(employeeId: string, periods: string[]): Promise<Set<string>>;
   grant(
     employeeId: string,
     period: string,
@@ -55,6 +58,10 @@ export type ConsistencyBonusItem = {
   isSdr: boolean;
   status: string | null;
   amount: number;
+  /** Bonus Konsistensi the rules pay automatically this period (0 when off, not reached, or granted by hand this period). */
+  autoAmount: number;
+  /** Months the automatic bonus is paid for, oldest first. */
+  autoMonths: { period: string; activityCount: number }[];
   note: string | null;
   months: string | null;
   serviceCount: number | null;

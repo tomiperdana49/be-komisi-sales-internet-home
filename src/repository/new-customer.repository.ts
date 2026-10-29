@@ -58,9 +58,11 @@ WHERE cit.RInvoiceNum = 0
         AND cs.SalesId NOT IN ('0208801')
         AND (
           nciic.new_subscription > 110000
-          -- NusaSelecta Prime 100 promo, Rp50.000 / 30 days (NUSASELECTA_PROMO).
+          -- NusaSelecta Prime 100 promo, Rp50.000 / 30 days (NUSASELECTA_PROMO). The
+          -- invoice's own service, not the customer's current one: a customer who later
+          -- drops back to NusaSelecta Free must not lose the promo invoice on a re-pull.
           OR (
-            cs.ServiceId = 'NFSP100' AND nciic.new_subscription = 50000 AND nciic.counter = 1
+            cit.ServiceId = 'NFSP100' AND nciic.new_subscription = 50000 AND nciic.counter = 1
             AND DATEDIFF(cit.InvoicePeriodEnd, cit.InvoicePeriodStart) >= 28
           )
         )

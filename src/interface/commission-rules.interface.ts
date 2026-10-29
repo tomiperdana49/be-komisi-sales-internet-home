@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_CHURN_CLOSE_REASONS, normalizeCloseReason } from "../helper/churn-close-reason.helper";
+import { DEFAULT_CONSISTENCY_BONUS, DEFAULT_SDR_CONSISTENCY_BONUS } from "../helper/commission-rules.default";
 
 const percent = z.number().min(0).max(100);
 const count = z.number().int().min(0);
@@ -32,6 +33,13 @@ const productSchema = z.object({
 }));
 
 const tier = <T extends z.ZodRawShape>(shape: T) => z.array(z.object(shape)).min(1);
+
+const consistencySchema = z.object({
+  enabled: z.boolean(),
+  months: z.number().int().min(1).max(12),
+  minPerMonth: count,
+  tiers: tier({ at: count, amount }),
+});
 
 export const CHURN_CLOSE_STATUSES = ["New Installation", "Active to NA", "Renewal", "System"] as const;
 export type ChurnCloseStatus = (typeof CHURN_CLOSE_STATUSES)[number];
@@ -97,6 +105,13 @@ export const commissionRulesSchema = z
       /** Paid per unit above the last tier, on top of the last tier's amount. */
       excessPerUnit: amount,
     }),
+    /**
+     * Bonus Konsistensi (KOMISI.md 5.E): paid automatically once an AM reaches
+     * `minPerMonth` New Achievement for `months` months in a row, at the tier of
+     * those months' total. A missed month or a payout (automatic or a manual
+     * grant) starts the count again. Off for rule sets saved before it existed.
+     */
+    consistency: consistencySchema.default(() => structuredClone(DEFAULT_CONSISTENCY_BONUS)),
     manager: z.object({
       /** Threshold % by total team size; the last entry also covers every larger team. */
       teamThresholds: tier({ teamSize: z.number().int().min(1), percent: z.number().min(0).max(500) }),
@@ -148,6 +163,7 @@ export const commissionRulesSchema = z
     }
 
     ascending(rules.bonus.tiers.map((t) => t.at), "Tier bonus bulanan");
+    ascending(rules.consistency.tiers.map((t) => t.at), "Tier Bonus Konsistensi");
     ascending(rules.manager.teamThresholds.map((t) => t.teamSize), "Jumlah AM pada threshold tim");
     ascending([...rules.manager.newCommissionTiers].reverse().map((t) => t.minAchievement), "Tier overriding New (dari besar ke kecil)");
 
@@ -203,6 +219,8 @@ export const sdrRulesSchema = z
       /** Paid per unit above the last tier, on top of the last tier's amount. */
       excessPerUnit: amount,
     }),
+    /** Bonus Konsistensi, same mechanism as Home (KOMISI.md 5.E) with SDR numbers. Off for SDR rule sets saved before it existed. */
+    consistency: consistencySchema.default(() => structuredClone(DEFAULT_SDR_CONSISTENCY_BONUS)),
   })
   .superRefine((rules, ctx) => {
     const seen = new Map<string, string>();
@@ -223,6 +241,10 @@ export const sdrRulesSchema = z
     const tiers = rules.bonus.tiers.map((t) => t.at);
     if (tiers.some((at, i) => i > 0 && at <= tiers[i - 1]!)) {
       ctx.addIssue({ code: "custom", message: "Tier bonus bulanan harus berurutan naik" });
+    }
+    const consistencyTiers = rules.consistency.tiers.map((t) => t.at);
+    if (consistencyTiers.some((at, i) => i > 0 && at <= consistencyTiers[i - 1]!)) {
+      ctx.addIssue({ code: "custom", message: "Tier Bonus Konsistensi harus berurutan naik" });
     }
 
     const a = rules.achievement;

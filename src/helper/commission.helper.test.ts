@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_COMMISSION_RULES } from "./commission-rules.default";
+import { DEFAULT_COMMISSION_RULES, DEFAULT_SDR_RULES } from "./commission-rules.default";
 import {
   netCommissionBasis,
   calculateNusaSelectaActivity,
   isNusaSelectaPromo,
   calculateCommission,
+  calculateConsistencyBonus,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
   getCommissionBasis,
@@ -19,9 +20,10 @@ import {
   getTeamTargetThreshold,
   hasCommissionRate,
   resolveTarget,
+  rulesForSdr,
   type CommissionRateInput,
 } from "./commission.helper";
-import { commissionRulesSchema, type CommissionRules } from "../interface/commission-rules.interface";
+import { commissionRulesSchema, sdrRulesSchema, type CommissionRules } from "../interface/commission-rules.interface";
 
 const rules = DEFAULT_COMMISSION_RULES;
 const clone = (): CommissionRules => structuredClone(DEFAULT_COMMISSION_RULES);
@@ -132,10 +134,11 @@ describe("IP Public and Domain recurring", () => {
     expect(isDomainService("Co-location Server 2U")).toBe(false);
   });
 
-  test("License resells are recognised by service name, from October 2026", () => {
+  test("License resells are recognised by service name, from August 2026", () => {
     expect(isLicenseService("Lisensi CPanel Dedicated Server", "202610")).toBe(true);
     expect(isLicenseService("License windows server 16 core", "202612")).toBe(true);
-    expect(isLicenseService("Lisensi CloudLinux OS", "202609")).toBe(false);
+    expect(isLicenseService("Lisensi CloudLinux OS", "202608")).toBe(true);
+    expect(isLicenseService("Lisensi CloudLinux OS", "202607")).toBe(false);
     expect(isLicenseService("Google Workspace Business Starter", "202610")).toBe(false);
   });
 });
@@ -150,7 +153,7 @@ describe("referral deduction", () => {
 });
 
 describe("manager Overriding New basis", () => {
-  test("takes New, Prorate and Alat commission, but not Upgrade, Setup or Recurring", () => {
+  test("before August 2026 takes New, Prorate, Alat and Setup commission, but not Upgrade or Recurring", () => {
     const stats = (commission: number) => ({ count: 1, commission, subscription: 0, mrc: 0 });
     const breakdown = {
       new: stats(1000),
@@ -160,7 +163,20 @@ describe("manager Overriding New basis", () => {
       setup: stats(60000),
       recurring: stats(70000),
     };
-    expect(getManagerNewCommissionBasis(breakdown, "202609")).toBe(1110);
+    expect(getManagerNewCommissionBasis(breakdown, "202607")).toBe(61110);
+  });
+
+  test("Aug–Sep 2026 add Upgrade and Setup, as the SM sheets did", () => {
+    const stats = (commission: number) => ({ count: 1, commission, subscription: 0, mrc: 0 });
+    const breakdown = {
+      new: stats(1000),
+      prorate: stats(100),
+      alat: stats(10),
+      upgrade: stats(50000),
+      setup: stats(60000),
+      recurring: stats(70000),
+    };
+    expect(getManagerNewCommissionBasis(breakdown, "202609")).toBe(111110);
   });
 
   test("adds Upgrade from October 2026", () => {
@@ -316,5 +332,73 @@ describe("manager overriding recurring rate by customer type (from October 2026)
     const parsed = commissionRulesSchema.parse({ ...rules, manager: oldManager });
     expect(parsed.manager.recurringDigitalBusinessInternalOnTarget).toBe(1);
     expect(parsed.manager.recurringDigitalBusinessResellMissedTarget).toBe(0.25);
+  });
+});
+
+describe("Bonus Konsistensi otomatis", () => {
+  const on = (() => {
+    const r = clone();
+    r.consistency.enabled = true;
+    return r;
+  })();
+  const months = (counts: number[], r: CommissionRules = on, granted: number[] = []) =>
+    counts.map((activityCount, i) => ({
+      period: `2026${String(i + 1).padStart(2, "0")}`,
+      activityCount,
+      rules: r,
+      manualGrant: granted.includes(i),
+    }));
+
+  test("3 months in a row at 12+ pay the tier of their total", () => {
+    expect(calculateConsistencyBonus(months([12, 16, 12]))?.amount).toBe(1_000_000);
+    expect(calculateConsistencyBonus(months([13, 17, 20]))?.amount).toBe(2_000_000);
+    const paid = calculateConsistencyBonus(months([29, 20, 17]))!;
+    expect(paid.amount).toBe(3_000_000);
+    expect(paid.total).toBe(66);
+  });
+
+  test("a missed month starts the count again", () => {
+    // Months 1–2 reached, 3 missed: nothing until month 6.
+    expect(calculateConsistencyBonus(months([15, 15, 10]))).toBeNull();
+    expect(calculateConsistencyBonus(months([15, 15, 10, 15, 15]))).toBeNull();
+    expect(calculateConsistencyBonus(months([15, 15, 10, 15, 15, 15]))?.months.map((m) => m.period)).toEqual(["202604", "202605", "202606"]);
+  });
+
+  test("a payout starts the count again", () => {
+    expect(calculateConsistencyBonus(months([15, 15, 15, 15]))).toBeNull();
+    expect(calculateConsistencyBonus(months([15, 15, 15, 15, 15, 15]))?.amount).toBe(1_000_000);
+  });
+
+  test("a manual grant counts as the payout", () => {
+    expect(calculateConsistencyBonus(months([15, 15, 15, 15], on, [1]))).toBeNull();
+    expect(calculateConsistencyBonus(months([15, 15, 15, 15, 15], on, [1]))?.months.map((m) => m.period)).toEqual(["202603", "202604", "202605"]);
+    expect(calculateConsistencyBonus(months([15, 15, 15, 15], on, [0]))?.months.map((m) => m.period)).toEqual(["202602", "202603", "202604"]);
+  });
+
+  test("months before the setting was on keep counting, paid once it is", () => {
+    const off = clone();
+    expect(calculateConsistencyBonus(months([15, 15, 15], off))).toBeNull();
+    const history = [...months([15, 15, 15], off), ...months([15], on)];
+    expect(calculateConsistencyBonus(history)?.total).toBe(45);
+  });
+
+  test("below the first tier pays nothing", () => {
+    expect(calculateConsistencyBonus(months([12, 12, 12]))?.amount).toBe(0);
+  });
+
+  test("rule sets saved before the setting existed read it as off", () => {
+    const { consistency: _, ...old } = rules;
+    expect(commissionRulesSchema.parse(old).consistency.enabled).toBe(false);
+  });
+
+  test("SDRs use their own setting", () => {
+    const sdr = structuredClone(DEFAULT_SDR_RULES);
+    sdr.consistency.enabled = true;
+    const r = rulesForSdr(sdr);
+    expect(r.consistency.minPerMonth).toBe(25);
+    expect(calculateConsistencyBonus(months([25, 30, 28], r))?.amount).toBe(1_000_000);
+    expect(calculateConsistencyBonus(months([25, 24, 40], r))).toBeNull();
+    const { consistency: _, ...old } = DEFAULT_SDR_RULES;
+    expect(sdrRulesSchema.parse(old).consistency.enabled).toBe(false);
   });
 });

@@ -16,6 +16,16 @@ export class ConsistencyBonusRepository implements IConsistencyBonusRepository {
     );
   }
 
+  /** Periods (of `periods`) where an admin granted Bonus Konsistensi itself — rows without a service count are other manual amounts, e.g. Komisi Event. */
+  async findGrantedPeriods(employeeId: string, periods: string[]): Promise<string[]> {
+    if (periods.length === 0) return [];
+    const rows = await this.db.query<{ period: string }[]>(
+      `SELECT period FROM consistency_bonus WHERE employee_id = ? AND period IN (?) AND service_count IS NOT NULL`,
+      [employeeId, periods],
+    );
+    return rows.map((r) => r.period);
+  }
+
   async upsert(
     employeeId: string,
     period: string,

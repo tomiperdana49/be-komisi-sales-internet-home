@@ -2,7 +2,7 @@
 
 Dokumen ini fokus pada **aturan bisnis perhitungan komisi**.
 
-> **⚙️ Angka-angka di dokumen ini adalah nilai bawaan dan bisa diubah admin** dari menu *Summary > Aturan Komisi*: tabel rate produk (termasuk menambah produk/ServiceId baru, rate setup per produk, dan mulai kontrak berapa bulan rate 6 & 12 bulan berlaku), kategori recurring yang tidak mendapat komisi (default Domain — diterapkan saat job import mengambil data periode tersebut), rate prorate/setup/alat/recurring/Digital Business, potongan telat bayar & gagal target, target default, batas status pencapaian, tier bonus bulanan & bonus kelebihan service, serta threshold tim, tier overriding New, dan rate overriding recurring manager.
+> **⚙️ Angka-angka di dokumen ini adalah nilai bawaan dan bisa diubah admin** dari menu *Summary > Aturan Komisi*: tabel rate produk (termasuk menambah produk/ServiceId baru, rate setup per produk, dan mulai kontrak berapa bulan rate 6 & 12 bulan berlaku), kategori recurring yang tidak mendapat komisi (default Domain — diterapkan saat job import mengambil data periode tersebut), rate prorate/setup/alat/recurring/Digital Business, potongan telat bayar & gagal target, target default, batas status pencapaian, tier bonus bulanan & bonus kelebihan service, Bonus Konsistensi otomatis, serta threshold tim, tier overriding New, dan rate overriding recurring manager.
 >
 > Setiap perubahan disimpan sebagai **versi** (tabel `commission_rule_set`) yang **berlaku mulai periode tertentu**: periode P memakai versi terbit terbaru dengan periode berlaku ≤ P, dan periode tanpa versi apa pun memakai nilai bawaan di `src/helper/commission-rules.default.ts` (= angka di dokumen ini). Versi hanya boleh berlaku mulai periode berjalan atau sesudahnya, dan versi yang sudah terbit tidak bisa diubah/dihapus — koreksi dilakukan dengan versi baru. **Logika** perhitungan (urutan potongan, pengelompokan NusaSelecta, aturan churn, dsb.) tetap seperti dijelaskan di bawah dan tidak bisa diubah dari halaman tersebut.
 
@@ -238,10 +238,18 @@ Churn = false
 - Selain itu (`<= 20 + selisih`) : Tidak ada Bonus Kelebihan Service (Rp 0).
 - **Berlaku untuk semua status kepegawaian, termasuk Probation.**
 
-**E. Bonus Konsistensi (Diberikan manual oleh admin, di luar New Achievement)**
+**E. Bonus Konsistensi (otomatis dari Aturan Komisi, atau diberikan manual oleh admin)**
 
-- Nominal **diisi manual oleh admin** saat memberikan grant (bebas, bukan angka tetap).
-- Diberikan **per periode (bulan)**: admin memilih sales, mengisi nominal (wajib), menulis catatan (note wajib), jumlah service (wajib, diisi manual), bulan-bulan pencapaian & link testimoni (opsional, sekadar catatan pendukung), lalu memberikan lewat halaman admin *Summary > Bonus Konsistensi*. Untuk bulan berikutnya harus diberikan ulang kalau masih mau lanjut — tidak otomatis berulang.
+- **Otomatis** (pengaturan *Bonus Konsistensi Otomatis* di *Aturan Komisi*, bawaan **tidak aktif** sehingga periode lama tetap manual saja). Bila aktif: setiap bulan dengan New Achievement `>= 12` menambah hitungan 1, bulan di bawah 12 membuat hitungan kembali 0. Saat hitungan mencapai **3 bulan berturut-turut**, bonus dibayar di bulan ke-3 sesuai total New Achievement 3 bulan itu, lalu hitungan mulai lagi dari 0:
+  - total `>= 40` : **Rp 1.000.000**
+  - total `>= 50` : **Rp 2.000.000**
+  - total `>= 60` : **Rp 3.000.000**
+  - di bawah tier pertama: Rp 0 (hitungan tetap mulai lagi).
+  - Contoh: bulan 1–2 capai, bulan 3 tidak → hitung lagi dari bulan 4, bonus di bulan 6 bila 4–6 capai.
+  - Jumlah bulan, minimal per bulan, dan tier bisa diubah per versi aturan. Tiap bulan dinilai dengan aturan bulan itu; bulan sebelum pengaturan aktif tetap ikut dihitung, jadi hitungan yang sudah ≥ 3 saat pertama aktif langsung dibayar dari 3 bulan terakhir.
+  - Berlaku untuk Account Manager (termasuk Probation) dan SDR. SDR memakai pengaturan sendiri di *Aturan Komisi SDR* (lihat 7.B). Penjualan pribadi Manager tidak mendapat bonus otomatis.
+  - Implementasi: `calculateConsistencyBonus` di `commission.helper.ts`, `getAutoConsistencyBonus` di `commission.service.ts`.
+- **Manual**: admin memilih sales, mengisi nominal (wajib), menulis catatan (note wajib), jumlah service (wajib, diisi manual), bulan-bulan pencapaian & link testimoni (opsional, sekadar catatan pendukung), lalu memberikan lewat halaman admin *Summary > Bonus Konsistensi*. Pemberian manual **menggantikan** bonus otomatis bulan itu dan juga membuat hitungan otomatis mulai lagi dari 0. Baris tanpa jumlah service (mis. Komisi Event) tidak dihitung sebagai Bonus Konsistensi: ditambahkan apa adanya dan tidak mengubah hitungan.
 - **Terpisah dari Bonus Bulanan & Bonus Kelebihan Service** (5.C/5.D) — semuanya ditambahkan ke Total Komisi, tapi dihitung dan ditampilkan sebagai angka-angka berbeda (`bonusBulanan` vs `bonusKelebihanService` vs `consistencyBonus`).
 - `Total Komisi = Base Commission Total + Bonus Bulanan + Bonus Kelebihan Service + Bonus Konsistensi` (ditambah komisi overriding untuk Manager, lihat Bagian 6.C/6.D).
 - Implementasi: tabel `consistency_bonus` (employee_id + period, unique), `ConsistencyBonusService` di `commission.service.ts`.
@@ -349,7 +357,7 @@ _Semua perhitungan Manager menggunakan angka **NET** (setelah dikurangi churn da
 
 SDR adalah pegawai dengan jabatan Nusawork **`Sales Development Representative`** yang garis atasannya sampai ke VP Internet Access Home (ikut di-crawl bersama Account Manager). SDR memakai **aturan komisi sendiri** yang terpisah total dari aturan Home: menu *Summary > Aturan Komisi SDR*, tabel `sdr_commission_rule_set`, versi & periode berlaku sendiri (bawaan `DEFAULT_SDR_RULES` di `commission-rules.default.ts` untuk periode tanpa versi SDR terbit). Mengubah atau menerbitkan *Aturan Komisi* (Home) tidak mengubah komisi SDR, dan sebaliknya. Aturan AM dan Manager **tidak berubah** karena SDR.
 
-**A. Yang sama dengan AM** — seluruh *logika* Bagian 1–5 berlaku apa adanya (dasar komisi & referral, potongan telat bayar, renewal, rate prorate/setup/alat/recurring/Digital Business, churn, Bonus Konsistensi manual), tetapi dengan **angka dari aturan SDR**. Implementasi: `rulesForSdr()` di `commission.helper.ts` mengambil produk, rate, potongan, target, status pencapaian, dan bonus dari aturan SDR periode tersebut, lalu perhitungan sales biasa dijalankan. Daftar kategori recurring tanpa komisi dan centang Churn per produk tetap mengikuti *Aturan Komisi* (Home), karena keduanya dipakai saat job import menarik data untuk semua sales.
+**A. Yang sama dengan AM** — seluruh *logika* Bagian 1–5 berlaku apa adanya (dasar komisi & referral, potongan telat bayar, renewal, rate prorate/setup/alat/recurring/Digital Business, churn, Bonus Konsistensi otomatis/manual), tetapi dengan **angka dari aturan SDR**. Implementasi: `rulesForSdr()` di `commission.helper.ts` mengambil produk, rate, potongan, target, status pencapaian, dan bonus dari aturan SDR periode tersebut, lalu perhitungan sales biasa dijalankan. Daftar kategori recurring tanpa komisi dan centang Churn per produk tetap mengikuti *Aturan Komisi* (Home), karena keduanya dipakai saat job import menarik data untuk semua sales.
 
 **B. Yang berbeda (nilai bawaan):**
 
@@ -358,7 +366,8 @@ SDR adalah pegawai dengan jabatan Nusawork **`Sales Development Representative`*
 - **Target**: Full/Permanent **25**, Probation **15**. Penalti performa 70% (New) dan rate recurring 0.5% berlaku bila SDR Permanent < 25.
 - **Status pencapaian**: Permanent ≥30 *Capai target Bonus*, ≥25 *Capai target*, <6 *SP1*, selainnya *Tidak Capai target*; Probation ≥15 *Excellent*, ≥10 *Very Good*, ≥6 *Average*, selainnya *Below Average*.
 - **Bonus Bulanan**: ≥30 Rp 400.000, ≥35 Rp 800.000, ≥40 Rp 1.200.000. Tidak ada Bonus Kelebihan Service. Tier tidak bergeser (target SDR = target default SDR).
-- **Bonus Konsistensi**: tetap diberikan manual oleh admin (5.E). Acuan SDR: 83 service → Rp 800.000, 105 → Rp 1.600.000, 128 → Rp 2.400.000.
+- **Bonus Konsistensi**: otomatis seperti 5.E bila diaktifkan di *Aturan Komisi SDR* (bawaan tidak aktif), dengan angka SDR: minimal **25** per bulan selama 3 bulan berturut-turut, total 83 → Rp 1.000.000, 105 → Rp 2.000.000, 128 → Rp 3.000.000. Bisa juga diberikan manual oleh admin.
+- **Tabel bonus SDR terbaru** (dikonfirmasi 2026-10-29, diterapkan dengan menerbitkan versi baru di *Aturan Komisi SDR*): Bonus Bulanan 30 → Rp 500.000, 35 → Rp 1.000.000, 40 → Rp 1.500.000; Bonus Kelebihan Service Rp 75.000 per service di atas 40; Bonus Konsistensi seperti di atas.
 
 **C. Di luar Manager Area** — SDR **tidak** dihitung sebagai anggota tim manager mana pun: tidak menambah Jumlah AM / Target Dasar Tim, komisinya tidak masuk dasar Overriding New, invoice recurring-nya tidak masuk Overriding Recurring (`findRecurringByManager`), dan churn-nya tidak muncul di daftar churn manager. Target manual (halaman Target AM) hanya untuk Account Manager.
 

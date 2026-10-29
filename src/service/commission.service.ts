@@ -2,12 +2,16 @@ import {
   latePenaltyPercent,
   netCommissionBasis,
   calculateAchievement,
+  calculateConsistencyBonus,
+  type ConsistencyBonusAuto,
+  type ConsistencyMonth,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
   calculateCommission,
   calculateManagerPerformance,
   calculateNusaSelectaActivity,
   getManagerNewCommissionBasis,
+  MANAGER_NEW_SETUP_UNTIL,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getRecurringServiceGroupLabel,
@@ -28,7 +32,7 @@ import {
   toNumber,
   type SnapshotType,
 } from "../helper/commission.helper";
-import { commissionPeriodOf, getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
+import { commissionPeriodOf, getDateRangeForPeriod, shiftPeriod, toSqlDate } from "../helper/period.helper";
 import type {
   CommissionBreakdown,
   CommissionLineItem,
@@ -96,6 +100,9 @@ function resolveBucket(row: CommissionSnapshotRow): SnapshotType | "alat" | "set
   if (category === "setup") return "setup";
   return effectiveType(row);
 }
+
+/** How far back Bonus Konsistensi looks for the start of an AM's current run. */
+const CONSISTENCY_LOOKBACK_MONTHS = 24;
 
 /**
  * NusaSelecta packages earn nothing on recurring — only New/Upgrade/Prorate
@@ -758,7 +765,9 @@ export class CommissionService {
     const rows = allRows.filter(
       (row) =>
         !isExcludedFromCommission(rules, row) &&
-        !(excludeAlat && toCommissionCategory(row.category) === "alat" && !row.is_adjusted),
+        !(excludeAlat && toCommissionCategory(row.category) === "alat" && !row.is_adjusted) &&
+        // The Aug–Sep 2026 SM sheets didn't pay the SM's own Setup either.
+        !(excludeAlat && period < MANAGER_NEW_SETUP_UNTIL && toCommissionCategory(row.category) === "setup" && !row.is_adjusted),
     );
 
     const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =
@@ -886,6 +895,10 @@ export class CommissionService {
     );
 
     const { achievementStatus, motivation } = calculateAchievement(rules, status, activityCount, manualTarget?.target);
+    // A Manager's personal sales never earn the automatic Bonus Konsistensi.
+    const consistencyBonusAuto = excludeAlat
+      ? null
+      : await this.getAutoConsistencyBonus(employeeId, period, rules, activityCount, sdr);
 
     // What comes off the recurring invoices' subscription before the rate
     // (same split as the manager's recurring basis): the referral cut, then
@@ -937,7 +950,8 @@ export class CommissionService {
       motivation,
       bonusBulanan: calculateMonthlyBonus(rules, activityCount, target, status),
       bonusKelebihanService: calculateExcessServiceBonus(rules, activityCount, target, status),
-      consistencyBonus,
+      consistencyBonus: consistencyBonus + (consistencyBonusAuto?.amount ?? 0),
+      consistencyBonusAuto,
       total,
       breakdown,
       byServiceGroup,
@@ -947,6 +961,54 @@ export class CommissionService {
       recurringLateItems,
       items,
     };
+  }
+
+  /**
+   * Bonus Konsistensi the rules pay automatically this period (KOMISI.md
+   * 5.E). Walks back month by month to the start of the AM's current run —
+   * a missed month, a manual grant, or no data yet — then replays the run
+   * forward with each month's own rules (calculateConsistencyBonus).
+   */
+  private async getAutoConsistencyBonus(
+    employeeId: string,
+    period: string,
+    rules: CommissionRules,
+    activityCount: number,
+    sdr: boolean,
+  ): Promise<ConsistencyBonusAuto | null> {
+    if (!rules.consistency.enabled || activityCount < rules.consistency.minPerMonth) return null;
+
+    const lookback = Array.from({ length: CONSISTENCY_LOOKBACK_MONTHS }, (_, i) => shiftPeriod(period, -i));
+    const granted = await this.consistencyBonusService.getGrantedPeriods(employeeId, lookback);
+    if (granted.has(period)) return null;
+
+    const history: ConsistencyMonth[] = [{ period, activityCount, rules, manualGrant: false }];
+    for (const p of lookback.slice(1)) {
+      const monthRules = sdr ? rulesForSdr(await this.sdrRulesProvider.getForPeriod(p)) : await this.rulesProvider.getForPeriod(p);
+      const month = { period: p, activityCount: await this.getActivityCount(employeeId, p, monthRules, sdr), rules: monthRules, manualGrant: granted.has(p) };
+      history.unshift(month);
+      if (month.manualGrant || month.activityCount < monthRules.consistency.minPerMonth) break;
+    }
+    return calculateConsistencyBonus(history);
+  }
+
+  /** The automatic Bonus Konsistensi alone, for the admin Bonus Konsistensi page. */
+  async getConsistencyBonusAuto(employeeId: string, period: string): Promise<ConsistencyBonusAuto | null> {
+    const { rules, isSdr: sdr } = await this.getRulesFor(employeeId, period);
+    if (!rules.consistency.enabled) return null;
+    const activityCount = await this.getActivityCount(employeeId, period, rules, sdr);
+    return this.getAutoConsistencyBonus(employeeId, period, rules, activityCount, sdr);
+  }
+
+  /** New Achievement alone for one salesperson in a period, the same count getSalesCommission reports. */
+  private async getActivityCount(employeeId: string, period: string, rules: CommissionRules, sdr: boolean): Promise<number> {
+    const { start, end } = getDateRangeForPeriod(period);
+    const [rows, churnRows] = await Promise.all([
+      this.snapshotRepository.findBySales(employeeId, period),
+      this.churnService.getByEmployeeId(employeeId, toSqlDate(start), toSqlDate(end)),
+    ]);
+    const counted = rows.filter((row) => !isExcludedFromCommission(rules, row));
+    return this.computeActivity(rules, counted, churnRows, !sdr).activityCount;
   }
 
   /**

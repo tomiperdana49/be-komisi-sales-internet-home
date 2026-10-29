@@ -26,6 +26,10 @@ export class ConsistencyBonusService implements IConsistencyBonusService {
     return new Map(rows.map((row) => [row.employee_id, row]));
   }
 
+  async getGrantedPeriods(employeeId: string, periods: string[]): Promise<Set<string>> {
+    return new Set(await this.consistencyBonusRepository.findGrantedPeriods(employeeId, periods));
+  }
+
   grant(
     employeeId: string,
     period: string,

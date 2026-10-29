@@ -11,6 +11,42 @@ export function deepFreeze<T>(value: T): T {
 }
 
 /**
+ * Bonus Konsistensi (KOMISI.md 5.E), off until an admin turns it on from
+ * "Aturan Komisi": every period before that keeps the manual grants only.
+ * Also what rule sets saved before this setting existed read back as.
+ */
+// Typed by hand: the rules schemas take their defaults from here, so deriving it from CommissionRules would be circular.
+type ConsistencySetting = {
+  enabled: boolean;
+  months: number;
+  minPerMonth: number;
+  tiers: { at: number; amount: number }[];
+};
+
+export const DEFAULT_CONSISTENCY_BONUS: ConsistencySetting = deepFreeze({
+  enabled: false,
+  months: 3,
+  minPerMonth: 12,
+  tiers: [
+    { at: 40, amount: 1_000_000 },
+    { at: 50, amount: 2_000_000 },
+    { at: 60, amount: 3_000_000 },
+  ],
+});
+
+/** SDR Bonus Konsistensi, off by default like Home; tiers from the SDR bonus table (KOMISI.md 7.B), minimum = SDR Permanent target. */
+export const DEFAULT_SDR_CONSISTENCY_BONUS: ConsistencySetting = deepFreeze({
+  enabled: false,
+  months: 3,
+  minPerMonth: 25,
+  tiers: [
+    { at: 83, amount: 1_000_000 },
+    { at: 105, amount: 2_000_000 },
+    { at: 128, amount: 3_000_000 },
+  ],
+});
+
+/**
  * Sales Development Representative (SDR) rules, from the SDR commission
  * sheet (rows marked "sesuai SE terbaru" win where a product is listed
  * twice). Used for any period with no published SDR rule set; change SDR
@@ -73,6 +109,7 @@ export const DEFAULT_SDR_RULES: SdrCommissionRules = deepFreeze({
     ],
     excessPerUnit: 0,
   },
+  consistency: DEFAULT_SDR_CONSISTENCY_BONUS,
 });
 
 /**
@@ -131,6 +168,7 @@ export const DEFAULT_COMMISSION_RULES: CommissionRules = deepFreeze({
     ],
     excessPerUnit: 150_000,
   },
+  consistency: DEFAULT_CONSISTENCY_BONUS,
   manager: {
     teamThresholds: [
       { teamSize: 1, percent: 120 },

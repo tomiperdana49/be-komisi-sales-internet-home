@@ -108,7 +108,7 @@ export function isDomainService(serviceName: string | null | undefined): boolean
 }
 
 /** First period in which license services stop earning recurring commission (KOMISI.md, Digital Business). */
-export const LICENSE_RULE_SINCE = "202610";
+export const LICENSE_RULE_SINCE = "202608";
 
 /** License resells (e.g. "Lisensi CPanel Dedicated Server", "License windows server 16 core") earn no recurring commission from LICENSE_RULE_SINCE. */
 export function isLicenseService(serviceName: string | null | undefined, period: string): boolean {
@@ -488,6 +488,59 @@ export function calculateExcessServiceBonus(
   return (activityCount - last.at) * rules.bonus.excessPerUnit;
 }
 
+/** One month of an AM's Bonus Konsistensi history, with that month's own rules. */
+export type ConsistencyMonth = {
+  period: string;
+  activityCount: number;
+  rules: CommissionRules;
+  /** An admin granted Bonus Konsistensi by hand this month — it counts as the payout. */
+  manualGrant: boolean;
+};
+
+export type ConsistencyBonusAuto = {
+  amount: number;
+  /** New Achievement of the months the bonus is paid for, oldest first. */
+  months: { period: string; activityCount: number }[];
+  total: number;
+};
+
+/**
+ * Bonus Konsistensi paid automatically in the last month of `history`
+ * (oldest first, ending at the period being paid). Each month at or above
+ * `minPerMonth` adds one to a running count; a month below it resets the
+ * count. Once the count reaches `months` in a period where the setting is
+ * on, the bonus is paid at the tier of those months' total and the count
+ * starts again — a manual grant resets it the same way. So months 1–2
+ * reached and month 3 missed means counting again from month 4, paid in 6.
+ */
+export function calculateConsistencyBonus(history: ConsistencyMonth[]): ConsistencyBonusAuto | null {
+  let streak = 0;
+  for (let i = 0; i < history.length; i++) {
+    const month = history[i]!;
+    const setting = month.rules.consistency;
+    if (month.activityCount < setting.minPerMonth) {
+      streak = 0;
+      continue;
+    }
+    streak++;
+    if (month.manualGrant) {
+      streak = 0;
+      continue;
+    }
+    if (!setting.enabled || streak < setting.months) continue;
+    if (i < history.length - 1) {
+      streak = 0;
+      continue;
+    }
+    const paid = history.slice(-setting.months);
+    const total = paid.reduce((sum, m) => sum + m.activityCount, 0);
+    let amount = 0;
+    for (const t of setting.tiers) if (total >= t.at) amount = t.amount;
+    return { amount, months: paid.map((m) => ({ period: m.period, activityCount: m.activityCount })), total };
+  }
+  return null;
+}
+
 /**
  * Threshold percentage a manager's team must reach, keyed by TOTAL team
  * size. Sizes past (or between, or before) the configured entries fall back
@@ -521,7 +574,7 @@ export type ManagerPerformance = {
  * measured against the Target Akhir instead of the Target Dasar. Earlier
  * periods keep the old divisor so already-reported commission never changes.
  */
-export const ACHIEVEMENT_VS_FINAL_TARGET_SINCE = "202610";
+export const ACHIEVEMENT_VS_FINAL_TARGET_SINCE = "202608";
 
 export function calculateManagerPerformance(
   rules: CommissionRules,
@@ -569,10 +622,13 @@ export function getManagerNewCommissionRate(rules: CommissionRules, achievementP
 }
 
 /** From this period a manager's own recurring sales stay out of their Overriding Recurring pool (closed periods before it keep their paid figures). */
-export const MANAGER_OWN_SALES_OUT_OF_POOL_SINCE = "202610";
+export const MANAGER_OWN_SALES_OUT_OF_POOL_SINCE = "202608";
 
 /** From this period Upgrade commission also feeds the SM's Overriding New (the team sheet's Komisi New). */
-export const MANAGER_NEW_UPGRADE_SINCE = "202610";
+export const MANAGER_NEW_UPGRADE_SINCE = "202608";
+
+/** Before this period the SM team sheets (Aug–Sep 2026) put the AM's Setup commission in the Overriding New basis too. */
+export const MANAGER_NEW_SETUP_UNTIL = "202610";
 
 /**
  * KOMISI.md 6.C: the part of a team member's commission the manager's
@@ -581,7 +637,8 @@ export const MANAGER_NEW_UPGRADE_SINCE = "202610";
  */
 export function getManagerNewCommissionBasis(breakdown: CommissionBreakdown, period: string): number {
   const upgrade = period >= MANAGER_NEW_UPGRADE_SINCE ? breakdown.upgrade.commission : 0;
-  return breakdown.new.commission + breakdown.prorate.commission + upgrade + breakdown.alat.commission;
+  const setup = period < MANAGER_NEW_SETUP_UNTIL ? breakdown.setup.commission : 0;
+  return breakdown.new.commission + breakdown.prorate.commission + upgrade + breakdown.alat.commission + setup;
 }
 
 /** Manager's flat rate on the team's recurring subscription. */

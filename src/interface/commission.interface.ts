@@ -1,4 +1,4 @@
-import type { RecurringServiceGroupLabel, SnapshotType } from "../helper/commission.helper";
+import type { ConsistencyBonusAuto, RecurringServiceGroupLabel, SnapshotType } from "../helper/commission.helper";
 import type { ManualTarget } from "./target-override.interface";
 import type { AdjustableSnapshotFields, SnapshotAdjustmentRow } from "./adjustment.interface";
 
@@ -163,8 +163,10 @@ export type SalesCommissionResult = {
   motivation: string;
   bonusBulanan: number;
   bonusKelebihanService: number;
-  /** Admin-granted Bonus Konsistensi for this period, 0 if never granted (separate from the auto-calculated bonuses above). */
+  /** Bonus Konsistensi for this period: the admin's manual amount plus the automatic one below, 0 if neither. */
   consistencyBonus: number;
+  /** The automatic part of `consistencyBonus` (KOMISI.md 5.E), null when the rules don't pay it this period. */
+  consistencyBonusAuto: ConsistencyBonusAuto | null;
   total: CommissionStats;
   breakdown: CommissionBreakdown;
   /** Same per-type breakdown as `breakdown`, scoped to each service group (Home/Nusafiber/NusaSelecta). */

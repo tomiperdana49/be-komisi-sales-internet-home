@@ -206,13 +206,17 @@ export class SummaryController {
     const roster = inAdminBranch(c, await this.employeeService.getSalesTargetsByPeriod(toSqlDate(start), toSqlDate(end)), (e) => e.branch);
     const employeeIds = roster.map((e) => e.employeeId);
 
-    const grants = await this.consistencyBonusService.getGrantsByEmployeeIds(employeeIds, period);
+    const [grants, autos] = await Promise.all([
+      this.consistencyBonusService.getGrantsByEmployeeIds(employeeIds, period),
+      Promise.all(employeeIds.map((id) => this.commissionService.getConsistencyBonusAuto(id, period))),
+    ]);
     const grantedByIds = [...new Set([...grants.values()].map((g) => g.granted_by))];
     const granters = await this.employeeService.findByEmployeeIds(grantedByIds);
     const granterNameById = new Map(granters.map((g) => [g.employee_id, g.name]));
 
-    const data: ConsistencyBonusItem[] = roster.map((e) => {
+    const data: ConsistencyBonusItem[] = roster.map((e, i) => {
       const grant = grants.get(e.employeeId);
+      const auto = autos[i];
       return {
         employeeId: e.employeeId,
         name: e.name,
@@ -221,6 +225,8 @@ export class SummaryController {
         isSdr: isSdr(e.jobPosition),
         status: e.status,
         amount: grant ? Number(grant.amount) : 0,
+        autoAmount: auto?.amount ?? 0,
+        autoMonths: auto?.months ?? [],
         note: grant?.note ?? null,
         months: grant?.months ?? null,
         serviceCount: grant?.service_count ?? null,
