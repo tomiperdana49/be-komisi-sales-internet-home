@@ -29,6 +29,20 @@ router.get("/sales/:id/churn", authMiddleware, hierarchyMiddleware, (c) =>
   container.commissionController.salesChurn(c),
 );
 
+// Customer testimonials an Account Manager collected; anyone who can see them may add one.
+router.get("/sales/:id/testimonial", authMiddleware, hierarchyMiddleware, (c) =>
+  container.testimonialController.listBySales(c),
+);
+router.post("/sales/:id/testimonial", authMiddleware, hierarchyMiddleware, (c) =>
+  container.testimonialController.create(c),
+);
+router.put("/sales/:id/testimonial/:testimonialId", authMiddleware, hierarchyMiddleware, (c) =>
+  container.testimonialController.update(c),
+);
+router.delete("/sales/:id/testimonial/:testimonialId", authMiddleware, hierarchyMiddleware, (c) =>
+  container.testimonialController.remove(c),
+);
+
 router.get("/manager/:id/commission", authMiddleware, hierarchyMiddleware, (c) =>
   container.commissionController.managerCommission(c),
 );
@@ -74,6 +88,9 @@ router.put("/summary/consistency-bonus/:id", authMiddleware, superAdminMiddlewar
 );
 router.delete("/summary/consistency-bonus/:id", authMiddleware, superAdminMiddleware, (c) =>
   container.summaryController.revokeConsistencyBonus(c),
+);
+router.get("/summary/testimonial", authMiddleware, adminMiddleware, (c) =>
+  container.testimonialController.listByPeriod(c),
 );
 router.get("/summary/period-closing", authMiddleware, adminMiddleware, (c) =>
   container.summaryController.periodClosings(c),

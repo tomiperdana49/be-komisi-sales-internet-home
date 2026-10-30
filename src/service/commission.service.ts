@@ -3,6 +3,7 @@ import {
   netCommissionBasis,
   calculateAchievement,
   calculateConsistencyBonus,
+  isConsistencyBlockEnd,
   type ConsistencyBonusAuto,
   type ConsistencyMonth,
   calculateExcessServiceBonus,
@@ -57,6 +58,7 @@ import {
 } from "../interface/adjustment.interface";
 import { NotFoundException } from "../exception/http.exception";
 import type { IConsistencyBonusService } from "../interface/consistency-bonus.interface";
+import type { ITestimonialCounter } from "../interface/testimonial.interface";
 import type { ITargetOverrideReader } from "../interface/target-override.interface";
 import { CRO_PLACEHOLDER } from "./employee.service";
 
@@ -82,6 +84,9 @@ function addTo(target: CommissionStats, values: Partial<CommissionStats>): void 
   target.mrc += values.mrc ?? 0;
 }
 
+/** How far back Bonus Konsistensi looks for the last manual grant, which restarts the blocks. */
+const CONSISTENCY_LOOKBACK_MONTHS = 24;
+
 /**
  * The type a row is commissioned as. A renewal's price increase is stored as
  * "new" (it comes from the new-customer job) but the customer isn't new, so
@@ -100,9 +105,6 @@ function resolveBucket(row: CommissionSnapshotRow): SnapshotType | "alat" | "set
   if (category === "setup") return "setup";
   return effectiveType(row);
 }
-
-/** How far back Bonus Konsistensi looks for the start of an AM's current run. */
-const CONSISTENCY_LOOKBACK_MONTHS = 24;
 
 /**
  * NusaSelecta packages earn nothing on recurring — only New/Upgrade/Prorate
@@ -145,6 +147,7 @@ export class CommissionService {
     private readonly rulesProvider: ICommissionRulesProvider,
     private readonly targetOverrides: ITargetOverrideReader,
     private readonly sdrRulesProvider: ISdrRulesProvider,
+    private readonly testimonials: ITestimonialCounter,
   ) {}
 
   /** Same engine with a different rules source — used to preview a draft rule set without publishing it. */
@@ -157,6 +160,7 @@ export class CommissionService {
       rulesProvider,
       this.targetOverrides,
       this.sdrRulesProvider,
+      this.testimonials,
     );
   }
 
@@ -170,6 +174,7 @@ export class CommissionService {
       this.rulesProvider,
       this.targetOverrides,
       sdrRulesProvider,
+      this.testimonials,
     );
   }
 
@@ -965,9 +970,13 @@ export class CommissionService {
 
   /**
    * Bonus Konsistensi the rules pay automatically this period (KOMISI.md
-   * 5.E). Walks back month by month to the start of the AM's current run —
-   * a missed month, a manual grant, or no data yet — then replays the run
-   * forward with each month's own rules (calculateConsistencyBonus).
+   * 5.E): only when it closes one of the person's 3-month (`months`) blocks.
+   * Blocks run back to back from the latest of: the setting's start period,
+   * their first period in the system (the month after, if that first month
+   * missed the minimum), and the month after their last manual
+   * grant — a grant closes a block, so counting starts again after it
+   * (calculateConsistencyBonus). The block also needs `minTestimonials`
+   * customer testimonials dated within it.
    */
   private async getAutoConsistencyBonus(
     employeeId: string,
@@ -976,20 +985,49 @@ export class CommissionService {
     activityCount: number,
     sdr: boolean,
   ): Promise<ConsistencyBonusAuto | null> {
-    if (!rules.consistency.enabled || activityCount < rules.consistency.minPerMonth) return null;
+    const { enabled, months, minPerMonth, startPeriod } = rules.consistency;
+    if (!enabled || activityCount < minPerMonth) return null;
 
     const lookback = Array.from({ length: CONSISTENCY_LOOKBACK_MONTHS }, (_, i) => shiftPeriod(period, -i));
-    const granted = await this.consistencyBonusService.getGrantedPeriods(employeeId, lookback);
+    const [firstPeriod, granted] = await Promise.all([
+      this.employeeService.getFirstPeriod(employeeId),
+      this.consistencyBonusService.getGrantedPeriods(employeeId, lookback),
+    ]);
     if (granted.has(period)) return null;
-
-    const history: ConsistencyMonth[] = [{ period, activityCount, rules, manualGrant: false }];
-    for (const p of lookback.slice(1)) {
-      const monthRules = sdr ? rulesForSdr(await this.sdrRulesProvider.getForPeriod(p)) : await this.rulesProvider.getForPeriod(p);
-      const month = { period: p, activityCount: await this.getActivityCount(employeeId, p, monthRules, sdr), rules: monthRules, manualGrant: granted.has(p) };
-      history.unshift(month);
-      if (month.manualGrant || month.activityCount < monthRules.consistency.minPerMonth) break;
+    const lastGrant = [...granted].sort().at(-1);
+    let anchor = [startPeriod, firstPeriod, lastGrant && shiftPeriod(lastGrant, 1)]
+      .filter((p): p is string => Boolean(p))
+      .reduce((a, b) => (b > a ? b : a));
+    // A new joiner whose first (often partial) month misses the minimum
+    // starts their first block the month after, not three months later.
+    if (anchor === firstPeriod && firstPeriod < period) {
+      const firstRules = await this.monthRules(firstPeriod, sdr);
+      if ((await this.getActivityCount(employeeId, firstPeriod, firstRules, sdr)) < minPerMonth) {
+        anchor = shiftPeriod(firstPeriod, 1);
+      }
     }
-    return calculateConsistencyBonus(history);
+    if (!isConsistencyBlockEnd(period, anchor, months)) return null;
+
+    const blockPeriods = Array.from({ length: months }, (_, i) => shiftPeriod(period, i - months + 1));
+
+    const block: ConsistencyMonth[] = [];
+    for (const p of blockPeriods.slice(0, -1)) {
+      const monthRules = await this.monthRules(p, sdr);
+      const count = await this.getActivityCount(employeeId, p, monthRules, sdr);
+      if (count < minPerMonth) return null;
+      block.push({ period: p, activityCount: count, rules: monthRules, manualGrant: false });
+    }
+    block.push({ period, activityCount, rules, manualGrant: false });
+    const testimonials = await this.testimonials.countByEmployeeId(
+      employeeId,
+      toSqlDate(getDateRangeForPeriod(blockPeriods[0]!).start),
+      toSqlDate(getDateRangeForPeriod(period).end),
+    );
+    return calculateConsistencyBonus(block, testimonials);
+  }
+
+  private async monthRules(period: string, sdr: boolean): Promise<CommissionRules> {
+    return sdr ? rulesForSdr(await this.sdrRulesProvider.getForPeriod(period)) : this.rulesProvider.getForPeriod(period);
   }
 
   /** The automatic Bonus Konsistensi alone, for the admin Bonus Konsistensi page. */

@@ -12,6 +12,7 @@
     "invoice:old-customer:db": "bun run src/job/old-customer-db.ts",
     "employee:crawl": "bun run src/job/employee-crawl.ts",
     "churn:crawl": "bun run src/job/churn-crawl.ts",
+    "testimonial:sync": "bun run src/job/testimonial-sheet.ts",
     "churn:carry": "bun run src/job/churn-carry.ts"
   },
   "devDependencies": {

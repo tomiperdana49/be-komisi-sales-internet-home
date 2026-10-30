@@ -502,43 +502,39 @@ export type ConsistencyBonusAuto = {
   /** New Achievement of the months the bonus is paid for, oldest first. */
   months: { period: string; activityCount: number }[];
   total: number;
+  /** Customer testimonials the person entered dated within the block. */
+  testimonials: number;
 };
 
 /**
- * Bonus Konsistensi paid automatically in the last month of `history`
- * (oldest first, ending at the period being paid). Each month at or above
- * `minPerMonth` adds one to a running count; a month below it resets the
- * count. Once the count reaches `months` in a period where the setting is
- * on, the bonus is paid at the tier of those months' total and the count
- * starts again — a manual grant resets it the same way. So months 1–2
- * reached and month 3 missed means counting again from month 4, paid in 6.
+ * Whether `period` is the last month of a Bonus Konsistensi block. Blocks of
+ * `months` months run back to back from `anchor` (YYYYMM), whatever their
+ * outcome: with 3 months from 202609 they are Sep–Nov, Dec–Feb, Mar–May…
  */
-export function calculateConsistencyBonus(history: ConsistencyMonth[]): ConsistencyBonusAuto | null {
-  let streak = 0;
-  for (let i = 0; i < history.length; i++) {
-    const month = history[i]!;
-    const setting = month.rules.consistency;
-    if (month.activityCount < setting.minPerMonth) {
-      streak = 0;
-      continue;
-    }
-    streak++;
-    if (month.manualGrant) {
-      streak = 0;
-      continue;
-    }
-    if (!setting.enabled || streak < setting.months) continue;
-    if (i < history.length - 1) {
-      streak = 0;
-      continue;
-    }
-    const paid = history.slice(-setting.months);
-    const total = paid.reduce((sum, m) => sum + m.activityCount, 0);
-    let amount = 0;
-    for (const t of setting.tiers) if (total >= t.at) amount = t.amount;
-    return { amount, months: paid.map((m) => ({ period: m.period, activityCount: m.activityCount })), total };
-  }
-  return null;
+export function isConsistencyBlockEnd(period: string, anchor: string, months: number): boolean {
+  const index = (p: string) => Number(p.slice(0, 4)) * 12 + Number(p.slice(4, 6));
+  const elapsed = index(period) - index(anchor);
+  return elapsed >= 0 && (elapsed + 1) % months === 0;
+}
+
+/**
+ * Bonus Konsistensi paid automatically for one block (`block`, oldest first,
+ * ending at the period being paid), by that period's setting: every month at
+ * or above `minPerMonth` pays the tier of the block's total. One month below
+ * it, fewer than `minTestimonials` testimonials dated within the block
+ * (`testimonials`), or a manual grant in any of the block's months, and the
+ * block pays nothing — counting starts again with the next block.
+ */
+export function calculateConsistencyBonus(block: ConsistencyMonth[], testimonials: number): ConsistencyBonusAuto | null {
+  const setting = block.at(-1)?.rules.consistency;
+  if (!setting?.enabled || block.length < setting.months) return null;
+  if (block.some((m) => m.manualGrant || m.activityCount < setting.minPerMonth)) return null;
+  if (testimonials < setting.minTestimonials) return null;
+
+  const total = block.reduce((sum, m) => sum + m.activityCount, 0);
+  let amount = 0;
+  for (const t of setting.tiers) if (total >= t.at) amount = t.amount;
+  return { amount, months: block.map((m) => ({ period: m.period, activityCount: m.activityCount })), total, testimonials };
 }
 
 /**

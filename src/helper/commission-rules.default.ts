@@ -19,14 +19,23 @@ export function deepFreeze<T>(value: T): T {
 type ConsistencySetting = {
   enabled: boolean;
   months: number;
+  /** YYYYMM the first block starts; someone first in the system later starts at their first period. */
+  startPeriod: string;
   minPerMonth: number;
+  /** Customer testimonials the person must have entered, dated within the block (0 = not required). */
+  minTestimonials: number;
   tiers: { at: number; amount: number }[];
 };
+
+/** Blocks run Sep–Nov 2026, Dec–Feb, … unless the rules say otherwise (confirmed 2026-10-30). */
+export const CONSISTENCY_START_PERIOD = "202609";
 
 export const DEFAULT_CONSISTENCY_BONUS: ConsistencySetting = deepFreeze({
   enabled: false,
   months: 3,
+  startPeriod: CONSISTENCY_START_PERIOD,
   minPerMonth: 12,
+  minTestimonials: 1,
   tiers: [
     { at: 40, amount: 1_000_000 },
     { at: 50, amount: 2_000_000 },
@@ -38,7 +47,9 @@ export const DEFAULT_CONSISTENCY_BONUS: ConsistencySetting = deepFreeze({
 export const DEFAULT_SDR_CONSISTENCY_BONUS: ConsistencySetting = deepFreeze({
   enabled: false,
   months: 3,
+  startPeriod: CONSISTENCY_START_PERIOD,
   minPerMonth: 25,
+  minTestimonials: 0,
   tiers: [
     { at: 83, amount: 1_000_000 },
     { at: 105, amount: 2_000_000 },

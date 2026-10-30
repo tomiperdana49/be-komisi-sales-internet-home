@@ -6,6 +6,7 @@ import {
   isNusaSelectaPromo,
   calculateCommission,
   calculateConsistencyBonus,
+  isConsistencyBlockEnd,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
   getCommissionBasis,
@@ -349,41 +350,61 @@ describe("Bonus Konsistensi otomatis", () => {
       manualGrant: granted.includes(i),
     }));
 
-  test("3 months in a row at 12+ pay the tier of their total", () => {
-    expect(calculateConsistencyBonus(months([12, 16, 12]))?.amount).toBe(1_000_000);
-    expect(calculateConsistencyBonus(months([13, 17, 20]))?.amount).toBe(2_000_000);
-    const paid = calculateConsistencyBonus(months([29, 20, 17]))!;
+  test("a block with every month at 12+ pays the tier of its total", () => {
+    expect(calculateConsistencyBonus(months([12, 16, 12]), 1)?.amount).toBe(1_000_000);
+    expect(calculateConsistencyBonus(months([13, 17, 20]), 1)?.amount).toBe(2_000_000);
+    const paid = calculateConsistencyBonus(months([29, 20, 17]), 1)!;
     expect(paid.amount).toBe(3_000_000);
     expect(paid.total).toBe(66);
   });
 
-  test("a missed month starts the count again", () => {
-    // Months 1–2 reached, 3 missed: nothing until month 6.
-    expect(calculateConsistencyBonus(months([15, 15, 10]))).toBeNull();
-    expect(calculateConsistencyBonus(months([15, 15, 10, 15, 15]))).toBeNull();
-    expect(calculateConsistencyBonus(months([15, 15, 10, 15, 15, 15]))?.months.map((m) => m.period)).toEqual(["202604", "202605", "202606"]);
+  test("one month below the minimum and the block pays nothing", () => {
+    expect(calculateConsistencyBonus(months([5, 30, 12]), 1)).toBeNull();
+    expect(calculateConsistencyBonus(months([15, 15, 10]), 1)).toBeNull();
   });
 
-  test("a payout starts the count again", () => {
-    expect(calculateConsistencyBonus(months([15, 15, 15, 15]))).toBeNull();
-    expect(calculateConsistencyBonus(months([15, 15, 15, 15, 15, 15]))?.amount).toBe(1_000_000);
+  test("a manual grant in any month of the block replaces the automatic bonus", () => {
+    expect(calculateConsistencyBonus(months([15, 15, 15], on, [0]), 1)).toBeNull();
+    expect(calculateConsistencyBonus(months([15, 15, 15], on, [2]), 1)).toBeNull();
   });
 
-  test("a manual grant counts as the payout", () => {
-    expect(calculateConsistencyBonus(months([15, 15, 15, 15], on, [1]))).toBeNull();
-    expect(calculateConsistencyBonus(months([15, 15, 15, 15, 15], on, [1]))?.months.map((m) => m.period)).toEqual(["202603", "202604", "202605"]);
-    expect(calculateConsistencyBonus(months([15, 15, 15, 15], on, [0]))?.months.map((m) => m.period)).toEqual(["202602", "202603", "202604"]);
-  });
-
-  test("months before the setting was on keep counting, paid once it is", () => {
+  test("paid only when the setting is on in the block's last month", () => {
     const off = clone();
-    expect(calculateConsistencyBonus(months([15, 15, 15], off))).toBeNull();
-    const history = [...months([15, 15, 15], off), ...months([15], on)];
-    expect(calculateConsistencyBonus(history)?.total).toBe(45);
+    expect(calculateConsistencyBonus(months([15, 15, 15], off), 1)).toBeNull();
+    expect(calculateConsistencyBonus([...months([15, 15], off), ...months([15], on)], 1)?.total).toBe(45);
+  });
+
+  test("blocks run back to back from the start period, whatever their outcome", () => {
+    // From 202609: Sep–Nov, Dec–Feb, Mar–May.
+    const ends = ["202609", "202610", "202611", "202612", "202701", "202702", "202705"].filter((p) => isConsistencyBlockEnd(p, "202609", 3));
+    expect(ends).toEqual(["202611", "202702", "202705"]);
+    // Someone who joins in January: Jan–Mar, Apr–Jun, Jul–Sep.
+    expect(["202701", "202703", "202706", "202709"].filter((p) => isConsistencyBlockEnd(p, "202701", 3))).toEqual(["202703", "202706", "202709"]);
+    expect(isConsistencyBlockEnd("202608", "202609", 3)).toBe(false);
+  });
+
+  test("a year of blocks from the user's example (2026-10-30)", () => {
+    const year = [10, 13, 30, 12, 12, 30, 13, 13, 20, 5, 30, 20];
+    const paid = [3, 6, 9, 12].map((end) => calculateConsistencyBonus(months(year).slice(end - 3, end), 1)?.amount ?? null);
+    expect(paid).toEqual([null, 2_000_000, 1_000_000, null]);
+  });
+
+  test("a block without a customer testimonial pays nothing (AM minimum 1)", () => {
+    expect(calculateConsistencyBonus(months([15, 15, 15]), 0)).toBeNull();
+    expect(calculateConsistencyBonus(months([15, 15, 15]), 2)?.testimonials).toBe(2);
+    const none = clone();
+    none.consistency.enabled = true;
+    none.consistency.minTestimonials = 0;
+    expect(calculateConsistencyBonus(months([15, 15, 15], none), 0)?.amount).toBe(1_000_000);
+  });
+
+  test("rule sets saved before the testimonial minimum existed read it as 1 for AM", () => {
+    const { minTestimonials: _, ...old } = rules.consistency;
+    expect(commissionRulesSchema.parse({ ...rules, consistency: old }).consistency.minTestimonials).toBe(1);
   });
 
   test("below the first tier pays nothing", () => {
-    expect(calculateConsistencyBonus(months([12, 12, 12]))?.amount).toBe(0);
+    expect(calculateConsistencyBonus(months([12, 12, 12]), 1)?.amount).toBe(0);
   });
 
   test("rule sets saved before the setting existed read it as off", () => {
@@ -396,8 +417,14 @@ describe("Bonus Konsistensi otomatis", () => {
     sdr.consistency.enabled = true;
     const r = rulesForSdr(sdr);
     expect(r.consistency.minPerMonth).toBe(25);
-    expect(calculateConsistencyBonus(months([25, 30, 28], r))?.amount).toBe(1_000_000);
-    expect(calculateConsistencyBonus(months([25, 24, 40], r))).toBeNull();
+    expect(calculateConsistencyBonus(months([25, 30, 28], r), 1)?.amount).toBe(1_000_000);
+    expect(calculateConsistencyBonus(months([25, 24, 40], r), 1)).toBeNull();
+    expect(r.consistency.startPeriod).toBe("202609");
+    // SDR needs no testimonial unless the SDR rules ask for one.
+    expect(r.consistency.minTestimonials).toBe(0);
+    expect(calculateConsistencyBonus(months([25, 30, 28], r), 0)?.amount).toBe(1_000_000);
+    const { minTestimonials: __, ...oldSetting } = DEFAULT_SDR_RULES.consistency;
+    expect(sdrRulesSchema.parse({ ...DEFAULT_SDR_RULES, consistency: oldSetting }).consistency.minTestimonials).toBe(0);
     const { consistency: _, ...old } = DEFAULT_SDR_RULES;
     expect(sdrRulesSchema.parse(old).consistency.enabled).toBe(false);
   });

@@ -162,6 +162,14 @@ export class EmployeeRepository implements IEmployeeRepository {
     );
   }
 
+  async findFirstStatusStart(employeeId: string): Promise<string | Date | null> {
+    const rows = await this.db.query<{ start_date: string | Date | null }[]>(
+      `SELECT MIN(start_date) AS start_date FROM status_period WHERE employee_id = ?`,
+      [employeeId],
+    );
+    return rows[0]?.start_date ?? null;
+  }
+
   async findStatusByPeriod(
     employeeId: string,
     startDate: string,

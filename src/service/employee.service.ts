@@ -1,3 +1,4 @@
+import { commissionPeriodOf } from "../helper/period.helper";
 import { accessFields } from "../helper/access.helper";
 import type { IAdminAccessRepository } from "../interface/admin-access.interface";
 import type {
@@ -82,6 +83,10 @@ export class EmployeeService implements IEmployeeService {
 
   getAllEmployeeIds(): Promise<string[]> {
     return this.employeeRepository.findAllEmployeeIds();
+  }
+
+  async getFirstPeriod(employeeId: string): Promise<string | null> {
+    return commissionPeriodOf(await this.employeeRepository.findFirstStatusStart(employeeId));
   }
 
   getStatusByPeriod(

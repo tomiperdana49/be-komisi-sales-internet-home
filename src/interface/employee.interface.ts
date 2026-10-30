@@ -92,6 +92,8 @@ export interface IEmployeeRepository {
     /** Target given to a newly created row; existing rows keep whatever target they already have. */
     initialTarget: number,
   ): Promise<void>;
+  /** Start date of the employee's first status_period row, or null if never crawled. */
+  findFirstStatusStart(employeeId: string): Promise<string | Date | null>;
   findStatusByPeriod(
     employeeId: string,
     startDate: string,
@@ -158,6 +160,8 @@ export interface IEmployeeService {
   ): Promise<void>;
   getAllEmployeeIds(): Promise<string[]>;
   deactivateEmployee(employeeId: string): Promise<void>;
+  /** First commission period (YYYYMM) the employee is in the system, or null if never crawled. */
+  getFirstPeriod(employeeId: string): Promise<string | null>;
   /** Employment status + target recorded for that exact commission period, or null if never crawled. */
   getStatusByPeriod(
     employeeId: string,

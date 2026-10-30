@@ -239,3 +239,21 @@ CREATE TABLE admin_access (
     updated_at TIMESTAMP NULL,
     UNIQUE KEY uq_admin_access_employee (employee_id)
 ) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- Customer testimonials an Account Manager collected, entered from their dashboard.
+-- manager_id is their Sales Manager when the row was entered, so the team stays as it was.
+CREATE TABLE testimonial (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id VARCHAR(20) NOT NULL,
+    manager_id VARCHAR(20) NULL,
+    customer_id VARCHAR(20) NOT NULL,
+    customer_name VARCHAR(255) NOT NULL,
+    testimonial_date DATE NOT NULL,
+    link VARCHAR(500) NOT NULL,
+    created_by VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(20) NULL,
+    updated_at TIMESTAMP NULL,
+    INDEX idx_testimonial_employee (employee_id),
+    INDEX idx_testimonial_date (testimonial_date)
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

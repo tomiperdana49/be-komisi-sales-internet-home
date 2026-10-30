@@ -54,6 +54,7 @@ function engine(
     { getForPeriod: async (period: string) => rulesFor(period) },
     { getActive: async () => manual },
     { getForPeriod: async () => DEFAULT_SDR_RULES },
+    { countByEmployeeId: async () => 0 },
   );
 }
 

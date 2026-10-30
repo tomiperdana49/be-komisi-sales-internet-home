@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_CHURN_CLOSE_REASONS, normalizeCloseReason } from "../helper/churn-close-reason.helper";
-import { DEFAULT_CONSISTENCY_BONUS, DEFAULT_SDR_CONSISTENCY_BONUS } from "../helper/commission-rules.default";
+import { CONSISTENCY_START_PERIOD, DEFAULT_CONSISTENCY_BONUS, DEFAULT_SDR_CONSISTENCY_BONUS } from "../helper/commission-rules.default";
 
 const percent = z.number().min(0).max(100);
 const count = z.number().int().min(0);
@@ -34,10 +34,13 @@ const productSchema = z.object({
 
 const tier = <T extends z.ZodRawShape>(shape: T) => z.array(z.object(shape)).min(1);
 
-const consistencySchema = z.object({
+// Per role so rule sets saved before `minTestimonials` existed read back as that role's default (AM 1, SDR 0).
+const consistencySchema = (defaults: typeof DEFAULT_CONSISTENCY_BONUS) => z.object({
   enabled: z.boolean(),
   months: z.number().int().min(1).max(12),
+  startPeriod: z.string().regex(/^\d{6}$/, "Bulan mulai harus YYYYMM").default(CONSISTENCY_START_PERIOD),
   minPerMonth: count,
+  minTestimonials: count.default(defaults.minTestimonials),
   tiers: tier({ at: count, amount }),
 });
 
@@ -111,7 +114,7 @@ export const commissionRulesSchema = z
      * those months' total. A missed month or a payout (automatic or a manual
      * grant) starts the count again. Off for rule sets saved before it existed.
      */
-    consistency: consistencySchema.default(() => structuredClone(DEFAULT_CONSISTENCY_BONUS)),
+    consistency: consistencySchema(DEFAULT_CONSISTENCY_BONUS).default(() => structuredClone(DEFAULT_CONSISTENCY_BONUS)),
     manager: z.object({
       /** Threshold % by total team size; the last entry also covers every larger team. */
       teamThresholds: tier({ teamSize: z.number().int().min(1), percent: z.number().min(0).max(500) }),
@@ -220,7 +223,7 @@ export const sdrRulesSchema = z
       excessPerUnit: amount,
     }),
     /** Bonus Konsistensi, same mechanism as Home (KOMISI.md 5.E) with SDR numbers. Off for SDR rule sets saved before it existed. */
-    consistency: consistencySchema.default(() => structuredClone(DEFAULT_SDR_CONSISTENCY_BONUS)),
+    consistency: consistencySchema(DEFAULT_SDR_CONSISTENCY_BONUS).default(() => structuredClone(DEFAULT_SDR_CONSISTENCY_BONUS)),
   })
   .superRefine((rules, ctx) => {
     const seen = new Map<string, string>();
