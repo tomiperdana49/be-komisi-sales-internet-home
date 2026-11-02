@@ -506,6 +506,25 @@ export type ConsistencyBonusAuto = {
   testimonials: number;
 };
 
+/** Where someone stands in their current Bonus Konsistensi block, for the AM dashboard. */
+export type ConsistencyProgress = {
+  blockStart: string;
+  blockEnd: string;
+  /** Every month of the block, oldest first; activityCount is null for months still to come. */
+  months: { period: string; activityCount: number | null }[];
+  minPerMonth: number;
+  minTestimonials: number;
+  tiers: { at: number; amount: number }[];
+  /** Customer testimonials dated within the block so far. */
+  testimonials: number;
+  /**
+   * running: the block is under way; failed: an earlier month missed the
+   * minimum; manual: an admin granted the bonus by hand this period;
+   * notStarted: the first block starts after this period.
+   */
+  status: "running" | "failed" | "manual" | "notStarted";
+};
+
 /**
  * Whether `period` is the last month of a Bonus Konsistensi block. Blocks of
  * `months` months run back to back from `anchor` (YYYYMM), whatever their

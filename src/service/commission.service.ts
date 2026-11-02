@@ -5,6 +5,7 @@ import {
   calculateConsistencyBonus,
   isConsistencyBlockEnd,
   type ConsistencyBonusAuto,
+  type ConsistencyProgress,
   type ConsistencyMonth,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
@@ -985,9 +986,38 @@ export class CommissionService {
     activityCount: number,
     sdr: boolean,
   ): Promise<ConsistencyBonusAuto | null> {
-    const { enabled, months, minPerMonth, startPeriod } = rules.consistency;
+    const { enabled, months, minPerMonth } = rules.consistency;
     if (!enabled || activityCount < minPerMonth) return null;
 
+    const anchor = await this.consistencyAnchor(employeeId, period, rules, sdr);
+    if (!anchor || !isConsistencyBlockEnd(period, anchor, months)) return null;
+
+    const blockPeriods = Array.from({ length: months }, (_, i) => shiftPeriod(period, i - months + 1));
+
+    const block: ConsistencyMonth[] = [];
+    for (const p of blockPeriods.slice(0, -1)) {
+      const monthRules = await this.monthRules(p, sdr);
+      const count = await this.getActivityCount(employeeId, p, monthRules, sdr);
+      if (count < minPerMonth) return null;
+      block.push({ period: p, activityCount: count, rules: monthRules, manualGrant: false });
+    }
+    block.push({ period, activityCount, rules, manualGrant: false });
+    const testimonials = await this.testimonials.countByEmployeeId(
+      employeeId,
+      toSqlDate(getDateRangeForPeriod(blockPeriods[0]!).start),
+      toSqlDate(getDateRangeForPeriod(period).end),
+    );
+    return calculateConsistencyBonus(block, testimonials);
+  }
+
+  /**
+   * The month the person's blocks count from (see getAutoConsistencyBonus):
+   * the latest of the start period, their first period (the month after if
+   * it missed the minimum) and the month after their last manual grant.
+   * Null when an admin granted the bonus by hand in `period` itself.
+   */
+  private async consistencyAnchor(employeeId: string, period: string, rules: CommissionRules, sdr: boolean): Promise<string | null> {
+    const { minPerMonth, startPeriod } = rules.consistency;
     const lookback = Array.from({ length: CONSISTENCY_LOOKBACK_MONTHS }, (_, i) => shiftPeriod(period, -i));
     const [firstPeriod, granted] = await Promise.all([
       this.employeeService.getFirstPeriod(employeeId),
@@ -1006,24 +1036,75 @@ export class CommissionService {
         anchor = shiftPeriod(firstPeriod, 1);
       }
     }
-    if (!isConsistencyBlockEnd(period, anchor, months)) return null;
+    return anchor;
+  }
 
-    const blockPeriods = Array.from({ length: months }, (_, i) => shiftPeriod(period, i - months + 1));
+  /** The block `period` falls in and how far the person is, for the AM dashboard; null when the automatic bonus is off. */
+  async getConsistencyProgress(employeeId: string, period: string): Promise<ConsistencyProgress | null> {
+    const { rules, isSdr: sdr } = await this.getRulesFor(employeeId, period);
+    const { enabled, months, minPerMonth, minTestimonials, tiers } = rules.consistency;
+    if (!enabled) return null;
 
-    const block: ConsistencyMonth[] = [];
-    for (const p of blockPeriods.slice(0, -1)) {
-      const monthRules = await this.monthRules(p, sdr);
-      const count = await this.getActivityCount(employeeId, p, monthRules, sdr);
-      if (count < minPerMonth) return null;
-      block.push({ period: p, activityCount: count, rules: monthRules, manualGrant: false });
-    }
-    block.push({ period, activityCount, rules, manualGrant: false });
+    const anchor = await this.consistencyAnchor(employeeId, period, rules, sdr);
+    const index = (p: string) => Number(p.slice(0, 4)) * 12 + Number(p.slice(4, 6));
+    const elapsed = anchor ? index(period) - index(anchor) : 0;
+    const blockStart = anchor && elapsed >= 0 ? shiftPeriod(anchor, elapsed - (elapsed % months)) : (anchor ?? period);
+    const blockPeriods = Array.from({ length: months }, (_, i) => shiftPeriod(blockStart, i));
+    const blockEnd = blockPeriods.at(-1)!;
+
+    const counted = await Promise.all(
+      blockPeriods.map(async (p) => (p <= period ? this.getActivityCount(employeeId, p, await this.monthRules(p, sdr), sdr) : null)),
+    );
     const testimonials = await this.testimonials.countByEmployeeId(
       employeeId,
-      toSqlDate(getDateRangeForPeriod(blockPeriods[0]!).start),
-      toSqlDate(getDateRangeForPeriod(period).end),
+      toSqlDate(getDateRangeForPeriod(blockStart).start),
+      toSqlDate(getDateRangeForPeriod(blockEnd).end),
     );
-    return calculateConsistencyBonus(block, testimonials);
+    const status: ConsistencyProgress["status"] = !anchor
+      ? "manual"
+      : elapsed < 0
+        ? "notStarted"
+        : blockPeriods.some((p, i) => p < period && counted[i]! < minPerMonth)
+          ? "failed"
+          : "running";
+    return {
+      blockStart,
+      blockEnd,
+      months: blockPeriods.map((p, i) => ({ period: p, activityCount: counted[i] ?? null })),
+      minPerMonth,
+      minTestimonials,
+      tiers,
+      testimonials,
+      status,
+    };
+  }
+
+  /**
+   * Bonus Konsistensi progress of every team member counted this period (same
+   * team as getManagerCommission), so the Sales Manager can see who is close.
+   * Empty when the automatic bonus is off.
+   */
+  async getTeamConsistencyProgress(
+    managerId: string,
+    period: string,
+  ): Promise<{ employeeId: string; name: string; progress: ConsistencyProgress }[]> {
+    if (!(await this.rulesProvider.getForPeriod(period)).consistency.enabled) return [];
+    const { start, end } = getDateRangeForPeriod(period);
+    const team = (await this.employeeService.getHierarchy(managerId, undefined, false, false)).filter(
+      (e) => !isSdr(e.job_position),
+    );
+    if (team.length === 0) return [];
+    const counted = new Set(
+      (await this.employeeService.getStatusesByPeriodAndIds(team.map((e) => e.employee_id), toSqlDate(start), toSqlDate(end))).map(
+        (s) => s.employee_id,
+      ),
+    );
+    const rows = await Promise.all(
+      team
+        .filter((e) => counted.has(e.employee_id))
+        .map(async (e) => ({ employeeId: e.employee_id, name: e.name, progress: await this.getConsistencyProgress(e.employee_id, period) })),
+    );
+    return rows.filter((r): r is { employeeId: string; name: string; progress: ConsistencyProgress } => r.progress !== null);
   }
 
   private async monthRules(period: string, sdr: boolean): Promise<CommissionRules> {

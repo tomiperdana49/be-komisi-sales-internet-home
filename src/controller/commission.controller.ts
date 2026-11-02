@@ -30,6 +30,12 @@ export class CommissionController {
     return c.json(successResponse("Commission retrieved successfully", { ...summary, closedAt }));
   }
 
+  /** Where the salesperson stands in their Bonus Konsistensi block (null data when the automatic bonus is off). */
+  async salesConsistency(c: Context) {
+    const result = await this.commissionService.getConsistencyProgress(c.req.param("id")!, resolvePeriodFromQuery(c));
+    return c.json(successResponse("Consistency progress retrieved successfully", result));
+  }
+
   /** Per-month totals for a whole year, for the dashboard's yearly chart. */
   async salesCommissionYear(c: Context) {
     const employeeId = c.req.param("id")!;
@@ -76,6 +82,12 @@ export class CommissionController {
       this.closedAt(period),
     ]);
     return c.json(successResponse("Manager commission retrieved successfully", { ...result, closedAt }));
+  }
+
+  /** Bonus Konsistensi progress of each team member, for the Sales Manager dashboard. */
+  async managerConsistency(c: Context) {
+    const data = await this.commissionService.getTeamConsistencyProgress(c.req.param("id")!, resolvePeriodFromQuery(c));
+    return c.json(successResponse("Team consistency progress retrieved successfully", data));
   }
 
   /** Churn of the manager and the whole team for one period. */

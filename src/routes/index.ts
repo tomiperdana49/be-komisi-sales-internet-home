@@ -19,6 +19,9 @@ router.get("/employee/:id/hierarchy", authMiddleware, (c) => container.employeeC
 router.get("/sales/:id/commission", authMiddleware, hierarchyMiddleware, (c) =>
   container.commissionController.salesCommission(c),
 );
+router.get("/sales/:id/consistency", authMiddleware, hierarchyMiddleware, (c) =>
+  container.commissionController.salesConsistency(c),
+);
 router.get("/sales/:id/commission/year", authMiddleware, hierarchyMiddleware, (c) =>
   container.commissionController.salesCommissionYear(c),
 );
@@ -48,6 +51,9 @@ router.get("/manager/:id/commission", authMiddleware, hierarchyMiddleware, (c) =
 );
 router.get("/manager/:id/commission/year", authMiddleware, hierarchyMiddleware, (c) =>
   container.commissionController.managerCommissionYear(c),
+);
+router.get("/manager/:id/consistency", authMiddleware, hierarchyMiddleware, (c) =>
+  container.commissionController.managerConsistency(c),
 );
 router.get("/manager/:id/churn", authMiddleware, hierarchyMiddleware, (c) =>
   container.commissionController.managerChurn(c),
