@@ -10,6 +10,7 @@ import type {
   SalesTargetItem,
   StatusPeriodDetail,
   StatusPeriodRow,
+  RolePeriodRow,
 } from "../interface/employee.interface";
 
 /** Placeholder used when a snapshot row's `sales` name doesn't match any employee. */
@@ -105,8 +106,35 @@ export class EmployeeService implements IEmployeeService {
     return this.employeeRepository.findStatusesByPeriodAndIds(employeeIds, startDate, endDate);
   }
 
-  getSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]> {
-    return this.employeeRepository.findSalesTargetsByPeriod(startDate, endDate);
+  /** The AM/SDR roster of the period, with employee_role_period applied (an SM who was an AM that period counts, and vice versa). */
+  async getSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]> {
+    const period = commissionPeriodOf(endDate)!;
+    const [base, roles] = await Promise.all([
+      this.employeeRepository.findSalesTargetsByPeriod(startDate, endDate),
+      this.employeeRepository.findRolePeriods(period),
+    ]);
+    if (roles.length === 0) return base;
+    const asManager = new Set(roles.filter((r) => r.role === "Sales Manager").map((r) => r.employee_id));
+    const kept = base.filter((e) => !asManager.has(e.employeeId));
+    const extraIds = roles.filter((r) => r.role === "Account Manager" && !kept.some((e) => e.employeeId === r.employee_id)).map((r) => r.employee_id);
+    const extra = await this.employeeRepository.findSalesTargetsByIds(extraIds, startDate, endDate);
+    return [...kept, ...extra].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  getRolePeriods(period: string): Promise<RolePeriodRow[]> {
+    return this.employeeRepository.findRolePeriods(period);
+  }
+
+  async getTeamForPeriod(managerId: string, period: string): Promise<EmployeeDetail[]> {
+    const [base, roles] = await Promise.all([
+      this.employeeRepository.findHierarchy(managerId, undefined, false, false),
+      this.employeeRepository.findRolePeriods(period),
+    ]);
+    if (roles.length === 0) return base;
+    const placed = new Map(roles.filter((r) => r.manager_employee_id !== null).map((r) => [r.employee_id, r.manager_employee_id]));
+    const team = base.filter((e) => !placed.has(e.employee_id) || placed.get(e.employee_id) === managerId);
+    const missing = [...placed].filter(([id, m]) => m === managerId && !team.some((e) => e.employee_id === id)).map(([id]) => id);
+    return missing.length ? [...team, ...(await this.employeeRepository.findByEmployeeIds(missing))] : team;
   }
 
   deactivateEmployee(employeeId: string): Promise<void> {

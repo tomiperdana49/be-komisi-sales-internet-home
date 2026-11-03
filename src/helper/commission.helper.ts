@@ -147,6 +147,11 @@ export function isNusaUltra(rules: CommissionRules, serviceId: string | null | u
   return findProduct(rules, serviceId)?.group === "NusaSelecta Ultra";
 }
 
+/** Whether a New sale of this service adds to New Achievement; only products flagged countsTowardTarget: false don't. */
+export function countsTowardTarget(rules: CommissionRules, serviceId: string | null | undefined): boolean {
+  return findProduct(rules, serviceId)?.countsTowardTarget !== false;
+}
+
 export function isNusaSelecta(rules: CommissionRules, serviceId: string | null | undefined): boolean {
   return isNusaBasicPrime(rules, serviceId) || isNusaUltra(rules, serviceId);
 }
@@ -163,15 +168,23 @@ export function isNusaSelectaPromo(serviceId: string | null | undefined, subscri
 }
 
 /**
+ * First period NusaSelecta is grouped by 3 Basic/Prime and 2 Ultra. Before
+ * it (the Jan–Jul 2026 AM sheets) every 2 Basic/Prime = 1 and each Ultra = 1.
+ */
+export const NUSASELECTA_GROUP_OF_THREE_SINCE = "202608";
+
+/**
  * NusaSelecta units are grouped before counting toward the monthly target:
  * every 3 Basic/Prime = 1, every 2 Ultra = 1, plus a leftover 2 Basic/Prime
- * + 1 Ultra combination = 1. Promo units first convert to Basic/Prime units
- * (NUSASELECTA_PROMO). Units that don't complete a group still earn
- * commission but add nothing to the target.
+ * + 1 Ultra combination = 1 (before NUSASELECTA_GROUP_OF_THREE_SINCE: every
+ * 2 Basic/Prime = 1, each Ultra = 1). Promo units first convert to
+ * Basic/Prime units (NUSASELECTA_PROMO). Units that don't complete a group
+ * still earn commission but add nothing to the target.
  */
-export function calculateNusaSelectaActivity(basicPrime: number, ultra: number, promo = 0): number {
+export function calculateNusaSelectaActivity(basicPrime: number, ultra: number, promo = 0, period?: string): number {
   const bp = Math.max(0, basicPrime) + Math.floor(Math.max(0, promo) / NUSASELECTA_PROMO.unitsPerBasicPrime);
   const ul = Math.max(0, ultra);
+  if (period && period < NUSASELECTA_GROUP_OF_THREE_SINCE) return Math.floor(bp / 2) + ul;
 
   let achievement = Math.floor(bp / 3) + Math.floor(ul / 2);
   if (bp % 3 === 2 && ul % 2 === 1) achievement += 1;

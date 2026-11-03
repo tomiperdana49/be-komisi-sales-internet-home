@@ -5,6 +5,7 @@ import {
   type EmployeeRow,
   type EmployeeUpsertInput,
   type IEmployeeRepository,
+  type RolePeriodRow,
   type SalesTargetItem,
   type StatusPeriodDetail,
   type StatusPeriodRow,
@@ -194,6 +195,32 @@ export class EmployeeRepository implements IEmployeeRepository {
        WHERE employee_id IN (?) AND start_date = ? AND end_date = ?`,
       [employeeIds, startDate, endDate],
     );
+  }
+
+  findSalesTargetsByIds(employeeIds: string[], startDate: string, endDate: string): Promise<SalesTargetItem[]> {
+    if (employeeIds.length === 0) return Promise.resolve([]);
+    return this.db.query<SalesTargetItem[]>(
+      `SELECT e.employee_id AS employeeId, e.name, e.photo_profile AS photoProfile, e.branch,
+              e.job_position AS jobPosition, sp.status, sp.target
+       FROM status_period sp
+       JOIN employee e ON e.employee_id = sp.employee_id
+       WHERE sp.start_date = ? AND sp.end_date = ? AND e.employee_id IN (?)
+       ORDER BY e.name ASC`,
+      [startDate, endDate, employeeIds],
+    );
+  }
+
+  async findRolePeriods(period: string): Promise<RolePeriodRow[]> {
+    try {
+      return await this.db.query<RolePeriodRow[]>(
+        "SELECT employee_id, period, role, manager_employee_id FROM employee_role_period WHERE period = ?",
+        [period],
+      );
+    } catch (error: any) {
+      // Deployed before the table's migration ran: behave as if there were no overrides.
+      if (error?.code === "ER_NO_SUCH_TABLE") return [];
+      throw error;
+    }
   }
 
   findSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]> {

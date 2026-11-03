@@ -23,6 +23,7 @@ import {
   isLicenseService,
   isNusaBasicPrime,
   isNusaSelectaPromo,
+  countsTowardTarget,
   NUSASELECTA_PROMO,
   isNusaSelecta,
   isNusaUltra,
@@ -260,7 +261,8 @@ export class CommissionService {
    */
   async getManagerChurn(managerId: string, period: string) {
     // SDRs sit outside the Manager Area (KOMISI.md 7), same as in getManagerCommission.
-    const people = (await this.employeeService.getHierarchy(managerId, undefined, true, false)).filter(
+    const self = await this.employeeService.findByEmployeeId(managerId);
+    const people = [...(self ? [self] : []), ...(await this.employeeService.getTeamForPeriod(managerId, period))].filter(
       (e) => e.employee_id === managerId || !isSdr(e.job_position),
     );
     const churnBySalesperson = await Promise.all(people.map((e) => this.getSalesChurn(e.employee_id, period)));
@@ -322,7 +324,7 @@ export class CommissionService {
     // 6.F: personal sales must never feed back into team activity.
     // SDRs have their own commission scheme and never count toward a
     // manager's team target or overriding (KOMISI.md 7).
-    const team = (await this.employeeService.getHierarchy(managerId, undefined, false, false)).filter(
+    const team = (await this.employeeService.getTeamForPeriod(managerId, period)).filter(
       (e) => !isSdr(e.job_position),
     );
     const teamIds = team.map((e) => e.employee_id);
@@ -777,7 +779,7 @@ export class CommissionService {
     );
 
     const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =
-      this.computeActivity(rules, rows, churnRows, !sdr);
+      this.computeActivity(rules, rows, churnRows, !sdr, period);
     const rateActivityCount = rateActivityCountOverride ?? activityCount;
 
     const total = emptyStats();
@@ -1090,7 +1092,7 @@ export class CommissionService {
   ): Promise<{ employeeId: string; name: string; progress: ConsistencyProgress }[]> {
     if (!(await this.rulesProvider.getForPeriod(period)).consistency.enabled) return [];
     const { start, end } = getDateRangeForPeriod(period);
-    const team = (await this.employeeService.getHierarchy(managerId, undefined, false, false)).filter(
+    const team = (await this.employeeService.getTeamForPeriod(managerId, period)).filter(
       (e) => !isSdr(e.job_position),
     );
     if (team.length === 0) return [];
@@ -1127,7 +1129,7 @@ export class CommissionService {
       this.churnService.getByEmployeeId(employeeId, toSqlDate(start), toSqlDate(end)),
     ]);
     const counted = rows.filter((row) => !isExcludedFromCommission(rules, row));
-    return this.computeActivity(rules, counted, churnRows, !sdr).activityCount;
+    return this.computeActivity(rules, counted, churnRows, !sdr, period).activityCount;
   }
 
   /**
@@ -1141,6 +1143,8 @@ export class CommissionService {
     churnRows: ChurnRow[],
     /** False for SDRs, whose NusaSelecta units count 1:1 like any other service (KOMISI.md 7). */
     groupNusaSelecta: boolean,
+    /** The NusaSelecta grouping changed in NUSASELECTA_GROUP_OF_THREE_SINCE. */
+    period: string,
   ) {
     let basicPrime = 0;
     let ultra = 0;
@@ -1153,6 +1157,7 @@ export class CommissionService {
       if (bucket === "setup") customerHasSetup.add(row.customer_id);
       if (bucket !== "new") continue;
 
+      if (!countsTowardTarget(rules, row.service_id)) continue;
       if (isNusaSelectaPromo(row.service_id, row.subscription)) promo++;
       else if (isNusaBasicPrime(rules, row.service_id)) basicPrime++;
       else if (isNusaUltra(rules, row.service_id)) ultra++;
@@ -1168,7 +1173,7 @@ export class CommissionService {
       return { activityCount: net, grossNusaSelectaActivity: 0, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra, promo } };
     }
 
-    const grossNusaSelectaActivity = calculateNusaSelectaActivity(basicPrime, ultra, promo);
+    const grossNusaSelectaActivity = calculateNusaSelectaActivity(basicPrime, ultra, promo, period);
 
     let netBasicPrime = basicPrime;
     let netUltra = ultra;
@@ -1183,7 +1188,7 @@ export class CommissionService {
 
     // Not floored at 0: churn beyond a person's own sales still reduces team
     // achievement, matching the per-product team totals.
-    const activityCount = netStandard + calculateNusaSelectaActivity(netBasicPrime, netUltra, promo);
+    const activityCount = netStandard + calculateNusaSelectaActivity(netBasicPrime, netUltra, promo, period);
 
     return { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra, promo } };
   }
@@ -1295,7 +1300,10 @@ export class CommissionService {
 
   /** Every manager's commission summary for a period — the admin manager roster. */
   async getManagerSummary(period: string): Promise<ManagerSummaryItem[]> {
-    const managers = await this.employeeService.getAllManagerEmployees();
+    // A Sales Manager who was still an Account Manager that period (employee_role_period) isn't listed.
+    const [all, roles] = await Promise.all([this.employeeService.getAllManagerEmployees(), this.employeeService.getRolePeriods(period)]);
+    const asAm = new Set(roles.filter((r) => r.role === "Account Manager").map((r) => r.employee_id));
+    const managers = all.filter((m) => !asAm.has(m.employee_id));
     const results = await Promise.all(
       managers.map((m) => this.getManagerCommission(m.employee_id, period)),
     );

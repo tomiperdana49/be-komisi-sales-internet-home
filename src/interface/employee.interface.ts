@@ -54,6 +54,19 @@ export type SalesTargetItem = {
   target: number;
 };
 
+/**
+ * An employee's role for one period when it differed from today's job
+ * (e.g. an AM promoted to Sales Manager later in the year). Periods without a
+ * row follow the employee table.
+ */
+export type RolePeriodRow = {
+  employee_id: string;
+  period: string;
+  role: "Account Manager" | "Sales Manager";
+  /** Their Sales Manager that period: null keeps today's hierarchy, "-" puts them in no team. */
+  manager_employee_id: string | null;
+};
+
 export type EmployeeUpsertInput = {
   userId: string;
   employeeId: string;
@@ -127,6 +140,10 @@ export interface IEmployeeRepository {
   ): Promise<EmployeeDetail[]>;
   /** Every active Manager/C-Level employee — the admin manager summary roster. */
   findAllManagerEmployees(): Promise<EmployeeDetail[]>;
+  /** Role overrides for a period (employee_role_period); empty when the table doesn't exist yet. */
+  findRolePeriods(period: string): Promise<RolePeriodRow[]>;
+  /** status_period rows of these employees for the period, with their employee fields, whatever their job today. */
+  findSalesTargetsByIds(employeeIds: string[], startDate: string, endDate: string): Promise<SalesTargetItem[]>;
   /** Branches that have active dashboard users — the choices for an Admin's branch scope. */
   findBranches(): Promise<string[]>;
 }
@@ -196,5 +213,13 @@ export interface IEmployeeService {
    */
   getVisibleTeam(employeeId: string, search?: string, isActiveOnly?: boolean): Promise<EmployeeDetail[]>;
   getAllManagerEmployees(): Promise<EmployeeDetail[]>;
+  /** Role overrides for a period (see RolePeriodRow). */
+  getRolePeriods(period: string): Promise<RolePeriodRow[]>;
+  /**
+   * A Sales Manager's team for a period (themselves excluded): today's
+   * hierarchy, minus members placed in another team that period, plus
+   * those placed in theirs (employee_role_period).
+   */
+  getTeamForPeriod(managerId: string, period: string): Promise<EmployeeDetail[]>;
   getBranches(): Promise<string[]>;
 }

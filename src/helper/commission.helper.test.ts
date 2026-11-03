@@ -307,6 +307,12 @@ describe("NusaSelecta Prime 100 promo (SE Sept 2026)", () => {
     expect(calculateNusaSelectaActivity(0, 0, 8)).toBe(0);
     expect(calculateNusaSelectaActivity(0, 0, 18)).toBe(2);
   });
+
+  test("before Aug 2026 every 2 Basic/Prime and each Ultra count 1 (Jan–Jul AM sheets)", () => {
+    expect(calculateNusaSelectaActivity(38, 0, 0, "202603")).toBe(19);
+    expect(calculateNusaSelectaActivity(48, 6, 0, "202607")).toBe(30);
+    expect(calculateNusaSelectaActivity(30, 3, 0, "202609")).toBe(11);
+  });
 });
 
 describe("manager overriding recurring rate by customer type (from October 2026)", () => {

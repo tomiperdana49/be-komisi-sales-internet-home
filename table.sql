@@ -257,3 +257,17 @@ CREATE TABLE testimonial (
     INDEX idx_testimonial_employee (employee_id),
     INDEX idx_testimonial_date (testimonial_date)
 ) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- An employee's role for one period when it differed from today's job (e.g. an AM
+-- promoted to Sales Manager later in the year). manager_employee_id: their Sales
+-- Manager that period; NULL keeps today's hierarchy, '-' puts them in no team.
+CREATE TABLE IF NOT EXISTS employee_role_period (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id VARCHAR(20) NOT NULL,
+    period CHAR(6) NOT NULL,
+    role ENUM('Account Manager', 'Sales Manager') NOT NULL,
+    manager_employee_id VARCHAR(20) NULL,
+    note VARCHAR(255) NULL,
+    UNIQUE KEY uq_role_period (employee_id, period),
+    INDEX idx_role_period_period (period)
+) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

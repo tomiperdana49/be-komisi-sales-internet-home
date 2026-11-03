@@ -27,6 +27,8 @@ const productSchema = z.object({
   setupRate: percent.nullable(),
   /** Whether a stopped service of this product is pulled in as a churn. */
   churn: z.boolean().optional(),
+  /** False when a New sale of it earns commission but adds nothing to New Achievement (CPE rental in the Jan–Jul 2026 sheets). */
+  countsTowardTarget: z.boolean().optional(),
 }).transform((p) => ({
   ...p,
   churn: p.churn ?? p.serviceIds.some((id) => LEGACY_CHURN_SERVICE_IDS.includes(id)),
