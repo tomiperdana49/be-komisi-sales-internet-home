@@ -1283,6 +1283,7 @@ export class CommissionService {
         status: r.status,
         achievementStatus: r.achievementStatus,
         activityCount: r.activityCount,
+        target: r.target,
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription,
         newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission + r.breakdown.alat.commission,

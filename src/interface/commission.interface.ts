@@ -332,6 +332,8 @@ export type SalesSummaryItem = {
   status: string | null;
   achievementStatus: string;
   activityCount: number;
+  /** New Achievement target for the period (manual Target AM, else the rules target). */
+  target: number;
   newMrc: number;
   newSubscription: number;
   newCommission: number;

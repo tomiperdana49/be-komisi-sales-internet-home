@@ -36,6 +36,8 @@ import { TargetOverrideService } from "./service/target-override.service";
 import { AdminAccessService } from "./service/admin-access.service";
 import { TestimonialService } from "./service/testimonial.service";
 
+import { TvController } from "./controller/tv.controller";
+import { PhotoCutoutService } from "./service/photo-cutout.service";
 import { HealthController } from "./controller/health.controller";
 import { EmployeeController } from "./controller/employee.controller";
 import { AuthController } from "./controller/auth.controller";
@@ -126,6 +128,7 @@ class Container {
 
   // Controllers
   readonly healthController = new HealthController();
+  readonly tvController = new TvController(this.commissionService, this.periodClosingService, new PhotoCutoutService());
   readonly employeeController = new EmployeeController(this.employeeService);
   readonly authController = new AuthController(this.authService, this.employeeService);
   readonly feedbackController = new FeedbackController(this.feedbackService, this.employeeService);
