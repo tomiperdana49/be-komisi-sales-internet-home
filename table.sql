@@ -249,11 +249,14 @@ CREATE TABLE testimonial (
     customer_id VARCHAR(20) NOT NULL,
     customer_name VARCHAR(255) NOT NULL,
     testimonial_date DATE NOT NULL,
-    link VARCHAR(500) NOT NULL,
+    -- Binary collation: short links are case-sensitive, so /AbC and /abc are different links.
+    link VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
     created_by VARCHAR(20) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_by VARCHAR(20) NULL,
     updated_at TIMESTAMP NULL,
+    UNIQUE KEY uq_testimonial_customer (customer_id),
+    UNIQUE KEY uq_testimonial_link (link),
     INDEX idx_testimonial_employee (employee_id),
     INDEX idx_testimonial_date (testimonial_date)
 ) DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

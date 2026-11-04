@@ -1,8 +1,23 @@
+import { BadRequestException } from "../exception/http.exception";
 import type { AppDatabase } from "../lib/app-database";
 import type { ITestimonialRepository, TestimonialInput, TestimonialRow } from "../interface/testimonial.interface";
 
 const COLUMNS =
   "id, employee_id, manager_id, customer_id, customer_name, DATE_FORMAT(testimonial_date, '%Y-%m-%d') AS testimonial_date, link, created_by, created_at, updated_by, updated_at";
+
+/** Runs a write, turning a hit on the customer or link unique index into a message the user can act on. */
+async function rejectingDuplicates(input: TestimonialInput, write: () => Promise<unknown>): Promise<void> {
+  try {
+    await write();
+  } catch (error: any) {
+    if (error?.code !== "ER_DUP_ENTRY") throw error;
+    throw new BadRequestException(
+      String(error.sqlMessage).includes("uq_testimonial_customer")
+        ? `ID Customer ${input.customerId} sudah pernah diinput. Satu customer hanya boleh punya satu testimoni.`
+        : "Link Testimoni ini sudah pernah diinput. Gunakan link testimoni yang lain.",
+    );
+  }
+}
 
 export class TestimonialRepository implements ITestimonialRepository {
   constructor(private readonly db: AppDatabase) {}
@@ -39,19 +54,23 @@ export class TestimonialRepository implements ITestimonialRepository {
   }
 
   async create(employeeId: string, managerId: string | null, input: TestimonialInput, createdBy: string): Promise<void> {
-    await this.db.query(
-      `INSERT INTO testimonial (employee_id, manager_id, customer_id, customer_name, testimonial_date, link, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [employeeId, managerId, input.customerId, input.customerName, input.testimonialDate, input.link, createdBy],
+    await rejectingDuplicates(input, () =>
+      this.db.query(
+        `INSERT INTO testimonial (employee_id, manager_id, customer_id, customer_name, testimonial_date, link, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [employeeId, managerId, input.customerId, input.customerName, input.testimonialDate, input.link, createdBy],
+      ),
     );
   }
 
   async update(id: number, input: TestimonialInput, updatedBy: string): Promise<void> {
-    await this.db.query(
-      `UPDATE testimonial
-       SET customer_id = ?, customer_name = ?, testimonial_date = ?, link = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [input.customerId, input.customerName, input.testimonialDate, input.link, updatedBy, id],
+    await rejectingDuplicates(input, () =>
+      this.db.query(
+        `UPDATE testimonial
+         SET customer_id = ?, customer_name = ?, testimonial_date = ?, link = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [input.customerId, input.customerName, input.testimonialDate, input.link, updatedBy, id],
+      ),
     );
   }
 
