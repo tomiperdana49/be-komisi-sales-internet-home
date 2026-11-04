@@ -50,6 +50,14 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
     );
   }
 
+  async latestPaidDate(period: string): Promise<string | null> {
+    const rows = await this.db.query<{ d: string | null }[]>(
+      "SELECT DATE_FORMAT(MAX(paid_date), '%Y-%m-%d') AS d FROM snapshots WHERE period = ?",
+      [period],
+    );
+    return rows[0]?.d ?? null;
+  }
+
   /**
    * Recurring rows credited to a manager directly via the `manager`
    * column. Unlike findBySales this deliberately does NOT require a real

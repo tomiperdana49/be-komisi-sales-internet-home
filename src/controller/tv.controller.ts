@@ -6,6 +6,7 @@ import { successResponse } from "../helper/api-response.helper";
 import { currentCommissionPeriod, getDateRangeForPeriod, shiftPeriod, toSqlDate } from "../helper/period.helper";
 import { tvConfig } from "../config/tv.config";
 import type { CommissionService } from "../service/commission.service";
+import type { ManagerDailyReport } from "../interface/commission.interface";
 import type { IPeriodClosingService } from "../interface/period-closing.interface";
 import type { PhotoCutoutService } from "../service/photo-cutout.service";
 
@@ -42,6 +43,8 @@ const BASELINE_DIR = "uploads/tv-baseline";
  */
 export class TvController {
   private cache: { at: number; period: string; data: Promise<{ previous: TvPeriod; current: TvPeriod; baseline: TvBaselineRow[] }> } | null = null;
+
+  private monitoringCache: { at: number; period: string; data: Promise<ManagerDailyReport> } | null = null;
 
   constructor(
     private readonly commissionService: CommissionService,
@@ -92,6 +95,21 @@ export class TvController {
     const old = (await readdir(BASELINE_DIR)).filter((f) => f !== name);
     await Promise.all(old.map((f) => rm(`${BASELINE_DIR}/${f}`, { force: true })));
     return rows;
+  }
+
+  /** Every Sales Manager's team, day by day, for the running period. */
+  async monitoring(c: Context) {
+    this.assertKey(c);
+    const period = currentCommissionPeriod();
+    if (!this.monitoringCache || this.monitoringCache.period !== period || Date.now() - this.monitoringCache.at > tvConfig.cacheMs) {
+      const data = this.commissionService.getManagerDaily(period);
+      this.monitoringCache = { at: Date.now(), period, data };
+      // A failed computation must not be served from the cache until it expires.
+      data.catch(() => { if (this.monitoringCache?.data === data) this.monitoringCache = null; });
+    }
+    const report = await this.monitoringCache.data;
+    const managers = report.managers.filter((m) => m.teamSize > 0);
+    return c.json(successResponse("TV monitoring retrieved successfully", { ...report, managers }));
   }
 
   async sales(c: Context) {

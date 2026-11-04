@@ -1,4 +1,5 @@
 import type { ConsistencyBonusAuto, RecurringServiceGroupLabel, SnapshotType } from "../helper/commission.helper";
+import type { PaceStatus } from "../helper/daily-monitoring.helper";
 import type { ManualTarget } from "./target-override.interface";
 import type { AdjustableSnapshotFields, SnapshotAdjustmentRow } from "./adjustment.interface";
 
@@ -52,6 +53,8 @@ export type SnapshotAdjustmentLogRow = {
 };
 
 export interface ISnapshotReadRepository {
+  /** Latest payment date among a period's snapshots as YYYY-MM-DD; null when it has none. */
+  latestPaidDate(period: string): Promise<string | null>;
   /** Snapshots for one salesperson in a period. Only rows whose `sales` resolves to a real employee. */
   findBySales(employeeId: string, period: string): Promise<CommissionSnapshotRow[]>;
   /** Same, for many salespeople at once. */
@@ -191,8 +194,11 @@ export type ManagerTeamMember = {
   employeeId: string;
   name: string;
   photoProfile: string;
+  branch: string | null;
   status: string | null;
   activityCount: number;
+  /** New Achievement target for the period (manual Target AM, else the rules target). */
+  target: number;
   achievementStatus: string;
   motivation: string;
   newSubscription: number;
@@ -365,6 +371,52 @@ export type ManagerSummaryItem = {
   managerNewCommission: number;
   managerRecurringCommission: number;
   managerTotalCommission: number;
+};
+
+/** One team member on the daily monitoring. */
+export type ManagerDailyMember = {
+  name: string;
+  photoProfile: string;
+  branch: string | null;
+  activityCount: number;
+  target: number;
+  /** Activity gained on the last day with data. */
+  lastDayDelta: number;
+};
+
+/** One Sales Manager's team on the daily monitoring. Holds no IDs or money: the TV screen shows it as is. */
+export type ManagerDailyItem = {
+  name: string;
+  photoProfile: string;
+  branch: string | null;
+  teamSize: number;
+  activityCount: number;
+  finalTarget: number;
+  achievementPercentage: number;
+  /** Activity an even pace to finalTarget would have reached by the last day with data. */
+  expected: number;
+  /** Activity needed each remaining day to reach finalTarget. */
+  neededPerDay: number;
+  status: PaceStatus;
+  /** Unwaived churns deducted from the team this period. */
+  churnCount: number;
+  lastDayDelta: number;
+  /** Team activity as it stood at the end of each day from the period start to dataUntil. */
+  cumulative: number[];
+  members: ManagerDailyMember[];
+};
+
+export type ManagerDailyReport = {
+  period: string;
+  startDate: string;
+  endDate: string;
+  /** Last day with payment data in this period, capped at endDate; null when there is none yet. */
+  dataUntil: string | null;
+  daysElapsed: number;
+  daysTotal: number;
+  managers: ManagerDailyItem[];
+  /** Account Managers outside every listed Sales Manager's team; `team` is whoever they report to. */
+  otherAccountManagers: (ManagerDailyMember & { team: string | null })[];
 };
 
 /** One row of the admin "all invoices" table — a line item plus who sold it and their Sales Manager. */

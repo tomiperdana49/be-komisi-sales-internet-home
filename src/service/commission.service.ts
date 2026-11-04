@@ -45,10 +45,13 @@ import type {
   ISnapshotReadRepository,
   ManagerCommissionResult,
   ManagerRecurringBasisItem,
+  ManagerDailyItem,
+  ManagerDailyReport,
   ManagerSummaryItem,
   SalesCommissionResult,
   SalesSummaryItem,
 } from "../interface/commission.interface";
+import { clampDay, daysBetween, paceOf, toDay } from "../helper/daily-monitoring.helper";
 import type { ChurnRow, IChurnService } from "../interface/churn.interface";
 import type { IEmployeeService } from "../interface/employee.interface";
 import type { CommissionRules, ICommissionRulesProvider, ISdrRulesProvider } from "../interface/commission-rules.interface";
@@ -583,8 +586,10 @@ export class CommissionService {
         employeeId: e.employee_id,
         name: e.name,
         photoProfile: e.photo_profile,
+        branch: e.branch,
         status: statusByEmployeeId.get(e.employee_id) ?? null,
         activityCount: r.activityCount,
+        target: r.target,
         achievementStatus: r.achievementStatus,
         motivation: r.motivation,
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription,
@@ -1299,12 +1304,112 @@ export class CommissionService {
     });
   }
 
-  /** Every manager's commission summary for a period — the admin manager roster. */
-  async getManagerSummary(period: string): Promise<ManagerSummaryItem[]> {
-    // A Sales Manager who was still an Account Manager that period (employee_role_period) isn't listed.
+  /** Sales Managers of a period; one who was still an Account Manager then (employee_role_period) isn't listed. */
+  private async managersForPeriod(period: string) {
     const [all, roles] = await Promise.all([this.employeeService.getAllManagerEmployees(), this.employeeService.getRolePeriods(period)]);
     const asAm = new Set(roles.filter((r) => r.role === "Account Manager").map((r) => r.employee_id));
-    const managers = all.filter((m) => !asAm.has(m.employee_id));
+    return all.filter((m) => !asAm.has(m.employee_id));
+  }
+
+  /**
+   * Every Sales Manager's team, day by day. Activity isn't additive per day (NusaSelecta
+   * groups, churn netting), so each day recomputes the period's total as it stood then,
+   * with the same formula as the commission, and the last day equals the dashboard's figure.
+   */
+  async getManagerDaily(period: string): Promise<ManagerDailyReport> {
+    const { start, end } = getDateRangeForPeriod(period);
+    const startDate = toSqlDate(start);
+    const endDate = toSqlDate(end);
+    const [managers, rules, latestPaid] = await Promise.all([
+      this.managersForPeriod(period),
+      this.rulesProvider.getForPeriod(period),
+      this.snapshotRepository.latestPaidDate(period),
+    ]);
+    const daysTotal = daysBetween(startDate, endDate).length;
+    const dataUntil = latestPaid ? clampDay(latestPaid, startDate, endDate) : null;
+    const days = dataUntil ? daysBetween(startDate, dataUntil) : [];
+    const delta = (cumulative: number[]) => (cumulative.at(-1) ?? 0) - (cumulative.at(-2) ?? 0);
+    const onOrBefore = (date: Date | string | null | undefined, day: string) =>
+      clampDay(date ? toDay(date) : day, startDate, dataUntil ?? endDate) <= day;
+
+    /** Each person's activity as it stood at the end of each day, in the order of `ids`. */
+    const cumulativeOf = async (ids: string[]) => {
+      const [rows, churns] = await Promise.all([
+        this.snapshotRepository.findBySalesIds(ids, period),
+        this.churnService.getByEmployeeIds(ids, startDate, endDate),
+      ]);
+      const counted = rows.filter((row) => !isExcludedFromCommission(rules, row));
+      const byPerson = ids.map((id) => {
+        const ownRows = counted.filter((row) => row.sales === id);
+        const ownChurns = churns.filter((churn) => churn.sales_id === id);
+        return days.map((day) =>
+          this.computeActivity(
+            rules,
+            ownRows.filter((row) => onOrBefore(row.paid_date ?? row.transaction_date, day)),
+            ownChurns.filter((churn) => onOrBefore(churn.deduct_date ?? churn.unregistration_date, day)),
+            true,
+            period,
+          ).activityCount,
+        );
+      });
+      return { byPerson, churnCount: churns.filter((churn) => !churn.is_approved).length };
+    };
+
+    const inTeams = new Set<string>();
+    const items = await Promise.all(managers.map(async (m): Promise<ManagerDailyItem> => {
+      const { team, members } = await this.getManagerCommission(m.employee_id, period);
+      members.forEach((member) => inTeams.add(member.employeeId));
+      const { byPerson: cumulativeByMember, churnCount } = await cumulativeOf(members.map((member) => member.employeeId));
+      const cumulative = days.map((_, i) => cumulativeByMember.reduce((sum, c) => sum + c[i]!, 0));
+
+      return {
+        name: m.name,
+        photoProfile: m.photo_profile,
+        branch: m.branch,
+        teamSize: team.totalCount,
+        activityCount: team.activityCount,
+        finalTarget: team.finalTarget,
+        achievementPercentage: team.achievementPercentage,
+        ...paceOf(team.activityCount, team.finalTarget, days.length, daysTotal),
+        churnCount,
+        lastDayDelta: delta(cumulative),
+        cumulative,
+        members: members.map((member, i) => ({
+          name: member.name,
+          photoProfile: member.photoProfile,
+          branch: member.branch,
+          activityCount: member.activityCount,
+          target: member.target,
+          lastDayDelta: delta(cumulativeByMember[i]!),
+        })),
+      };
+    }));
+
+    // Account Managers under someone other than a listed Sales Manager, e.g. a Branch Manager.
+    const others = (await this.getSalesSummary(period)).filter((r) => !r.isSdr && !inTeams.has(r.employeeId));
+    const otherIds = others.map((r) => r.employeeId);
+    const [{ byPerson }, details] = await Promise.all([
+      cumulativeOf(otherIds),
+      Promise.all(otherIds.map((id) => this.employeeService.findByEmployeeId(id))),
+    ]);
+    const leadIds = [...new Set(details.map((d) => d?.managerEmployeeId).filter((id): id is string => Boolean(id)))];
+    const leads = new Map((leadIds.length ? await this.employeeService.findByEmployeeIds(leadIds) : []).map((e) => [e.employee_id, e.name]));
+    const otherAccountManagers = others.map((r, i) => ({
+      name: r.name,
+      photoProfile: r.photoProfile,
+      branch: r.branch,
+      activityCount: r.activityCount,
+      target: r.target,
+      lastDayDelta: delta(byPerson[i]!),
+      team: leads.get(details[i]?.managerEmployeeId ?? "") ?? null,
+    }));
+
+    return { period, startDate, endDate, dataUntil, daysElapsed: days.length, daysTotal, managers: items, otherAccountManagers };
+  }
+
+  /** Every manager's commission summary for a period — the admin manager roster. */
+  async getManagerSummary(period: string): Promise<ManagerSummaryItem[]> {
+    const managers = await this.managersForPeriod(period);
     const results = await Promise.all(
       managers.map((m) => this.getManagerCommission(m.employee_id, period)),
     );

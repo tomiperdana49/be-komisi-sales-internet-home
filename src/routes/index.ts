@@ -15,6 +15,7 @@ router.post("/auth/logout", (c) => container.authController.logout(c));
 
 // No login: the TV lounge screen authenticates with TV_DISPLAY_KEY in the query string.
 router.get("/tv/sales", (c) => container.tvController.sales(c));
+router.get("/tv/monitoring", (c) => container.tvController.monitoring(c));
 
 router.get("/employee/:id", authMiddleware, (c) => container.employeeController.getByEmployeeId(c));
 router.get("/employee/:id/hierarchy", authMiddleware, (c) => container.employeeController.getHierarchy(c));
