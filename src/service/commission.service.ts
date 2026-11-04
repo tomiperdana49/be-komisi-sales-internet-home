@@ -53,7 +53,7 @@ import type {
 } from "../interface/commission.interface";
 import { clampDay, daysBetween, paceOf, toDay } from "../helper/daily-monitoring.helper";
 import type { ChurnRow, IChurnService } from "../interface/churn.interface";
-import type { IEmployeeService } from "../interface/employee.interface";
+import type { EmployeeDetail, IEmployeeService } from "../interface/employee.interface";
 import type { CommissionRules, ICommissionRulesProvider, ISdrRulesProvider } from "../interface/commission-rules.interface";
 import {
   ADJUSTABLE_FIELD_COLUMNS,
@@ -1356,7 +1356,7 @@ export class CommissionService {
     };
 
     const inTeams = new Set<string>();
-    const items = await Promise.all(managers.map(async (m): Promise<ManagerDailyItem> => {
+    const teamItem = async (m: EmployeeDetail, role: ManagerDailyItem["role"]): Promise<ManagerDailyItem> => {
       const { team, members } = await this.getManagerCommission(m.employee_id, period);
       members.forEach((member) => inTeams.add(member.employeeId));
       const { byPerson: cumulativeByMember, churnCount } = await cumulativeOf(members.map((member) => member.employeeId));
@@ -1364,6 +1364,7 @@ export class CommissionService {
 
       return {
         name: m.name,
+        role,
         photoProfile: m.photo_profile,
         branch: m.branch,
         teamSize: team.totalCount,
@@ -1383,17 +1384,27 @@ export class CommissionService {
           lastDayDelta: delta(cumulativeByMember[i]!),
         })),
       };
-    }));
+    };
+    const items = await Promise.all(managers.map((m) => teamItem(m, "Sales Manager")));
 
-    // Account Managers under someone other than a listed Sales Manager, e.g. a Branch Manager.
-    const others = (await this.getSalesSummary(period)).filter((r) => !r.isSdr && !inTeams.has(r.employeeId));
+    const summary = await this.getSalesSummary(period);
+    const outsideTeams = () => summary.filter((r) => !r.isSdr && !inTeams.has(r.employeeId));
+    const leadOf = async (ids: string[]) => {
+      const details = await Promise.all(ids.map((id) => this.employeeService.findByEmployeeId(id)));
+      const leadIds = [...new Set(details.map((d) => d?.managerEmployeeId).filter((id): id is string => Boolean(id)))];
+      return { details, leads: leadIds.length ? await this.employeeService.findByEmployeeIds(leadIds) : [] };
+    };
+
+    // A branch without a Sales Manager: on this board only, its Branch Manager stands in, under the same
+    // team formula. Commission and the manager roster don't see this, and it ends once the AMs get a Sales Manager.
+    const standIns = (await leadOf(outsideTeams().map((r) => r.employeeId))).leads.filter((e) => e.job_position === "Branch Manager");
+    items.push(...(await Promise.all(standIns.map((m) => teamItem(m, "Branch Manager")))));
+
+    // Account Managers still under someone not on the board.
+    const others = outsideTeams();
     const otherIds = others.map((r) => r.employeeId);
-    const [{ byPerson }, details] = await Promise.all([
-      cumulativeOf(otherIds),
-      Promise.all(otherIds.map((id) => this.employeeService.findByEmployeeId(id))),
-    ]);
-    const leadIds = [...new Set(details.map((d) => d?.managerEmployeeId).filter((id): id is string => Boolean(id)))];
-    const leads = new Map((leadIds.length ? await this.employeeService.findByEmployeeIds(leadIds) : []).map((e) => [e.employee_id, e.name]));
+    const [{ byPerson }, { details, leads: leadRows }] = await Promise.all([cumulativeOf(otherIds), leadOf(otherIds)]);
+    const leads = new Map(leadRows.map((e) => [e.employee_id, e.name]));
     const otherAccountManagers = others.map((r, i) => ({
       name: r.name,
       photoProfile: r.photoProfile,

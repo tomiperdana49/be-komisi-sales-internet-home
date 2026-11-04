@@ -387,6 +387,8 @@ export type ManagerDailyMember = {
 /** One Sales Manager's team on the daily monitoring. Holds no IDs or money: the TV screen shows it as is. */
 export type ManagerDailyItem = {
   name: string;
+  /** "Branch Manager": standing in on the board for a branch with no Sales Manager. */
+  role: "Sales Manager" | "Branch Manager";
   photoProfile: string;
   branch: string | null;
   teamSize: number;
