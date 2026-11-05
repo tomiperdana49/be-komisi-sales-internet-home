@@ -36,6 +36,7 @@ export class EmployeeRepository implements IEmployeeRepository {
         organization_name = VALUES(organization_name),
         job_level = VALUES(job_level),
         branch = VALUES(branch),
+        status = VALUES(status),
         manager_id = VALUES(manager_id),
         has_dashboard = VALUES(has_dashboard),
         is_admin = VALUES(is_admin),
@@ -107,6 +108,15 @@ export class EmployeeRepository implements IEmployeeRepository {
     }
   }
 
+  /** False for a deactivated employee, and for an ID with no row at all. */
+  async isActive(employeeId: string): Promise<boolean> {
+    const rows = await this.db.query<{ is_active: number | boolean }[]>(
+      `SELECT is_active FROM employee WHERE employee_id = ? LIMIT 1`,
+      [employeeId],
+    );
+    return Boolean(rows[0]?.is_active);
+  }
+
   findByEmployeeIds(employeeIds: string[]): Promise<EmployeeDetail[]> {
     if (employeeIds.length === 0) return Promise.resolve([]);
     return this.db.query<EmployeeDetail[]>(
@@ -123,9 +133,9 @@ export class EmployeeRepository implements IEmployeeRepository {
     return rows[0] ?? null;
   }
 
-  async findAllEmployeeIds(): Promise<string[]> {
+  async findActiveEmployeeIds(): Promise<string[]> {
     const rows = await this.db.query<{ employee_id: string }[]>(
-      `SELECT employee_id FROM employee`,
+      `SELECT employee_id FROM employee WHERE is_active = true`,
     );
     return rows.map((row) => row.employee_id);
   }

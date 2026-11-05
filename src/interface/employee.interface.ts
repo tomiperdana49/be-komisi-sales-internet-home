@@ -88,6 +88,8 @@ export interface IEmployeeRepository {
   findAll(): Promise<EmployeeRow[]>;
   upsertEmployee(data: EmployeeUpsertInput): Promise<void>;
   findByEmployeeId(employeeId: string): Promise<EmployeeDetail | null>;
+  /** False for a deactivated employee, and for an ID with no row at all. */
+  isActive(employeeId: string): Promise<boolean>;
   /** Epoch milliseconds before which this employee's tokens are void (null = none revoked). */
   getTokensValidAfter(employeeId: string): Promise<number | null>;
   /** Voids every token issued to this employee before `epochMs` (logout). */
@@ -95,7 +97,7 @@ export interface IEmployeeRepository {
   /** Bulk lookup — one query instead of N concurrent single-row ones (those can desync the mysql pool under load). */
   findByEmployeeIds(employeeIds: string[]): Promise<EmployeeDetail[]>;
   findByEmail(email: string): Promise<EmployeeDetail | null>;
-  findAllEmployeeIds(): Promise<string[]>;
+  findActiveEmployeeIds(): Promise<string[]>;
   updateActiveStatus(employeeId: string, isActive: boolean): Promise<void>;
   upsertStatusPeriod(
     employeeId: string,
@@ -175,7 +177,7 @@ export interface IEmployeeService {
     /** Target given to a newly created row; existing rows keep whatever target they already have. */
     initialTarget: number,
   ): Promise<void>;
-  getAllEmployeeIds(): Promise<string[]>;
+  getActiveEmployeeIds(): Promise<string[]>;
   deactivateEmployee(employeeId: string): Promise<void>;
   /** First commission period (YYYYMM) the employee is in the system, or null if never crawled. */
   getFirstPeriod(employeeId: string): Promise<string | null>;
@@ -192,6 +194,8 @@ export interface IEmployeeService {
   ): Promise<StatusPeriodRow[]>;
   getSalesTargetsByPeriod(startDate: string, endDate: string): Promise<SalesTargetItem[]>;
   findByEmployeeId(employeeId: string): Promise<EmployeeDetail | null>;
+  /** False for a deactivated employee, and for an ID with no row at all. */
+  isActive(employeeId: string): Promise<boolean>;
   /** Epoch milliseconds before which this employee's tokens are void (null = none revoked). */
   getTokensValidAfter(employeeId: string): Promise<number | null>;
   /** Voids every token issued to this employee before `epochMs` (logout). */

@@ -8,7 +8,7 @@ import {
 import { securityConfig } from "../config/security.config";
 import { clientIp } from "../helper/client-ip.helper";
 import { RateLimiter } from "../lib/rate-limiter";
-import { assertSessionActive } from "../helper/session.helper";
+import { assertAccountActive, assertSessionActive } from "../helper/session.helper";
 import { successResponse } from "../helper/api-response.helper";
 import { authConfig } from "../config/auth.config";
 import type { IAuthService } from "../interface/auth.interface";
@@ -52,6 +52,7 @@ export class AuthController {
     if (!employee) {
       throw new NotFoundException("Employee not found");
     }
+    assertAccountActive(employee);
 
     const tokens = await this.authService.generateTokens(employee);
     return c.json(successResponse("Login successful", { ...tokens, user: await this.employeeService.withAccess(employee) }));
@@ -71,6 +72,7 @@ export class AuthController {
     if (!employee) {
       throw new NotFoundException("Employee not found");
     }
+    assertAccountActive(employee);
 
     const tokens = await this.authService.generateTokens(employee);
     return c.json(successResponse("Login successful", { ...tokens, user: await this.employeeService.withAccess(employee) }));
@@ -87,6 +89,7 @@ export class AuthController {
     if (!employee) {
       throw new NotFoundException("Employee not found");
     }
+    assertAccountActive(employee);
 
     const tokens = await this.authService.generateTokens(employee);
     return c.json(successResponse("Login successful", { ...tokens, user: await this.employeeService.withAccess(employee) }));

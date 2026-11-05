@@ -82,8 +82,8 @@ export class EmployeeService implements IEmployeeService {
     return this.employeeRepository.upsertStatusPeriod(employeeId, startDate, endDate, status, initialTarget);
   }
 
-  getAllEmployeeIds(): Promise<string[]> {
-    return this.employeeRepository.findAllEmployeeIds();
+  getActiveEmployeeIds(): Promise<string[]> {
+    return this.employeeRepository.findActiveEmployeeIds();
   }
 
   async getFirstPeriod(employeeId: string): Promise<string | null> {
@@ -143,6 +143,10 @@ export class EmployeeService implements IEmployeeService {
 
   findByEmployeeId(employeeId: string): Promise<EmployeeDetail | null> {
     return this.employeeRepository.findByEmployeeId(employeeId);
+  }
+
+  isActive(employeeId: string): Promise<boolean> {
+    return this.employeeRepository.isActive(employeeId);
   }
 
   getTokensValidAfter(employeeId: string): Promise<number | null> {

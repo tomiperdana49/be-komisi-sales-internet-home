@@ -3,6 +3,7 @@ import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
 import { isSdr } from "../helper/commission.helper";
 import { resolveJobPeriods } from "./job-periods";
 import { statusForPeriod } from "../helper/employee-status.helper";
+import { assertSafeDeactivation, FORCE_DEACTIVATE_ARG } from "../helper/employee-crawl-guard.helper";
 
 async function run() {
   const crawledIds: string[] = [];
@@ -53,9 +54,10 @@ async function run() {
     console.log("Employee inserted:", employee.employeeId);
   }
 
-  // Deactivate anyone in the database that this run didn't see.
-  const dbIds = await container.employeeService.getAllEmployeeIds();
-  const deactivateIds = dbIds.filter((id) => !crawledIds.includes(id));
+  // Deactivate any active employee that this run didn't see.
+  const activeIds = await container.employeeService.getActiveEmployeeIds();
+  const deactivateIds = activeIds.filter((id) => !crawledIds.includes(id));
+  assertSafeDeactivation(activeIds.length, deactivateIds.length, process.argv.includes(FORCE_DEACTIVATE_ARG));
 
   for (const id of deactivateIds) {
     await container.employeeService.deactivateEmployee(id);
