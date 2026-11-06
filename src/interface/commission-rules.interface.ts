@@ -104,6 +104,11 @@ export const commissionRulesSchema = z
       probationVeryGood: count,
       probationAverage: count,
     }),
+    /**
+     * Non-NusaSelecta New sales (before churn) a month needs for the target to count as reached
+     * (KOMISI.md 5.A). 0 = no minimum, which is how rule sets saved before it existed read.
+     */
+    minNonNusaSelecta: count.default(0),
     bonus: z.object({
       /** New Achievement levels for a Permanent sales on the default target; shifted by (own target - default). */
       tiers: tier({ at: count, amount }),

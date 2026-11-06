@@ -212,6 +212,13 @@ Churn = false
 - `3 - 11 aktivitas` : **Tidak Capai target** _("Just a little more fights, go on!")_
 - `< 3 aktivitas` : **SP1** _("Keep fighting and don't give up!")_
 
+**⚠️ Minimal service non-NusaSelecta** (pengaturan *Minimal service non-NusaSelecta* di *Aturan Komisi*, per versi aturan; bawaan **0** = tidak ada syarat): AM Permanent yang New Achievement-nya sudah mencapai target tetapi penjualan New produk non-NusaSelecta (Broadband FO Home, Broadband FO Home Lite, nusafiber) kurang dari minimum **dianggap tidak capai target**. Akibatnya status menjadi *Tidak Capai target*, potongan gagal target dan rate recurring gagal target berlaku, serta Bonus Bulanan dan Bonus Kelebihan Service tidak dibayar.
+
+- Minimum dihitung dari **penjualan sebelum churn**: churn tetap mengurangi total New Achievement, tetapi tidak menggugurkan minimum yang sudah terpenuhi. Contoh dengan minimum 3 (angka NusaSelecta sudah setelah pengelompokan): 12 NusaSelecta + 3 non-NusaSelecta − 3 churn = 12 → capai target; 12 + 3 − 4 churn = 11 → tidak capai.
+- Angka New Achievement yang ditampilkan dan yang dijumlahkan ke capaian tim Sales Manager **tidak berubah**. Komisi New anggota yang terkena potongan ikut menurunkan dasar overriding New manager.
+- Tidak berlaku untuk Probation/Contract, SDR, dan penjualan pribadi Manager (statusnya mengikuti capaian tim).
+- Bonus Konsistensi: lihat 5.E. Implementasi: `getSalesCommission` di `commission.service.ts`.
+
 **B. Status Pegawai Probation / Contract**
 
 - `>= 8 aktivitas` : **Excellent**
@@ -246,6 +253,7 @@ Churn = false
   - total `>= 60` : **Rp 3.000.000**
   - di bawah tier pertama: Rp 0.
   - Satu bulan di bawah 12 → blok itu tidak dapat bonus; hitungan mulai lagi dari blok berikutnya. Contoh: Sep 5, Okt 30, Nov 12 → blok Sep–Nov gagal; dihitung lagi Des–Jan–Feb, bonus di Februari bila ketiganya `>= 12`.
+  - Bulan yang penjualan New non-NusaSelecta-nya di bawah minimum (5.A) dianggap gagal seperti bulan di bawah 12, memakai aturan bulan itu sendiri dan berlaku untuk semua AM (termasuk Probation), tidak termasuk SDR.
   - Jumlah bulan per blok, bulan mulai blok, minimal per bulan, dan tier bisa diubah per versi aturan; yang dipakai adalah aturan bulan terakhir blok (bonus hanya dibayar bila pengaturan aktif di bulan itu).
   - Berlaku untuk Account Manager (termasuk Probation) dan SDR. SDR memakai pengaturan sendiri di *Aturan Komisi SDR* (lihat 7.B). Penjualan pribadi Manager tidak mendapat bonus otomatis.
   - Implementasi: `calculateConsistencyBonus` di `commission.helper.ts`, `getAutoConsistencyBonus` di `commission.service.ts`.

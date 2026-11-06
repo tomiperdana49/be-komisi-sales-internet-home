@@ -162,6 +162,8 @@ export type SalesCommissionResult = {
    * `promo` = Prime 100 promo units, 3 of which weigh as 1 Basic/Prime).
    */
   nusaSelectaNewUnits: { basicPrime: number; ultra: number; promo: number };
+  /** Non-NusaSelecta New sales against the target's minimum; null when no minimum applies to this person. */
+  nonNusaSelectaMin: { count: number; minimum: number } | null;
   achievementStatus: string;
   motivation: string;
   bonusBulanan: number;

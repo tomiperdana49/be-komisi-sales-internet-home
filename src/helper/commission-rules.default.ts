@@ -163,6 +163,7 @@ export const DEFAULT_COMMISSION_RULES: CommissionRules = deepFreeze({
     permanent: 12,
     probation: 0,
   },
+  minNonNusaSelecta: 0,
   achievement: {
     permanentBonus: 15,
     permanentOnTarget: 12,

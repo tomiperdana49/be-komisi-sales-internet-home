@@ -24,6 +24,7 @@ import {
   isNusaBasicPrime,
   isNusaSelectaPromo,
   countsTowardTarget,
+  missesNonNusaSelectaMinimum,
   NUSASELECTA_PROMO,
   isNusaSelecta,
   isNusaUltra,
@@ -783,9 +784,14 @@ export class CommissionService {
         !(excludeAlat && period < MANAGER_NEW_SETUP_UNTIL && toCommissionCategory(row.category) === "setup" && !row.is_adjusted),
     );
 
-    const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits } =
+    const { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits, nonNusaSelectaNew } =
       this.computeActivity(rules, rows, churnRows, !sdr, period);
-    const rateActivityCount = rateActivityCountOverride ?? activityCount;
+    // A Permanent AM's target only counts with enough non-NusaSelecta sales (KOMISI.md 5.A). A Manager's
+    // personal sales are judged on the team instead. The real count stays what's shown and what the team adds up.
+    const nonNusaSelectaApplies = rules.minNonNusaSelecta > 0 && status === "Permanent" && target > 0 && !excludeAlat;
+    const heldBelowTarget = nonNusaSelectaApplies && activityCount >= target && missesNonNusaSelectaMinimum(rules, nonNusaSelectaNew);
+    const targetActivityCount = heldBelowTarget ? target - 1 : activityCount;
+    const rateActivityCount = rateActivityCountOverride ?? targetActivityCount;
 
     const total = emptyStats();
     const breakdown = emptyBreakdown();
@@ -907,11 +913,15 @@ export class CommissionService {
       byServiceGroup,
     );
 
-    const { achievementStatus, motivation } = calculateAchievement(rules, status, activityCount, manualTarget?.target);
+    const achievement = calculateAchievement(rules, status, targetActivityCount, manualTarget?.target);
+    const { achievementStatus } = achievement;
+    const motivation = heldBelowTarget
+      ? `Almost there! Sell at least ${rules.minNonNusaSelecta} non-NusaSelecta services to reach the target.`
+      : achievement.motivation;
     // A Manager's personal sales never earn the automatic Bonus Konsistensi.
     const consistencyBonusAuto = excludeAlat
       ? null
-      : await this.getAutoConsistencyBonus(employeeId, period, rules, activityCount, sdr);
+      : await this.getAutoConsistencyBonus(employeeId, period, rules, activityCount, missesNonNusaSelectaMinimum(rules, nonNusaSelectaNew), sdr);
 
     // What comes off the recurring invoices' subscription before the rate
     // (same split as the manager's recurring basis): the referral cut, then
@@ -959,10 +969,11 @@ export class CommissionService {
       target,
       manualTarget,
       nusaSelectaNewUnits,
+      nonNusaSelectaMin: nonNusaSelectaApplies ? { count: nonNusaSelectaNew, minimum: rules.minNonNusaSelecta } : null,
       achievementStatus,
       motivation,
-      bonusBulanan: calculateMonthlyBonus(rules, activityCount, target, status),
-      bonusKelebihanService: calculateExcessServiceBonus(rules, activityCount, target, status),
+      bonusBulanan: calculateMonthlyBonus(rules, targetActivityCount, target, status),
+      bonusKelebihanService: calculateExcessServiceBonus(rules, targetActivityCount, target, status),
       consistencyBonus: consistencyBonus + (consistencyBonusAuto?.amount ?? 0),
       consistencyBonusAuto,
       total,
@@ -984,17 +995,19 @@ export class CommissionService {
    * missed the minimum), and the month after their last manual
    * grant — a grant closes a block, so counting starts again after it
    * (calculateConsistencyBonus). The block also needs `minTestimonials`
-   * customer testimonials dated within it.
+   * customer testimonials dated within it, and a month short of its rules'
+   * non-NusaSelecta minimum fails the block like one below `minPerMonth`.
    */
   private async getAutoConsistencyBonus(
     employeeId: string,
     period: string,
     rules: CommissionRules,
     activityCount: number,
+    belowNonNusaSelecta: boolean,
     sdr: boolean,
   ): Promise<ConsistencyBonusAuto | null> {
     const { enabled, months, minPerMonth } = rules.consistency;
-    if (!enabled || activityCount < minPerMonth) return null;
+    if (!enabled || activityCount < minPerMonth || belowNonNusaSelecta) return null;
 
     const anchor = await this.consistencyAnchor(employeeId, period, rules, sdr);
     if (!anchor || !isConsistencyBlockEnd(period, anchor, months)) return null;
@@ -1004,9 +1017,9 @@ export class CommissionService {
     const block: ConsistencyMonth[] = [];
     for (const p of blockPeriods.slice(0, -1)) {
       const monthRules = await this.monthRules(p, sdr);
-      const count = await this.getActivityCount(employeeId, p, monthRules, sdr);
-      if (count < minPerMonth) return null;
-      block.push({ period: p, activityCount: count, rules: monthRules, manualGrant: false });
+      const month = await this.getMonthActivity(employeeId, p, monthRules, sdr);
+      if (month.activityCount < minPerMonth || month.belowNonNusaSelecta) return null;
+      block.push({ period: p, activityCount: month.activityCount, rules: monthRules, manualGrant: false });
     }
     block.push({ period, activityCount, rules, manualGrant: false });
     const testimonials = await this.testimonials.countByEmployeeId(
@@ -1039,7 +1052,8 @@ export class CommissionService {
     // starts their first block the month after, not three months later.
     if (anchor === firstPeriod && firstPeriod < period) {
       const firstRules = await this.monthRules(firstPeriod, sdr);
-      if ((await this.getActivityCount(employeeId, firstPeriod, firstRules, sdr)) < minPerMonth) {
+      const first = await this.getMonthActivity(employeeId, firstPeriod, firstRules, sdr);
+      if (first.activityCount < minPerMonth || first.belowNonNusaSelecta) {
         anchor = shiftPeriod(firstPeriod, 1);
       }
     }
@@ -1060,7 +1074,7 @@ export class CommissionService {
     const blockEnd = blockPeriods.at(-1)!;
 
     const counted = await Promise.all(
-      blockPeriods.map(async (p) => (p <= period ? this.getActivityCount(employeeId, p, await this.monthRules(p, sdr), sdr) : null)),
+      blockPeriods.map(async (p) => (p <= period ? this.getMonthActivity(employeeId, p, await this.monthRules(p, sdr), sdr) : null)),
     );
     const testimonials = await this.testimonials.countByEmployeeId(
       employeeId,
@@ -1071,14 +1085,19 @@ export class CommissionService {
       ? "manual"
       : elapsed < 0
         ? "notStarted"
-        : blockPeriods.some((p, i) => p < period && counted[i]! < minPerMonth)
+        : blockPeriods.some((p, i) => p < period && (counted[i]!.activityCount < minPerMonth || counted[i]!.belowNonNusaSelecta))
           ? "failed"
           : "running";
     return {
       blockStart,
       blockEnd,
-      months: blockPeriods.map((p, i) => ({ period: p, activityCount: counted[i] ?? null })),
+      months: blockPeriods.map((p, i) => ({
+        period: p,
+        activityCount: counted[i]?.activityCount ?? null,
+        belowNonNusaSelecta: counted[i]?.belowNonNusaSelecta ?? false,
+      })),
       minPerMonth,
+      minNonNusaSelecta: rules.minNonNusaSelecta,
       minTestimonials,
       tiers,
       testimonials,
@@ -1122,19 +1141,20 @@ export class CommissionService {
   async getConsistencyBonusAuto(employeeId: string, period: string): Promise<ConsistencyBonusAuto | null> {
     const { rules, isSdr: sdr } = await this.getRulesFor(employeeId, period);
     if (!rules.consistency.enabled) return null;
-    const activityCount = await this.getActivityCount(employeeId, period, rules, sdr);
-    return this.getAutoConsistencyBonus(employeeId, period, rules, activityCount, sdr);
+    const { activityCount, belowNonNusaSelecta } = await this.getMonthActivity(employeeId, period, rules, sdr);
+    return this.getAutoConsistencyBonus(employeeId, period, rules, activityCount, belowNonNusaSelecta, sdr);
   }
 
-  /** New Achievement alone for one salesperson in a period, the same count getSalesCommission reports. */
-  private async getActivityCount(employeeId: string, period: string, rules: CommissionRules, sdr: boolean): Promise<number> {
+  /** New Achievement alone for one salesperson in a period (the same count getSalesCommission reports), and whether the month is short of non-NusaSelecta sales. */
+  private async getMonthActivity(employeeId: string, period: string, rules: CommissionRules, sdr: boolean) {
     const { start, end } = getDateRangeForPeriod(period);
     const [rows, churnRows] = await Promise.all([
       this.snapshotRepository.findBySales(employeeId, period),
       this.churnService.getByEmployeeId(employeeId, toSqlDate(start), toSqlDate(end)),
     ]);
     const counted = rows.filter((row) => !isExcludedFromCommission(rules, row));
-    return this.computeActivity(rules, counted, churnRows, !sdr, period).activityCount;
+    const { activityCount, nonNusaSelectaNew } = this.computeActivity(rules, counted, churnRows, !sdr, period);
+    return { activityCount, belowNonNusaSelecta: missesNonNusaSelectaMinimum(rules, nonNusaSelectaNew) };
   }
 
   /**
@@ -1175,7 +1195,7 @@ export class CommissionService {
       for (const churn of churnRows) {
         if (!churn.is_approved) net--;
       }
-      return { activityCount: net, grossNusaSelectaActivity: 0, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra, promo } };
+      return { activityCount: net, grossNusaSelectaActivity: 0, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra, promo }, nonNusaSelectaNew: standard };
     }
 
     const grossNusaSelectaActivity = calculateNusaSelectaActivity(basicPrime, ultra, promo, period);
@@ -1195,7 +1215,7 @@ export class CommissionService {
     // achievement, matching the per-product team totals.
     const activityCount = netStandard + calculateNusaSelectaActivity(netBasicPrime, netUltra, promo, period);
 
-    return { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra, promo } };
+    return { activityCount, grossNusaSelectaActivity, customerHasSetup, nusaSelectaNewUnits: { basicPrime, ultra, promo }, nonNusaSelectaNew: standard };
   }
 
   /**

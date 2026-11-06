@@ -211,6 +211,11 @@ export function resolveTarget(
   return status && status !== "Permanent" ? rules.targets.probation : rules.targets.permanent;
 }
 
+/** Fewer non-NusaSelecta New sales (before churn) than the month's rules require (KOMISI.md 5.A). SDR rules never set a minimum. */
+export function missesNonNusaSelectaMinimum(rules: CommissionRules, nonNusaSelectaNew: number): boolean {
+  return nonNusaSelectaNew < rules.minNonNusaSelecta;
+}
+
 /** Late-payment deduction per month late, capped. Waived entirely for approved invoices. */
 /** Late-payment cut in percent for this many months late: latePerMonth each, capped at lateMax. */
 export function latePenaltyPercent(rules: CommissionRules, lateMonth: number | null | undefined): number {
@@ -524,8 +529,9 @@ export type ConsistencyProgress = {
   blockStart: string;
   blockEnd: string;
   /** Every month of the block, oldest first; activityCount is null for months still to come. */
-  months: { period: string; activityCount: number | null }[];
+  months: { period: string; activityCount: number | null; belowNonNusaSelecta: boolean }[];
   minPerMonth: number;
+  minNonNusaSelecta: number;
   minTestimonials: number;
   tiers: { at: number; amount: number }[];
   /** Customer testimonials dated within the block so far. */
