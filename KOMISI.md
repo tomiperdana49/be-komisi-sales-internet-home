@@ -121,6 +121,7 @@ _Total Pembayaran Komisi Sales (per item) = `Base Commission` x `Persentase Komi
 Pencapaian "New Achievement" didasarkan khusus pada produk tipe baru (New) setelah dikurangi **Churn**.
 
 - **Layanan standar** (selain NusaSelecta): 1 Pelanggan Baru = 1 New Achievement.
+- Produk yang dicentang **Tidak dijual lagi** di *Aturan Komisi > Produk & Rate* hanya diberi label "Pelanggan lama saja", perhitungannya tidak berubah. Jangan menghapus produk seperti ini dari daftar: churn pelanggan lamanya akan berhenti dihitung dan baris churn periode berjalan terhapus oleh job churn.
 - **Layanan NusaSelecta** (`NFSP030`/Basic 30, `NFSP100`/Prime 100, `NFSP200`/Ultra 200) — dihitung dengan aturan pengelompokan berikut (lihat `calculateNusaSelectaActivity` di `commission.helper.ts`):
   1. Setiap **3 unit** Basic 30 (`NFSP030`) dan/atau Prime 100 (`NFSP100`) = **1 Achievement** (berlaku kelipatan).
   2. Setiap **2 unit** Ultra 200 (`NFSP200`) = **1 Achievement** (berlaku kelipatan).

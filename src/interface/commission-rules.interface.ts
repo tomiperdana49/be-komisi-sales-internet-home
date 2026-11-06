@@ -29,6 +29,8 @@ const productSchema = z.object({
   churn: z.boolean().optional(),
   /** False when a New sale of it earns commission but adds nothing to New Achievement (CPE rental in the Jan–Jul 2026 sheets). */
   countsTowardTarget: z.boolean().optional(),
+  /** Label only: no longer sold, existing customers remain. Rates, recurring and churn work as usual. */
+  discontinued: z.boolean().optional(),
 }).transform((p) => ({
   ...p,
   churn: p.churn ?? p.serviceIds.some((id) => LEGACY_CHURN_SERVICE_IDS.includes(id)),

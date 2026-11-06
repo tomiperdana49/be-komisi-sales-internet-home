@@ -185,6 +185,29 @@ describe("minimum non-NusaSelecta New sales for the target (KOMISI.md 5.A)", () 
   });
 });
 
+describe("a product marked as no longer sold", () => {
+  const marked: CommissionRules = {
+    ...DEFAULT_COMMISSION_RULES,
+    products: DEFAULT_COMMISSION_RULES.products.map((p) => (p.serviceIds.includes("HOMEPREM300") ? { ...p, discontinued: true } : p)),
+  };
+
+  test("is only a label: the commission, the count and the churn stay the same", async () => {
+    const rows = [row({ ai_invoice: 1, customer_id: "NEW" }), row({ ai_invoice: 2, customer_id: "OLD", type: "recurring" })];
+    const churn = [{ service_id: "HOMEPREM300", price: 1_000_000, period: 12, is_approved: false }];
+    const plain = await engine(rows, "Permanent", null, "Account Manager", churn).getSalesCommission("S1", "202611");
+    const withMark = await engine(rows, "Permanent", null, "Account Manager", churn, marked).getSalesCommission("S1", "202611");
+    expect(withMark.activityCount).toBe(plain.activityCount);
+    expect(withMark.total.commission).toBe(plain.total.commission);
+    expect(withMark.breakdown.recurring.commission).toBe(plain.breakdown.recurring.commission);
+  });
+
+  test("the mark survives saving, and rule sets without it stay unmarked", () => {
+    const saved = commissionRulesSchema.parse(marked).products;
+    expect(saved.find((p) => p.serviceIds.includes("HOMEPREM300"))?.discontinued).toBe(true);
+    expect(saved.find((p) => p.serviceIds.includes("BFLITE"))?.discontinued).toBeUndefined();
+  });
+});
+
 describe("renewal price increases (is_renewal)", () => {
   test("are commissioned as recurring, not counted as New Achievement", async () => {
     const result = await engine([
