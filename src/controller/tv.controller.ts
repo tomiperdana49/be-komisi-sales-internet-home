@@ -36,6 +36,9 @@ type TvBaselineRow = Pick<TvSalesRow, "name" | "activityCount" | "newSubscriptio
 
 const BASELINE_DIR = "uploads/tv-baseline";
 
+/** Sent ready to show: the TV's own timezone setting can't be trusted. */
+const CLOCK = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" });
+
 /**
  * The TV lounge screen: last period's final Account Manager achievement next to the running
  * period's so far. No login (the TV can't sign in) — a shared key from TV_DISPLAY_KEY instead,
@@ -124,6 +127,8 @@ export class TvController {
     }
     const entry = this.cache;
     const data = await entry.data;
-    return c.json(successResponse("TV sales retrieved successfully", { ...data, generatedAt: new Date(entry.at).toISOString() }));
+    // Worked out on each request, not cached: the count changes at WIB midnight.
+    const daysLeft = Math.ceil((Date.parse(`${data.current.endDate}T23:59:59+07:00`) - Date.now()) / 86_400_000);
+    return c.json(successResponse("TV sales retrieved successfully", { ...data, daysLeft, generatedAt: new Date(entry.at).toISOString(), generatedTime: CLOCK.format(entry.at) }));
   }
 }
