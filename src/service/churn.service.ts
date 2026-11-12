@@ -199,7 +199,48 @@ export class ChurnService implements IChurnService {
     return this.churnRepository.findChurnDate(customerServiceId);
   }
 
-  updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void> {
-    return this.churnRepository.updateApproval(customerServiceId, isApproved, note, approvedBy);
+  updateApproval(
+    customerServiceId: string,
+    isApproved: boolean,
+    note: string | null,
+    approvedBy: string,
+    duePeriod: string | null = null,
+  ): Promise<void> {
+    return this.churnRepository.updateApproval(customerServiceId, isApproved, note, approvedBy, isApproved ? duePeriod : null);
+  }
+
+  async settleConditionalWaivers(period: string, periodStart: string): Promise<{ deducted: number; settled: number }> {
+    const rows = await this.churnRepository.findConditionalWaivers(period);
+    if (rows.length === 0) return { deducted: 0, settled: 0 };
+
+    const statuses = await this.churnRepository.findTerminationStatus(rows.map((r) => Number(r.customer_service_id)));
+    const byId = new Map(statuses.map((s) => [Number(s.customer_service_id), s]));
+
+    let deducted = 0;
+    let settled = 0;
+    for (const row of rows) {
+      const csId = Number(row.customer_service_id);
+      const status = byId.get(csId);
+      const paid = Boolean(status && Number(status.paid));
+      const outstanding = !status ? null : paid ? 0 : Math.max(0, Number(status.amount) - Number(status.received));
+
+      let isApproved = Boolean(Number(row.is_approved));
+      let deductDate = row.deduct_date;
+      if (row.waiver_due_period === period) {
+        if (paid) {
+          // Paid in time after all: waived again, back in its own period.
+          isApproved = true;
+          if (deductDate === periodStart) deductDate = null;
+          settled++;
+        } else {
+          // Due and still unpaid: deducted in this period.
+          isApproved = false;
+          deductDate = periodStart;
+          deducted++;
+        }
+      }
+      await this.churnRepository.setConditionalState(csId, isApproved, deductDate, outstanding);
+    }
+    return { deducted, settled };
   }
 }

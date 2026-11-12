@@ -195,6 +195,13 @@ Churn = false
 - Log call terbaru per layanan yang berlaku: `Churn = true` di log call berikutnya membatalkan pembebasan. Alasan pembebasan tercatat sebagai `Log Call #<id>: <baris Acc>` (`approval_log_call_id`).
 - Pembebasan manual admin tidak pernah diubah oleh job. Periode yang sudah ditutup tidak ditarik lagi, jadi log call baru tidak berpengaruh ke periode tersebut.
 
+**Pembebasan bersyarat (cicilan terminasi):** saat membebaskan churn di *Summary > Churn*, Super Admin bisa memilih *Syarat Pelunasan Terminasi* = periode batas (1–12 bulan sesudah periode churn, disimpan di `waiver_due_period`).
+
+- Sampai periode batas, churn tetap dibebaskan. Setiap tarikan `churn-crawl` mencatat sisa terminasi (`termination_outstanding`) = nilai invoice terminasi − Receipt "Terminasi" NIS yang menyebut kode invoice yang sama (mis. *Receipt DP Terminasi ... #MD1/26/10/SV/3926/SH*).
+- Invoice terminasi dianggap **lunas** bila NIS sudah mem-batch-nya (sama dengan syarat *sudah membayar Terminasi* di atas; NIS baru mem-batch setelah dibayar penuh).
+- Saat `churn-crawl` menarik periode batas dan terminasi **belum lunas**: pembebasan gugur dan churn dipotong di periode batas (`is_approved = 0`, `deduct_date` = awal periode batas), tanpa perlu `churn:carry`. Bila kemudian lunas sebelum periode batas ditutup, churn otomatis dibebaskan lagi dan kembali ke periodenya sendiri.
+- Contoh: 0200463731 (`rizaljlv`) berhenti 28 Okt 2026 (periode Nov), bayar DP terminasi 50% 6 Nov 2026, batas pelunasan periode Des 2026.
+
 **Perhitungan nominal churn per record:**
 
 - `price = (Subscription − Discount) / periode(bulan)`, minimal periode 1.

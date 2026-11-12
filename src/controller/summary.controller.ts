@@ -4,7 +4,7 @@ import { inAdminBranch } from "../helper/access.helper";
 import { successResponse } from "../helper/api-response.helper";
 import { isSdr } from "../helper/commission.helper";
 import { resolvePeriodFromQuery } from "../helper/period-query.helper";
-import { currentCommissionPeriod, getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
+import { currentCommissionPeriod, getDateRangeForPeriod, shiftPeriod, toSqlDate } from "../helper/period.helper";
 import type { CommissionService } from "../service/commission.service";
 import type { IChurnService } from "../interface/churn.interface";
 import type { IEmployeeService } from "../interface/employee.interface";
@@ -192,7 +192,15 @@ export class SummaryController {
     if (isApproved && !note) {
       throw new BadRequestException("Alasan pembebasan churn wajib diisi");
     }
-    await this.churnService.updateApproval(customerServiceId, isApproved, isApproved ? note : null, c.get("user").sub);
+    // Conditional waiver: the termination must be paid by this later period, else churn-crawl deducts it there.
+    const duePeriod = isApproved && body.duePeriod ? String(body.duePeriod) : null;
+    if (duePeriod) {
+      const churnPeriod = currentCommissionPeriod(new Date(`${churnDate}T00:00:00`));
+      if (!/^\d{6}$/.test(duePeriod) || duePeriod <= churnPeriod || duePeriod > shiftPeriod(churnPeriod, 12)) {
+        throw new BadRequestException("Batas pelunasan harus periode sesudah periode churn (maksimal 12 bulan)");
+      }
+    }
+    await this.churnService.updateApproval(customerServiceId, isApproved, isApproved ? note : null, c.get("user").sub, duePeriod);
     return c.json(successResponse("Churn approval updated successfully"));
   }
 

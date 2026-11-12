@@ -107,8 +107,12 @@ export type ChurnRow = {
   approved_at: string | null;
   /** NIS log call that waived this churn (see churn-waiver.helper); null when waived by hand or not waived. */
   approval_log_call_id: number | null;
-  /** Set on a churn carried over by hand (churn:carry): it counts in the period of this date, not of unregistration_date. */
+  /** Set on a churn carried over by hand (churn:carry), or deducted after a conditional waiver lapsed: it counts in the period of this date, not of unregistration_date. */
   deduct_date: string | null;
+  /** Conditional waiver: the termination invoice must be paid by this period (YYYYMM), else the churn is deducted in it. */
+  waiver_due_period: string | null;
+  /** Termination fee still unpaid at the last check of a conditional waiver; null when unknown. */
+  termination_outstanding: number | string | null;
 };
 
 export type ChurnSummaryRow = ChurnRow & {
@@ -136,6 +140,23 @@ export type ChurnApprovalState = {
   approval_log_call_id: number | null;
 };
 
+/** A churn waived on condition that its termination invoice is paid by `waiver_due_period`. */
+export type ConditionalWaiverRow = {
+  customer_service_id: number;
+  waiver_due_period: string;
+  is_approved: boolean | number;
+  /** YYYY-MM-DD or null. */
+  deduct_date: string | null;
+};
+
+/** A service's unreversed termination invoices in NIS: their total, receipts naming them, and whether NIS settled (batched) them. */
+export type TerminationStatusRow = {
+  customer_service_id: number;
+  amount: number | string;
+  received: number | string;
+  paid: number;
+};
+
 export type LogCallWaiver = {
   logCallId: number;
   empId: string;
@@ -159,7 +180,12 @@ export interface IChurnRepository {
     endDate: string,
   ): Promise<ChurnRow[]>;
   findSummary(startDate: string, endDate: string, search?: string): Promise<ChurnSummaryRow[]>;
-  updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void>;
+  /** duePeriod: a conditional waiver (termination paid by that period); null for an unconditional one. */
+  updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string, duePeriod: string | null): Promise<void>;
+  /** Conditional waivers due in `fromPeriod` or later. */
+  findConditionalWaivers(fromPeriod: string): Promise<ConditionalWaiverRow[]>;
+  findTerminationStatus(customerServiceIds: number[]): Promise<TerminationStatusRow[]>;
+  setConditionalState(customerServiceId: number, isApproved: boolean, deductDate: string | null, outstanding: number | null): Promise<void>;
   /** The date a churn counts on (deduct_date, else unregistration_date) as YYYY-MM-DD; null if not on the list. */
   findChurnDate(customerServiceId: string): Promise<string | null>;
   findWaiverLogCalls(approverIds: string[], since: string): Promise<WaiverLogCallRow[]>;
@@ -194,6 +220,14 @@ export interface IChurnService {
   carryFromBilling(accounts: string[], deductDate: string): Promise<RawChurnRow[]>;
   /** The date a churn counts on (its period), YYYY-MM-DD; null if not on the list. */
   getChurnDate(customerServiceId: string): Promise<string | null>;
-  /** Waives (isApproved) a churn with the admin's reason, or reinstates it and clears the reason. */
-  updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void>;
+  /**
+   * Waives (isApproved) a churn with the admin's reason, or reinstates it and clears the reason.
+   * duePeriod makes the waiver conditional: the termination invoice must be paid by that period.
+   */
+  updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string, duePeriod?: string | null): Promise<void>;
+  /**
+   * Conditional waivers due in `period` (starting `periodStart`): still unpaid termination → the churn is
+   * deducted in that period; paid → waived again in its own period. Later-due ones only get their outstanding refreshed.
+   */
+  settleConditionalWaivers(period: string, periodStart: string): Promise<{ deducted: number; settled: number }>;
 }

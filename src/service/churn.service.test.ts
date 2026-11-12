@@ -135,3 +135,55 @@ describe("churnExclusion", () => {
     expect(exclusion({ close_reason: "Poor Quality Product" })).toBe("close_reason");
   });
 });
+
+describe("ChurnService conditional waivers", () => {
+  function settleSetup(
+    rows: { id: number; due: string; approved: boolean; deduct: string | null }[],
+    statuses: { id: number; amount: number; received: number; paid: boolean }[],
+  ) {
+    const writes: string[] = [];
+    const repo = {
+      findConditionalWaivers: async () =>
+        rows.map((r) => ({ customer_service_id: r.id, waiver_due_period: r.due, is_approved: r.approved ? 1 : 0, deduct_date: r.deduct })),
+      findTerminationStatus: async () =>
+        statuses.map((s) => ({ customer_service_id: s.id, amount: String(s.amount), received: String(s.received), paid: s.paid ? 1 : 0 })),
+      setConditionalState: async (id: number, approved: boolean, deduct: string | null, outstanding: number | null) => {
+        writes.push(`${id} ${approved ? "waived" : "cut"} ${deduct ?? "-"} ${outstanding ?? "?"}`);
+      },
+    } as unknown as IChurnRepository;
+    return { service: new ChurnService(repo), writes };
+  }
+
+  test("due this period and unpaid: deducted in this period", async () => {
+    const { service, writes } = settleSetup(
+      [{ id: 79696, due: "202612", approved: true, deduct: null }],
+      [{ id: 79696, amount: 762570, received: 381285, paid: false }],
+    );
+    expect(await service.settleConditionalWaivers("202612", "2026-11-26")).toEqual({ deducted: 1, settled: 0 });
+    expect(writes).toEqual(["79696 cut 2026-11-26 381285"]);
+  });
+
+  test("paid later within the due period: waived again in its own period", async () => {
+    const { service, writes } = settleSetup(
+      [{ id: 79696, due: "202612", approved: false, deduct: "2026-11-26" }],
+      [{ id: 79696, amount: 762570, received: 762570, paid: true }],
+    );
+    expect(await service.settleConditionalWaivers("202612", "2026-11-26")).toEqual({ deducted: 0, settled: 1 });
+    expect(writes).toEqual(["79696 waived - 0"]);
+  });
+
+  test("due later: stays waived, only the outstanding is refreshed", async () => {
+    const { service, writes } = settleSetup(
+      [{ id: 79696, due: "202612", approved: true, deduct: null }],
+      [{ id: 79696, amount: 762570, received: 381285, paid: false }],
+    );
+    expect(await service.settleConditionalWaivers("202611", "2026-10-26")).toEqual({ deducted: 0, settled: 0 });
+    expect(writes).toEqual(["79696 waived - 381285"]);
+  });
+
+  test("no termination invoice in NIS: unpaid, outstanding unknown", async () => {
+    const { service, writes } = settleSetup([{ id: 1, due: "202612", approved: true, deduct: null }], []);
+    await service.settleConditionalWaivers("202612", "2026-11-26");
+    expect(writes).toEqual(["1 cut 2026-11-26 ?"]);
+  });
+});

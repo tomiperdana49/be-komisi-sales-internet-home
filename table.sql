@@ -132,6 +132,11 @@ CREATE TABLE churn (
     approval_log_call_id BIGINT NULL,
     -- Churn missed in its own period and deducted by hand in the period of this date (churn:carry).
     deduct_date DATE NULL,
+    -- Conditional waiver (e.g. termination fee paid in installments): the period (YYYYMM) by which the
+    -- termination invoice must be paid. churn-crawl deducts it in that period while still unpaid.
+    waiver_due_period CHAR(6) NULL,
+    -- Termination fee still unpaid at the last churn-crawl check of a conditional waiver.
+    termination_outstanding DECIMAL(18,2) NULL,
     INDEX idx_churn_unregistration_date (unregistration_date),
     INDEX idx_churn_sales_id (sales_id)
 );

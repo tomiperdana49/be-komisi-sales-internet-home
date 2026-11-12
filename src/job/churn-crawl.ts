@@ -21,8 +21,12 @@ async function runPeriod(period: string) {
     rules.churnCloseReasons,
   );
 
+  // Conditional waivers (termination paid in installments) due this period.
+  const { deducted, settled } = await container.churnService.settleConditionalWaivers(period, startDate);
+
   console.log(
-    `Selesai. Disinkronkan: ${synced}, dihapus (orphan): ${deleted}, dibebaskan via Log Call: ${waived}, dibatalkan: ${reinstated}.`,
+    `Selesai. Disinkronkan: ${synced}, dihapus (orphan): ${deleted}, dibebaskan via Log Call: ${waived}, dibatalkan: ${reinstated}, ` +
+      `bersyarat jatuh tempo: ${deducted} dipotong, ${settled} lunas.`,
   );
 }
 

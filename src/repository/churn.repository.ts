@@ -5,6 +5,8 @@ import type {
   ChurnSummaryRow,
   ChurnApprovalState,
   ChurnUpsertInput,
+  ConditionalWaiverRow,
+  TerminationStatusRow,
   IChurnRepository,
   LogCallWaiver,
   RawChurnRow,
@@ -131,6 +133,28 @@ const SQL_STOPPED_IN_RANGE = `SELECT ${SQL_CHURN_COLUMNS},
 // services as they are, without the eligibility rules above.
 const SQL_CHURN_BY_ACCOUNT = `${SQL_CHURN_SELECT}
   WHERE cs.CustAccName IN (?) AND cs.CustStatus = 'NA'
+`;
+
+// Termination invoices per service for conditional waivers. NIS batches a
+// termination invoice once it's fully paid (installments stay as separate
+// "Receipt ... Terminasi ... #<code>" rows until then), so `paid` follows
+// SQL_TERMINATION_PAID; `received` sums those receipts for the outstanding.
+const SQL_TERMINATION_STATUS = `
+  SELECT cit.CustServId AS customer_service_id,
+         SUM(nci.Credit) AS amount,
+         MAX(EXISTS (SELECT 1 FROM NewCustomerInvoiceBatch b WHERE b.AI = nci.AI)) AS paid,
+         SUM((
+           SELECT IFNULL(SUM(r.Debet), 0)
+           FROM NewCustomerInvoice r
+           WHERE r.CustId = nci.CustId
+             AND r.Description LIKE 'Receipt%Terminasi%'
+             AND LOCATE(SUBSTRING_INDEX(SUBSTRING_INDEX(nci.Description, '#', -1), ' ', 1), r.Description) > 0
+         )) AS received
+  FROM CustomerInvoiceTemp cit
+  JOIN NewCustomerInvoice nci ON nci.Id = cit.InvoiceNum AND nci.No = cit.Urut AND nci.Type = 'internet'
+  WHERE cit.CustServId IN (?)
+    AND cit.InvTermination = 1 AND cit.Reverse = 0 AND cit.RInvoiceNum = 0
+  GROUP BY cit.CustServId
 `;
 
 // A churn counts in the period holding deduct_date when set (a carried-over
@@ -284,16 +308,47 @@ export class ChurnRepository implements IChurnRepository {
     return this.appDb.query<ChurnSummaryRow[]>(query, params);
   }
 
-  async updateApproval(customerServiceId: string, isApproved: boolean, note: string | null, approvedBy: string): Promise<void> {
+  async updateApproval(
+    customerServiceId: string,
+    isApproved: boolean,
+    note: string | null,
+    approvedBy: string,
+    duePeriod: string | null,
+  ): Promise<void> {
     await this.appDb.query(
       isApproved
         ? `UPDATE churn SET is_approved = 1, approval_note = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
-             approval_log_call_id = NULL
+             approval_log_call_id = NULL, waiver_due_period = ?, termination_outstanding = NULL
            WHERE customer_service_id = ?`
         : `UPDATE churn SET is_approved = 0, approval_note = NULL, approved_by = NULL, approved_at = NULL,
-             approval_log_call_id = NULL
+             approval_log_call_id = NULL, waiver_due_period = NULL, termination_outstanding = NULL
            WHERE customer_service_id = ?`,
-      isApproved ? [note, approvedBy, customerServiceId] : [customerServiceId],
+      isApproved ? [note, approvedBy, duePeriod, customerServiceId] : [customerServiceId],
+    );
+  }
+
+  findConditionalWaivers(fromPeriod: string): Promise<ConditionalWaiverRow[]> {
+    return this.appDb.query<ConditionalWaiverRow[]>(
+      `SELECT customer_service_id, waiver_due_period, is_approved, DATE_FORMAT(deduct_date, '%Y-%m-%d') AS deduct_date
+       FROM churn WHERE waiver_due_period >= ?`,
+      [fromPeriod],
+    );
+  }
+
+  findTerminationStatus(customerServiceIds: number[]): Promise<TerminationStatusRow[]> {
+    if (customerServiceIds.length === 0) return Promise.resolve([]);
+    return this.billingDb.query<TerminationStatusRow[]>(SQL_TERMINATION_STATUS, [customerServiceIds]);
+  }
+
+  async setConditionalState(
+    customerServiceId: number,
+    isApproved: boolean,
+    deductDate: string | null,
+    outstanding: number | null,
+  ): Promise<void> {
+    await this.appDb.query(
+      `UPDATE churn SET is_approved = ?, deduct_date = ?, termination_outstanding = ? WHERE customer_service_id = ?`,
+      [isApproved ? 1 : 0, deductDate, outstanding, customerServiceId],
     );
   }
 
