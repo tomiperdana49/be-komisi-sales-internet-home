@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { activationCommissionDate, isPaidInPeriod } from "./new-customer.service";
+import { activationCommissionDate, afterClosingDate, isPaidInPeriod } from "./new-customer.service";
 import { getDateRangeForPeriod } from "../helper/period.helper";
 
 describe("isPaidInPeriod", () => {
@@ -49,5 +49,22 @@ describe("activationCommissionDate", () => {
 
   test("no payment yet stays unpaid", () => {
     expect(countsIn(activationCommissionDate(null, "2026-10-03", false), oct)).toBe(false);
+  });
+});
+
+describe("afterClosingDate", () => {
+  const closed = new Map([["202610", new Date("2026-10-28T11:31:51")]]);
+
+  test("invoice created after its period closed counts from its creation", () => {
+    expect(afterClosingDate("2026-10-21", new Date("2026-11-03T09:44:38"), closed)).toEqual(new Date("2026-11-03T09:44:38"));
+  });
+
+  test("invoice created before the closing keeps its own date", () => {
+    expect(afterClosingDate("2026-10-21", new Date("2026-10-23T10:00:00"), closed)).toBe("2026-10-21");
+  });
+
+  test("open period, or no commission date: unchanged", () => {
+    expect(afterClosingDate("2026-11-05", new Date("2026-11-06T10:00:00"), closed)).toBe("2026-11-05");
+    expect(afterClosingDate(null, new Date("2026-11-06T10:00:00"), closed)).toBeNull();
   });
 });

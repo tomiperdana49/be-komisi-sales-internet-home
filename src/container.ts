@@ -93,6 +93,7 @@ class Container {
     this.employeeService,
     this.serviceCatalogService,
     this.snapshotService,
+    () => this.periodClosingService.list(),
   );
   readonly oldCustomerService = new OldCustomerService(
     this.oldCustomerRepository,

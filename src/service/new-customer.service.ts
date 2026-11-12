@@ -1,5 +1,5 @@
 import type { GoogleSpreadsheetRow } from "google-spreadsheet";
-import { getDateRangeForPeriod } from "../helper/period.helper";
+import { commissionPeriodOf, getDateRangeForPeriod } from "../helper/period.helper";
 import { parseNumber } from "../helper/parse.helper";
 import type { IEmployeeService } from "../interface/employee.interface";
 import type {
@@ -145,6 +145,27 @@ export function activationCommissionDate(
   return activation && activation > payment ? activationDateRaw : transactionDateRaw;
 }
 
+/**
+ * An invoice NIS only created after the period its payment (or activation)
+ * counts in was closed — e.g. an overpayment sorted out by finance later —
+ * never made it into that period's snapshot. It counts from its creation
+ * instead, i.e. in the period the invoice appeared. Example: 0200668617
+ * paid and activated 21 Oct 2026, invoice created 3 Nov after October closed
+ * (28 Oct) → November.
+ */
+export function afterClosingDate(
+  commissionDate: unknown,
+  invoiceInsertDate: unknown,
+  closedAtByPeriod: Map<string, Date>,
+): unknown {
+  const period = commissionPeriodOf(commissionDate);
+  const closedAt = period ? closedAtByPeriod.get(period) : undefined;
+  if (!closedAt || invoiceInsertDate === null || invoiceInsertDate === undefined) return commissionDate;
+  const inserted = new Date(invoiceInsertDate as any);
+  if (Number.isNaN(inserted.getTime())) return commissionDate;
+  return inserted > closedAt ? invoiceInsertDate : commissionDate;
+}
+
 export class NewCustomerService implements INewCustomerService {
   // `type` values this domain writes — used to scope replaceForPeriod so a
   // re-run never touches the old-customer (recurring) rows for the same period.
@@ -155,6 +176,8 @@ export class NewCustomerService implements INewCustomerService {
     private readonly employeeService: IEmployeeService,
     private readonly serviceCatalogService: IServiceCatalogService,
     private readonly snapshotService: ISnapshotService,
+    /** Closed periods with when they were closed (afterClosingDate). */
+    private readonly listClosings: () => Promise<{ period: string; closed_at: unknown }[]> = async () => [],
   ) {}
 
   /** Pulls invoice/account/service rows from the billing DB and shapes them into RawSnapshotInput. */
@@ -175,6 +198,9 @@ export class NewCustomerService implements INewCustomerService {
     const serviceRows = await this.newCustomerRepository.findServices([
       startStr, endStr, startStr, endStr,
     ]);
+    const closedAtByPeriod = new Map(
+      (await this.listClosings()).map((c) => [c.period, new Date(c.closed_at as any)] as const),
+    );
 
     const accountByCsid = new Map<number, NewCustomerAccountRow>();
     const accountByCid = new Map<string, NewCustomerAccountRow>();
@@ -211,9 +237,13 @@ export class NewCustomerService implements INewCustomerService {
       const isInternetInvoice = inv.SG !== "Alat" && inv.SG !== "ST";
       const notYetActivated = !!account && !account["Aktivasi Tercatat"] && account.CustStatus === "BL";
       const activationDate = notYetActivated ? null : (account?.["Awal Aktif"] ?? null);
-      const commissionDate = isInternetInvoice
-        ? activationCommissionDate(inv["Tanggal Transaksi Pembayaran"], activationDate, notYetActivated)
-        : inv["Tanggal Transaksi Pembayaran"];
+      const commissionDate = afterClosingDate(
+        isInternetInvoice
+          ? activationCommissionDate(inv["Tanggal Transaksi Pembayaran"], activationDate, notYetActivated)
+          : inv["Tanggal Transaksi Pembayaran"],
+        inv["Tanggal Input Invoice"],
+        closedAtByPeriod,
+      );
       if (isPaidInPeriod(commissionDate, start, end)) {
         isPaid = 1;
         inputPaymentDate = inv["Tanggal Input Pembayaran"];

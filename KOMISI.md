@@ -133,6 +133,7 @@ Pencapaian "New Achievement" didasarkan khusus pada produk tipe baru (New) setel
 
 - **Deduction (Churn)**:
   - Setiap pelanggan yang berhenti berlangganan (Churn) dan tidak disetujui pembatalannya akan **mengurangi** unit pada bucket yang sesuai (Basic/Prime, Ultra, atau standar) **sebelum** pengelompokan dihitung.
+- **Invoice yang baru dibuat setelah periodenya ditutup**: bila invoice baru dibuat di NIS setelah periode tanggal bayar/aktivasinya sudah ditutup (mis. kelebihan bayar yang baru dirapikan finance), invoice itu masuk ke **periode saat invoice dibuat** (`afterClosingDate` di `new-customer.service.ts`), agar tidak hilang dari semua periode. Contoh: 0200668617 (`deski64`) bayar & aktif 21 Okt 2026, invoice baru dibuat 3 Nov 2026 setelah Oktober ditutup 28 Okt → New di November 2026.
 - **New Achievement (Net)**: dihitung dari unit **net** (setelah churn). Hasil inilah yang menentukan Achievement Goal dan Rate Recurring.
 
 > **Catatan implementasi:** Angka **NET** (setelah churn) dipakai untuk `activityCount` (penentu target), sedangkan angka **GROSS** dipakai untuk kolom `count` tampilan tabel — keduanya memakai rumus pengelompokan yang sama. Untuk NusaSelecta, `count` di tabel = jumlah **Achievement**, bukan jumlah unit.

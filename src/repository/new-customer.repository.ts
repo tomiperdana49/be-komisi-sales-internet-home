@@ -32,6 +32,7 @@ const SQL_INVOICE_RECEIPT = `
     nciic.line_rental \`Line Rental\`,
     nci.AI \`AI Invoice\`,
     MAX(nci2.AI) \`AI Receipt\`,
+    MAX(nci.InsertDate) \`Tanggal Input Invoice\`,
     IFNULL(rs.Name, "") \`Reseller Name\`
 FROM
     CustomerInvoiceTemp cit
@@ -105,6 +106,7 @@ UNION ALL
     0 \`Line Rental\`,
     nci.AI \`AI Invoice\`,
     MAX(nci2.AI) \`AI Receipt\`,
+    MAX(nci.InsertDate) \`Tanggal Input Invoice\`,
     IFNULL(rs.Name, "") \`Reseller Name\`
 FROM
     (
@@ -165,6 +167,7 @@ UNION ALL
     0 \`Line Rental\`,
     nci.AI \`AI Invoice\`,
     MAX(nci2.AI) \`AI Receipt\`,
+    MAX(nci.InsertDate) \`Tanggal Input Invoice\`,
     IFNULL(rs.Name, "") \`Reseller Name\`
 FROM
     (

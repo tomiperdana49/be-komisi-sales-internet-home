@@ -22,6 +22,8 @@ export type NewCustomerInvoiceRow = {
   "Line Rental": unknown;
   "AI Invoice": number;
   "AI Receipt": number | null;
+  /** When NIS created the invoice (datetime): one created after its period closed counts later (afterClosingDate). */
+  "Tanggal Input Invoice": unknown;
 };
 
 export type NewCustomerAccountRow = {
