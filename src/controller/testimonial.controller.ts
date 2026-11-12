@@ -14,8 +14,9 @@ import type {
 } from "../interface/testimonial.interface";
 
 /**
- * Customer testimonials. An Account Manager (or anyone above them) enters and
- * lists them on the dashboard; admins list every one dated in a period.
+ * Customer testimonials. Their Sales Manager (or anyone above them) checks a
+ * testimonial and enters it on the Account Manager's dashboard; the Account
+ * Manager only sees their own. Admins list every one dated in a period.
  * Once the period a testimonial is dated in is closed, only a Super Admin can
  * add, change or delete it.
  */
@@ -43,6 +44,7 @@ export class TestimonialController {
 
   async create(c: Context) {
     const employeeId = c.req.param("id")!;
+    await this.assertReviewer(c, employeeId);
     const employee = await this.employeeService.findByEmployeeId(employeeId);
     if (!employee) throw new NotFoundException("Employee not found");
 
@@ -71,18 +73,27 @@ export class TestimonialController {
     return c.json(successResponse("Testimonial deleted successfully"));
   }
 
-  /** The `:testimonialId` row of the `:id` Account Manager; only whoever entered it, or a Super Admin, may change it. */
+  /** The `:testimonialId` row of the `:id` Account Manager; only someone above them (their Sales Manager) or a Super Admin may change it. */
   private async findChangeable(c: Context): Promise<TestimonialRow> {
+    await this.assertReviewer(c, c.req.param("id")!);
     const id = Number(c.req.param("testimonialId"));
     if (!Number.isInteger(id) || id <= 0) throw new BadRequestException("Invalid id");
 
     const row = await this.testimonialService.findById(id);
     if (!row || row.employee_id !== c.req.param("id")) throw new NotFoundException("Testimonial not found");
 
-    if (row.created_by !== c.get("user").sub && !(await this.isSuperAdmin(c))) {
-      throw new ForbiddenException("Only the creator or a Super Admin can change this testimonial");
-    }
     return row;
+  }
+
+  /**
+   * Testimonials are entered by whoever reviewed them: someone above the
+   * employee (hierarchyMiddleware already checked the caller sees them), never
+   * the employee for themselves — unless a Super Admin.
+   */
+  private async assertReviewer(c: Context, employeeId: string): Promise<void> {
+    if (c.get("user").sub === employeeId && !(await this.isSuperAdmin(c))) {
+      throw new ForbiddenException("Testimoni diinput oleh Sales Manager setelah direview.");
+    }
   }
 
   private async isSuperAdmin(c: Context): Promise<boolean> {

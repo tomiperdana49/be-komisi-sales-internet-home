@@ -36,7 +36,7 @@ router.get("/sales/:id/churn", authMiddleware, hierarchyMiddleware, (c) =>
   container.commissionController.salesChurn(c),
 );
 
-// Customer testimonials an Account Manager collected; anyone who can see them may add one.
+// Customer testimonials an Account Manager collected; their Sales Manager (anyone above them) reviews and enters them.
 router.get("/sales/:id/testimonial", authMiddleware, hierarchyMiddleware, (c) =>
   container.testimonialController.listBySales(c),
 );
