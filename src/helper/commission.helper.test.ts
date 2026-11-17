@@ -455,3 +455,11 @@ describe("event commission (KOMISI.md 2.E)", () => {
     expect(sdrRulesSchema.parse({ ...DEFAULT_SDR_RULES, rates: oldSdrRates }).rates.event).toBe(15);
   });
 });
+
+describe("grossCommission (Simulasi Komisi, display only)", () => {
+  test("is the commission before the 70% missed-target penalty", () => {
+    const input = newSale({ serviceId: "HOMESTD100", months: 1, status: "Permanent", activityCount: 9, target: 12 });
+    const r = calculateCommission(rules, 1_000_000, 0, true, input);
+    expect(r.grossCommission).toBeCloseTo(r.commission / 0.3);
+  });
+});

@@ -141,6 +141,8 @@ export type CommissionLineItem = {
   baseCommission: number;
   commissionPercentage: number;
   commission: number;
+  /** Commission before the missed-target performance penalty — display only (Simulasi Komisi). */
+  grossCommission: number;
 };
 
 export type SalesCommissionResult = {

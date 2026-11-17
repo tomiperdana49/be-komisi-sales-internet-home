@@ -734,6 +734,7 @@ export class CommissionService {
       baseCommission,
       commissionPercentage: ratePercentage,
       commission: baseCommission * (ratePercentage / 100),
+      grossCommission: baseCommission * (ratePercentage / 100),
     };
   }
 
@@ -825,7 +826,7 @@ export class CommissionService {
           rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
         ).net;
 
-      const { commission, commissionPercentage, baseCommission } = calculateCommission(
+      const { commission, commissionPercentage, baseCommission, grossCommission } = calculateCommission(
         rules,
         net,
         0,
@@ -902,6 +903,7 @@ export class CommissionService {
         baseCommission,
         commissionPercentage,
         commission,
+        grossCommission,
       });
     }
 

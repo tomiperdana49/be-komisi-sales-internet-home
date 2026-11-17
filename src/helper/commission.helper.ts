@@ -366,6 +366,8 @@ export type CommissionResult = {
   baseCommission: number;
   commissionPercentage: number;
   commission: number;
+  /** Commission before the missed-target performance penalty — display only (the AM page's Simulasi Komisi). */
+  grossCommission: number;
 };
 
 export function calculateCommission(
@@ -392,6 +394,7 @@ export function calculateCommission(
     baseCommission,
     commissionPercentage,
     commission: baseCommission * (commissionPercentage / 100),
+    grossCommission: Math.max(0, afterLate) * (commissionPercentage / 100),
   };
 }
 
