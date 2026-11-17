@@ -17,6 +17,10 @@ router.post("/auth/logout", (c) => container.authController.logout(c));
 router.get("/tv/sales", (c) => container.tvController.sales(c));
 router.get("/tv/monitoring", (c) => container.tvController.monitoring(c));
 
+// Simulasi Komisi (display only): everyone logged in reads it; only the listed account changes it.
+router.get("/commission-simulation", authMiddleware, (c) => container.commissionSimulationController.get(c));
+router.put("/commission-simulation", authMiddleware, (c) => container.commissionSimulationController.save(c));
+
 router.get("/employee/:id", authMiddleware, (c) => container.employeeController.getByEmployeeId(c));
 router.get("/employee/:id/hierarchy", authMiddleware, (c) => container.employeeController.getHierarchy(c));
 

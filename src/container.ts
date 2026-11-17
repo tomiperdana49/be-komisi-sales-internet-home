@@ -1,4 +1,6 @@
 import { AppDatabase } from "./lib/app-database";
+import { CommissionSimulationService } from "./service/commission-simulation.service";
+import { CommissionSimulationController } from "./controller/commission-simulation.controller";
 import { BillingDatabase } from "./lib/billing-database";
 import { GoogleSheetsClient } from "./lib/google-sheets-client";
 import { NusaworkClient } from "./lib/nusawork-client";
@@ -129,6 +131,7 @@ class Container {
 
   // Controllers
   readonly healthController = new HealthController();
+  readonly commissionSimulationController = new CommissionSimulationController(new CommissionSimulationService());
   readonly tvController = new TvController(this.commissionService, this.periodClosingService, new PhotoCutoutService());
   readonly employeeController = new EmployeeController(this.employeeService);
   readonly authController = new AuthController(this.authService, this.employeeService);
