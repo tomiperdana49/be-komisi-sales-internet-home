@@ -210,6 +210,9 @@ export type ManagerTeamMember = {
   recurringCommission: number;
   otherSubscription: number;
   otherCommission: number;
+  /** Event / Bandwidth on Demand invoices (KOMISI.md 2.E). */
+  eventSubscription: number;
+  eventCommission: number;
   bonusBulanan: number;
   bonusKelebihanService: number;
   consistencyBonus: number;
@@ -349,6 +352,9 @@ export type SalesSummaryItem = {
   recurringCommission: number;
   otherSubscription: number;
   otherCommission: number;
+  /** Event / Bandwidth on Demand invoices (KOMISI.md 2.E). */
+  eventSubscription: number;
+  eventCommission: number;
   bonusBulanan: number;
   bonusKelebihanService: number;
   consistencyBonus: number;

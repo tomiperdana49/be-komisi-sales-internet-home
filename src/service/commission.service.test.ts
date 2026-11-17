@@ -358,3 +358,25 @@ describe("license resells earn no recurring commission from August 2026", () => 
     expect(result.breakdown.recurring.commission).toBe(5_000);
   });
 });
+
+describe("event commission (KOMISI.md 2.E)", () => {
+  const event = row({
+    ai_invoice: 99, type: "event", category: "FO", service_id: "DFOP100M", subscription: 8_000_000, month: 1,
+    // Ignored for events even if a row carries them.
+    late_month: 3, referral_fee: 500_000,
+  });
+
+  test("15% of the whole subscription, its own bucket, no New Achievement credit", async () => {
+    const r = await engine([event]).getSalesCommission("S1", "202611");
+    expect(r.breakdown.event).toEqual({ count: 1, commission: 1_200_000, subscription: 8_000_000, mrc: 8_000_000 });
+    expect(r.total.commission).toBe(1_200_000);
+    expect(r.activityCount).toBe(0);
+    expect(r.items[0]!.type).toBe("event");
+    expect(r.recurringLatePenalty).toBe(0);
+  });
+
+  test("the same 15% for a Permanent AM who missed target", async () => {
+    const r = await engine([event, row({ ai_invoice: 1 })], "Permanent").getSalesCommission("S1", "202611");
+    expect(r.breakdown.event.commission).toBe(1_200_000);
+  });
+});

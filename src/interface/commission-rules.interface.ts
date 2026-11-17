@@ -88,6 +88,8 @@ export const commissionRulesSchema = z
       recurringMissedTarget: percent,
       digitalBusinessInternal: percent,
       digitalBusinessResell: percent,
+      /** Event / Bandwidth on Demand invoices: % of the whole billed subscription (KOMISI.md 2.E). */
+      event: percent.default(15),
     }),
     penalties: z.object({
       latePerMonth: percent,
@@ -208,6 +210,8 @@ export const sdrRulesSchema = z
       recurringMissedTarget: percent,
       digitalBusinessInternal: percent,
       digitalBusinessResell: percent,
+      /** Event / Bandwidth on Demand invoices: % of the whole billed subscription (KOMISI.md 2.E). */
+      event: percent.default(15),
     }),
     penalties: z.object({
       latePerMonth: percent,

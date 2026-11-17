@@ -1,6 +1,7 @@
 export type Scalar = string | number | Date | null | undefined;
 
-export type SnapshotType = "new" | "upgrade" | "prorate" | "recurring";
+/** "event": a one-off event / Bandwidth on Demand invoice (KOMISI.md 2.E). */
+export type SnapshotType = "new" | "upgrade" | "prorate" | "recurring" | "event";
 
 /** Normalized shape both the sheet-based and DB-based sources map into before snapshot rules are applied. */
 export type RawSnapshotInput = {

@@ -112,6 +112,18 @@ Rate recurring **tidak dibedakan per kategori layanan**: berlaku sama untuk Home
 - **Sumber data**: kolom `business_operation` pada tabel `snapshots`, diisi saat crawl dari `Services.BusinessOperation` di database billing, dan **hanya** untuk baris berkategori `Digital Business`. Untuk job berbasis sheet, nilainya di-lookup dari katalog `Services` berdasarkan `Nama Service` (sheet tidak punya kolom ini).
 - **⚠️ Baris tanpa klasifikasi tidak diambil**: jika `Services.BusinessOperation` bukan `internal`/`resell` (mis. `undefined`, `access`, `setup`, `other`), baris Digital Business tersebut **tidak dimasukkan ke `snapshots`** sama sekali — karena tidak ada rate yang bisa dipakai. Kalau ada layanan yang seharusnya dapat komisi tapi hilang, perbaiki `BusinessOperation`-nya di billing lalu jalankan ulang crawl.
 
+**E. Event & Bandwidth on Demand (BOD)**
+
+- **Komisi flat 15%** (setting Aturan Komisi `rates.event`) dari **total subscription yang ditagih** (DPP invoice, setelah diskon) — tanpa potongan referral, tanpa potongan telat bayar, tidak tergantung target, status kepegawaian, maupun kategori layanan.
+- **Invoice yang dihitung event** (ditarik job `invoice:old-customer:db`, lihat `EVENT_INVOICE_CONDITION` di `old-customer.repository.ts`):
+  - service Bandwidth on Demand (`BOD`, `BODFO`, `BODSL`) pada tipe invoice apa pun, **atau**
+  - invoice custom (`InvoiceType 8`) dari akun yang namanya mengandung "event" (mis. `eventadimulia`);
+  - **kecuali** baris Setup/Instalasi (ServiceGroup `ST`) dan tagihan Terminasi di akun tersebut.
+- Invoice event **tidak** ikut dihitung sebagai recurring (dikeluarkan dari query recurring), jadi tidak terhitung dua kali.
+- **Periode**: periode tanggal pembayaran, sama seperti recurring. Hanya invoice yang sudah dibayar.
+- **Penerima**: sales pemilik service (bila sales-nya terdaftar di dashboard ini). Tidak menambah New Achievement, tidak dihitung ke target, dan **tidak** masuk dasar overriding Manager (New maupun Recurring). Bila sales-nya seorang Sales Manager, event masuk ke penjualan pribadinya.
+- Disimpan di `snapshots` dengan `type = 'event'`. Sebelum fitur ini, komisi event dibayar manual (input "Komisi Event" di Bonus Konsistensi, mis. 202608).
+
 _Total Pembayaran Komisi Sales (per item) = `Base Commission` x `Persentase Komisi` / 100._
 
 ---

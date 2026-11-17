@@ -8,6 +8,7 @@ import type {
   IOldCustomerRepository,
   IOldCustomerService,
   OldCustomerAccountRow,
+  OldCustomerInvoiceRow,
 } from "../interface/old-customer.interface";
 import type { IServiceCatalogService } from "../interface/service-catalog.interface";
 import type { ISnapshotService, RawSnapshotInput } from "../interface/snapshot.interface";
@@ -158,6 +159,8 @@ export class OldCustomerService implements IOldCustomerService {
   // `type` value this domain writes — used to scope replaceForPeriod so a
   // re-run never touches the new-customer rows for the same period.
   static readonly TYPES = ["recurring"];
+  /** Written by the DB job only — the old-customer sheet has no event rows, so its re-runs leave them alone. */
+  static readonly EVENT_TYPES = ["event"];
 
   constructor(
     private readonly oldCustomerRepository: IOldCustomerRepository,
@@ -168,18 +171,32 @@ export class OldCustomerService implements IOldCustomerService {
 
   /** Pulls recurring invoice/account rows from the billing DB and shapes them into RawSnapshotInput. */
   async fetchSnapshotInputs(period: string): Promise<RawSnapshotInput[]> {
+    return (await this.fetchAllSnapshotInputs(period, false)).recurring;
+  }
+
+  /**
+   * Recurring and event (KOMISI.md 2.E) invoices of a period, sharing one
+   * account lookup. Event rows carry no referral fee: their commission is a
+   * flat share of the whole billed subscription.
+   */
+  async fetchAllSnapshotInputs(
+    period: string,
+    withEvents = true,
+  ): Promise<{ recurring: RawSnapshotInput[]; event: RawSnapshotInput[] }> {
     const { start, end } = getDateRangeForPeriod(period);
     const startStr = toSqlDate(start);
     const endStr = toSqlDate(end);
-
-    // Sequential — the billing pool has been observed to drop the connection
-    // under concurrent heavy queries (see new-customer.service.ts).
-    const invoiceRows = await this.oldCustomerRepository.findInvoices([
+    const params = [
       period,
       startStr, endStr,
       startStr, endStr,
       startStr, endStr,
-    ]);
+    ];
+
+    // Sequential — the billing pool has been observed to drop the connection
+    // under concurrent heavy queries (see new-customer.service.ts).
+    const invoiceRows = await this.oldCustomerRepository.findInvoices(params);
+    const eventRows = withEvents ? await this.oldCustomerRepository.findEventInvoices(params) : [];
     const accountRows = await this.oldCustomerRepository.findAccounts();
     const resellerFees = await this.oldCustomerRepository.findResellerFees(period);
 
@@ -188,6 +205,20 @@ export class OldCustomerService implements IOldCustomerService {
       if (row.CSID) accountByCsid.set(row.CSID, row);
     }
 
+    return {
+      recurring: this.toSnapshotInputs(invoiceRows, accountByCsid, resellerFees, start, end),
+      event: this.toSnapshotInputs(eventRows, accountByCsid, null, start, end),
+    };
+  }
+
+  private toSnapshotInputs(
+    invoiceRows: OldCustomerInvoiceRow[],
+    accountByCsid: Map<number, OldCustomerAccountRow>,
+    /** Null for event rows, which carry no referral fee. */
+    resellerFees: Map<string, number> | null,
+    start: Date,
+    end: Date,
+  ): RawSnapshotInput[] {
     const results: RawSnapshotInput[] = [];
 
     for (const inv of invoiceRows) {
@@ -238,7 +269,7 @@ export class OldCustomerService implements IOldCustomerService {
         bulan: inv.Bulan,
         telatBulan: late,
         // Referral fee comes from the reseller spreadsheet, keyed by account name; prorata invoices carry none.
-        biayaReferral: Number(inv["Is Prorata"]) ? null : (resellerFees.get(account.Account?.trim() ?? "") ?? null),
+        biayaReferral: !resellerFees || Number(inv["Is Prorata"]) ? null : (resellerFees.get(account.Account?.trim() ?? "") ?? null),
         // Same source as the sheet's "Reseller" column.
         referralName: account.Reseller,
         businessOperation:
@@ -342,6 +373,35 @@ export class OldCustomerService implements IOldCustomerService {
       manager,
       parseNumber(input.dpp),
       "recurring",
+    );
+  }
+
+  /**
+   * Event / BOD invoice (KOMISI.md 2.E): paid in the period, credited to the
+   * service's salesperson like recurring, with no category exclusion and no
+   * late-payment months — the commission is a flat share of the whole bill.
+   */
+  buildEventSnapshotValues(input: RawSnapshotInput, employeeMap: Map<string, string>): any[] | null {
+    if (input.paid?.toString().trim() !== "1") return null;
+
+    const { value: sales, skip: skipSales } = this.employeeService.resolveSales(
+      input.sales?.toString(),
+      employeeMap,
+    );
+    if (skipSales) return null;
+
+    const manager = this.employeeService.resolveEmployee(
+      input.managerSales?.toString(),
+      employeeMap,
+    );
+
+    return this.snapshotService.assembleValues(
+      { ...input, telatBulan: 0, biayaReferral: null, referralName: null },
+      input.category?.toString().trim() || null,
+      sales,
+      manager,
+      parseNumber(input.dpp),
+      "event",
     );
   }
 }

@@ -9,6 +9,18 @@ import type {
   OldCustomerInvoiceRow,
 } from "../interface/old-customer.interface";
 
+/**
+ * An event / Bandwidth on Demand invoice (KOMISI.md 2.E): a BOD service on any
+ * invoice type, or a custom invoice (InvoiceType 8) of an account named
+ * "...event...". Setup lines and termination fees on those accounts aren't
+ * the event itself. Needs `cit`, `cs` and `s` (Services of cit.ServiceId).
+ */
+export const EVENT_INVOICE_CONDITION = `(
+      (cit.ServiceId IN ('BOD', 'BODFO', 'BODSL') OR (cit.InvoiceType = 8 AND cs.CustAccName LIKE '%event%'))
+      AND IFNULL(s.ServiceGroup, '') != 'ST'
+      AND IFNULL(cit.PeriodDescription, '') NOT LIKE '%Terminasi%'
+    )`;
+
 // Mirrors the old Apps Script's SQL_INVOICE_RECEIPT (the query behind the
 // old-customer Google Sheet), so the DB job and the sheet see the same rows.
 // `{{INVOICE_TYPE_8_FILTER}}` is filled by findInvoices: InvoiceType 8 only
@@ -63,6 +75,69 @@ WHERE cit.RInvoiceNum = 0
       (ncic.trx_date IS NOT NULL AND ncic.trx_date BETWEEN ? AND ?)
     )
     AND (cit.InvoiceType != 8 OR (cit.InvoiceType = 8 AND {{INVOICE_TYPE_8_FILTER}}))
+    -- Event invoices are commissioned as "event" instead (SQL_EVENT_INVOICE).
+    AND NOT IFNULL(${EVENT_INVOICE_CONDITION}, FALSE)
+    AND IFNULL(bce.type, 'customer') != 'internal'
+    AND cs.CustStatus != 'FR'
+GROUP BY nci.AI
+HAVING DPP > 0
+ORDER BY nci.AI;
+`;
+
+/**
+ * Event / BOD invoices (KOMISI.md 2.E), in the same row shape and with the
+ * same period window as SQL_INVOICE_RECEIPT. DPP is the whole billed
+ * subscription — no new-subscription split, no counter or upgrade filter,
+ * since an event is billed once rather than renewed.
+ */
+const SQL_EVENT_INVOICE = `
+SELECT
+    cit.CustId \`CID\`,
+    cit.CustServId 'CSID',
+    cit.ServiceGroup \`SG\`,
+    IFNULL(citc.InvoiceDate, cit.InvoiceDate) \`Tanggal Invoice\`,
+    IFNULL(citc.InvoiceExpDate, cit.InvoiceExpDate) \`Tanggal Jatuh Tempo\`,
+    cit.AwalPeriode \`Period Start\`,
+    cit.AkhirPeriode \`Period End\`,
+    itm.Month \`Bulan\`,
+    IFNULL(ncic.dpp, cit.CustTotSubsFee - IFNULL(cid.Amount, 0)) \`DPP\`,
+    IF(ncib.batchNo IS NULL, 0, 1) \`Paid\`,
+    MAX(DATE(nci2.InsertDate)) \`Tanggal Input Pembayaran\`,
+    MAX(IFNULL(ncic.trx_date, nci2.TransDate)) \`Tanggal Transaksi Pembayaran\`,
+    nci.AI \`AI Invoice\`,
+    MAX(nci2.AI) \`AI Receipt\`,
+    cit.PeriodDescription \`Invoice Period Description\`,
+    s.ServiceType AS \`Nama Service\`,
+    0 \`Line Rental\`,
+    0 \`Is Prorata\`,
+    cit.ServiceId \`SID\`,
+    s.ServiceGroup \`Service Master Group\`,
+    s.BusinessOperation \`Business Operation\`
+FROM
+    CustomerInvoiceTemp cit
+    LEFT JOIN CustomerInvoiceTemp_Custom citc ON cit.InvoiceNum = citc.InvoiceNum AND cit.Urut = citc.Urut
+    LEFT JOIN InvoiceTypeMonth itm ON itm.InvoiceType = cit.InvoiceType
+    LEFT JOIN NewCustomerInvoice nci ON cit.InvoiceNum = nci.Id AND nci.No = cit.Urut AND nci.Type = 'internet'
+    LEFT JOIN NewCustomerInvoiceInternetCounter ncic ON ncic.AI = nci.AI
+    LEFT JOIN CustomerInvoiceDiscount cid ON cid.InvoiceNum = cit.InvoiceNum AND cid.Urut = cit.Urut
+    LEFT JOIN NewCustomerInvoiceBatch ncib ON nci.AI = ncib.AI
+    LEFT JOIN NewCustomerInvoiceBatch ncib2 ON ncib.batchNo = ncib2.batchNo and ncib2.AI != ncib.AI and ncib2.total > 0
+    LEFT JOIN NewCustomerInvoice nci2 ON ncib2.AI = nci2.AI
+    LEFT JOIN CustomerServices cs ON cit.CustServId = cs.CustServId
+    LEFT JOIN Customer c ON c.CustId = cs.CustId
+    LEFT JOIN bca_customer_exception bce ON bce.customerId = c.CustId
+    LEFT JOIN Services s ON s.ServiceId = cit.ServiceId
+WHERE cit.RInvoiceNum = 0
+    AND nci.AI IS NOT NULL
+    AND (ncib.batchNo IS NULL OR nci2.Type = 'RA02')
+    AND IFNULL(c.DisplayBranchId, c.BranchId) IN ('020', '062', '025', '027', '029')
+    AND ${EVENT_INVOICE_CONDITION}
+    AND (
+      cit.AwalPeriode >= ? OR
+      (nci2.TransDate IS NOT NULL AND nci2.TransDate BETWEEN ? AND ?) OR
+      (DATE(nci2.InsertDate) IS NOT NULL AND DATE(nci2.InsertDate) BETWEEN ? AND ?) OR
+      (ncic.trx_date IS NOT NULL AND ncic.trx_date BETWEEN ? AND ?)
+    )
     AND IFNULL(bce.type, 'customer') != 'internal'
     AND cs.CustStatus != 'FR'
 GROUP BY nci.AI
@@ -166,6 +241,10 @@ export class OldCustomerRepository implements IOldCustomerRepository {
       SQL_INVOICE_RECEIPT.replace("{{INVOICE_TYPE_8_FILTER}}", filter.sql),
       [...params, ...filter.params],
     );
+  }
+
+  findEventInvoices(params: string[]): Promise<OldCustomerInvoiceRow[]> {
+    return this.billingDb.query<OldCustomerInvoiceRow[]>(SQL_EVENT_INVOICE, params);
   }
 
   findAccounts(): Promise<OldCustomerAccountRow[]> {

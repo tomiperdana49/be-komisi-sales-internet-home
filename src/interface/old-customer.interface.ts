@@ -43,6 +43,8 @@ export type OldCustomerAccountRow = {
 
 export interface IOldCustomerRepository {
   findInvoices(params: string[]): Promise<OldCustomerInvoiceRow[]>;
+  /** Event / Bandwidth on Demand invoices (KOMISI.md 2.E); same params and row shape as findInvoices. */
+  findEventInvoices(params: string[]): Promise<OldCustomerInvoiceRow[]>;
   findAccounts(): Promise<OldCustomerAccountRow[]>;
   /** Referral fee per account name for the period, from the reseller spreadsheet; empty when it isn't configured. */
   findResellerFees(period: string): Promise<Map<string, number>>;
@@ -52,6 +54,11 @@ export interface IOldCustomerRepository {
 
 export interface IOldCustomerService {
   fetchSnapshotInputs(period: string): Promise<RawSnapshotInput[]>;
+  /** Recurring plus event (KOMISI.md 2.E) inputs of a period, from one account lookup. */
+  fetchAllSnapshotInputs(
+    period: string,
+    withEvents?: boolean,
+  ): Promise<{ recurring: RawSnapshotInput[]; event: RawSnapshotInput[] }>;
   mapSheetRowToSnapshotInput(
     row: GoogleSpreadsheetRow,
     catalog: Map<string, ServiceCatalogEntry>,
@@ -61,4 +68,5 @@ export interface IOldCustomerService {
     employeeMap: Map<string, string>,
     excludedCategories: string[],
   ): any[] | null;
+  buildEventSnapshotValues(input: RawSnapshotInput, employeeMap: Map<string, string>): any[] | null;
 }

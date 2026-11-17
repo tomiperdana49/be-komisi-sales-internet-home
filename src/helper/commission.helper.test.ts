@@ -163,6 +163,7 @@ describe("manager Overriding New basis", () => {
       upgrade: stats(50000),
       setup: stats(60000),
       recurring: stats(70000),
+      event: stats(80000),
     };
     expect(getManagerNewCommissionBasis(breakdown, "202607")).toBe(61110);
   });
@@ -176,6 +177,7 @@ describe("manager Overriding New basis", () => {
       upgrade: stats(50000),
       setup: stats(60000),
       recurring: stats(70000),
+      event: stats(80000),
     };
     expect(getManagerNewCommissionBasis(breakdown, "202609")).toBe(111110);
   });
@@ -189,6 +191,7 @@ describe("manager Overriding New basis", () => {
       upgrade: stats(50000),
       setup: stats(60000),
       recurring: stats(70000),
+      event: stats(80000),
     };
     expect(getManagerNewCommissionBasis(breakdown, "202610")).toBe(51110);
   });
@@ -433,5 +436,22 @@ describe("Bonus Konsistensi otomatis", () => {
     expect(sdrRulesSchema.parse({ ...DEFAULT_SDR_RULES, consistency: oldSetting }).consistency.minTestimonials).toBe(0);
     const { consistency: _, ...old } = DEFAULT_SDR_RULES;
     expect(sdrRulesSchema.parse(old).consistency.enabled).toBe(false);
+  });
+});
+
+describe("event commission (KOMISI.md 2.E)", () => {
+  test("15% of the billed subscription, whatever the category, status or target", () => {
+    for (const category of ["home", "setup", "alat", "digital-business"] as const) {
+      const input = newSale({ category, type: "event", status: "Permanent", activityCount: 0, target: 12 });
+      expect(getCommissionPercentage(rules, input)).toBe(15);
+      expect(calculateCommission(rules, 8_000_000, 0, true, input).commission).toBeCloseTo(1_200_000);
+    }
+  });
+
+  test("rule sets saved before the setting existed get the 15% default", () => {
+    const { event: _, ...oldRates } = DEFAULT_COMMISSION_RULES.rates;
+    expect(commissionRulesSchema.parse({ ...DEFAULT_COMMISSION_RULES, rates: oldRates }).rates.event).toBe(15);
+    const { event: __, ...oldSdrRates } = DEFAULT_SDR_RULES.rates;
+    expect(sdrRulesSchema.parse({ ...DEFAULT_SDR_RULES, rates: oldSdrRates }).rates.event).toBe(15);
   });
 });

@@ -26,7 +26,8 @@ CREATE TABLE snapshots(
     transaction_date DATE NULL,
     month INT NULL,
     late_month INT DEFAULT 0,
-    type ENUM('new','prorate','upgrade','recurring') NULL DEFAULT NULL,
+    type ENUM('new','prorate','upgrade','recurring','event') NULL DEFAULT NULL,
+    -- Migration: ALTER TABLE snapshots MODIFY COLUMN type ENUM('new','prorate','upgrade','recurring','event') NULL DEFAULT NULL;
     -- A "new" row that is really a renewal's price increase (billing counter > 1): commissioned as recurring.
     is_renewal BOOLEAN NOT NULL DEFAULT FALSE,
     referral_fee DECIMAL(15,2) DEFAULT 0,

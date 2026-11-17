@@ -39,7 +39,8 @@ export function rulesForSdr(sdrRules: SdrCommissionRules): CommissionRules {
 /** Commission behaves differently per group; derived from the snapshot's `category` label. */
 export type CommissionCategory = "home" | "alat" | "setup" | "digital-business";
 
-export type SnapshotType = "new" | "upgrade" | "prorate" | "recurring";
+/** "event": a one-off event / Bandwidth on Demand invoice (KOMISI.md 2.E). */
+export type SnapshotType = "new" | "upgrade" | "prorate" | "recurring" | "event";
 
 /** Grouping used for the per-service breakdown in dashboards. */
 export type ServiceGroupLabel = "Home" | "Nusafiber" | "NusaSelecta";
@@ -313,6 +314,8 @@ export function getCommissionPercentage(rules: CommissionRules, input: Commissio
   const { category, type, serviceId, months, status, activityCount, target } = input;
   const rates = rules.rates;
 
+  // Event / BOD: flat rate on the whole billed subscription, whatever the category or target (KOMISI.md 2.E).
+  if (type === "event") return rates.event;
   if (category === "setup") return findProduct(rules, serviceId)?.setupRate ?? rates.setup;
   if (category === "alat") return input.hasSetup ? rates.alatWithSetup : rates.alatStandalone;
 

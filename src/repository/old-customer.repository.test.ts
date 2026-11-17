@@ -74,6 +74,20 @@ describe("other old-customer queries", () => {
   });
 });
 
+describe("event invoice query (KOMISI.md 2.E)", () => {
+  test("recurring leaves event invoices out, the event query takes only them", async () => {
+    const { repo, calls } = recordingRepository();
+    await repo.findInvoices(dateParams);
+    await repo.findEventInvoices(dateParams);
+
+    expect(calls[0]!.sql).toContain("AND NOT IFNULL((");
+    expect(calls[1]!.sql).toContain("cit.ServiceId IN ('BOD', 'BODFO', 'BODSL')");
+    expect(calls[1]!.sql).toContain("cs.CustAccName LIKE '%event%'");
+    expect(calls[1]!.sql).not.toContain("new_subscription");
+    for (const { sql, params } of calls) expect(placeholders(sql)).toBe(params.length);
+  });
+});
+
 describe("reseller spreadsheet referral fees", () => {
   test("maps trimmed account names to fees, later branch tabs win, missing tabs are skipped", () => {
     const fees = buildResellerFeeMap([

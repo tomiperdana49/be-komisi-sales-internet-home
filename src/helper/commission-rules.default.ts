@@ -94,6 +94,7 @@ export const DEFAULT_SDR_RULES: SdrCommissionRules = deepFreeze({
     recurringMissedTarget: 0.5,
     digitalBusinessInternal: 1,
     digitalBusinessResell: 0.5,
+    event: 15,
   },
   penalties: {
     latePerMonth: 10,
@@ -153,6 +154,7 @@ export const DEFAULT_COMMISSION_RULES: CommissionRules = deepFreeze({
     recurringMissedTarget: 0.5,
     digitalBusinessInternal: 1,
     digitalBusinessResell: 0.5,
+    event: 15,
   },
   penalties: {
     latePerMonth: 10,

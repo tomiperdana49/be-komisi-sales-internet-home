@@ -78,6 +78,7 @@ function emptyBreakdown(): CommissionBreakdown {
     upgrade: emptyStats(),
     prorate: emptyStats(),
     recurring: emptyStats(),
+    event: emptyStats(),
     alat: emptyStats(),
     setup: emptyStats(),
   };
@@ -106,6 +107,8 @@ function effectiveType(row: CommissionSnapshotRow): SnapshotType {
 
 /** The bucket a row falls into for display: Alat/Setup override the invoice's own type. */
 function resolveBucket(row: CommissionSnapshotRow): SnapshotType | "alat" | "setup" {
+  // An event's own service may be filed under any category; it's always its own bucket.
+  if (row.type === "event") return "event";
   const category = toCommissionCategory(row.category);
   if (category === "alat") return "alat";
   if (category === "setup") return "setup";
@@ -603,6 +606,8 @@ export class CommissionService {
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription,
         otherCommission,
+        eventSubscription: r.breakdown.event.subscription,
+        eventCommission: r.breakdown.event.commission,
         bonusBulanan: r.bonusBulanan,
         bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
@@ -813,9 +818,12 @@ export class CommissionService {
       const subscription = toNumber(row.subscription);
       const mrc = subscription / months;
       // Referral and late-payment cuts are already taken here (order depends on the period).
-      const { net } = netCommissionBasis(
-        rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
-      );
+      // An event earns on the whole billed subscription: no referral or late-payment cut (KOMISI.md 2.E).
+      const net = type === "event"
+        ? subscription
+        : netCommissionBasis(
+          rules, period, subscription, toNumber(row.referral_fee), row.referral_type, row.late_month, row.is_approved,
+        ).net;
 
       const { commission, commissionPercentage, baseCommission } = calculateCommission(
         rules,
@@ -1316,6 +1324,8 @@ export class CommissionService {
         recurringCommission: r.breakdown.recurring.commission,
         otherSubscription: r.breakdown.alat.subscription + r.breakdown.setup.subscription,
         otherCommission: r.breakdown.setup.commission,
+        eventSubscription: r.breakdown.event.subscription,
+        eventCommission: r.breakdown.event.commission,
         bonusBulanan: r.bonusBulanan,
         bonusKelebihanService: r.bonusKelebihanService,
         consistencyBonus: r.consistencyBonus,
