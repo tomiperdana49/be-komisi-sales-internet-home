@@ -4,6 +4,7 @@ import {
   calculateAchievement,
   calculateConsistencyBonus,
   isConsistencyBlockEnd,
+  consistencyBlockStart,
   type ConsistencyBonusAuto,
   type ConsistencyProgress,
   type ConsistencyMonth,
@@ -1000,6 +1001,8 @@ export class CommissionService {
   /**
    * Bonus Konsistensi the rules pay automatically this period (KOMISI.md
    * 5.E): only when it closes one of the person's 3-month (`months`) blocks.
+   * A month below the minimum or a finished block starts the next block the
+   * month after (consistencyAnchor).
    * Blocks run back to back from the latest of: the setting's start period,
    * their first period in the system (the month after, if that first month
    * missed the minimum), and the month after their last manual
@@ -1067,7 +1070,14 @@ export class CommissionService {
         anchor = shiftPeriod(firstPeriod, 1);
       }
     }
-    return anchor;
+    // Walk the months before `period`: a failed month or a finished block
+    // starts the next block the month after (consistencyBlockStart).
+    const history: { period: string; passed: boolean }[] = [];
+    for (let p = anchor; p < period; p = shiftPeriod(p, 1)) {
+      const month = await this.getMonthActivity(employeeId, p, await this.monthRules(p, sdr), sdr);
+      history.push({ period: p, passed: month.activityCount >= minPerMonth && !month.belowNonNusaSelecta });
+    }
+    return consistencyBlockStart(anchor, history, rules.consistency.months);
   }
 
   /** The block `period` falls in and how far the person is, for the AM dashboard; null when the automatic bonus is off. */

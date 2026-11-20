@@ -7,6 +7,7 @@ import {
   calculateCommission,
   calculateConsistencyBonus,
   isConsistencyBlockEnd,
+  consistencyBlockStart,
   calculateExcessServiceBonus,
   calculateMonthlyBonus,
   getCommissionBasis,
@@ -390,6 +391,19 @@ describe("Bonus Konsistensi otomatis", () => {
     // Someone who joins in January: Jan–Mar, Apr–Jun, Jul–Sep.
     expect(["202701", "202703", "202706", "202709"].filter((p) => isConsistencyBlockEnd(p, "202701", 3))).toEqual(["202703", "202706", "202709"]);
     expect(isConsistencyBlockEnd("202608", "202609", 3)).toBe(false);
+  });
+
+  test("a failed month restarts the block the month after (user rule 2026-11-20)", () => {
+    const h = (rows: [string, boolean][]) => rows.map(([period, passed]) => ({ period, passed }));
+    // Teguh: Sep 16 ok, Oct 5 fails → Nov–Jan.
+    expect(consistencyBlockStart("202609", h([["202609", true], ["202610", false]]), 3)).toBe("202611");
+    // Still inside a running block.
+    expect(consistencyBlockStart("202609", h([["202609", true], ["202610", true]]), 3)).toBe("202609");
+    // A finished block (paid or not) starts the next one after it.
+    expect(consistencyBlockStart("202609", h([["202609", true], ["202610", true], ["202611", true]]), 3)).toBe("202612");
+    // Sep fails → Oct–Dec.
+    expect(consistencyBlockStart("202609", h([["202609", false], ["202610", true]]), 3)).toBe("202610");
+    expect(consistencyBlockStart("202609", [], 3)).toBe("202609");
   });
 
   test("a year of blocks from the user's example (2026-10-30)", () => {

@@ -551,6 +551,29 @@ export type ConsistencyProgress = {
 };
 
 /**
+ * Start of the Bonus Konsistensi block a period falls in, given the months
+ * before it (`history`, oldest first, from `anchor` up to the month before
+ * that period, each marked whether it reached the minimum). A month below the
+ * minimum fails the block and counting starts again the month after it; a
+ * block that ran its `months` months closes and the next starts the month
+ * after (user rule 2026-11-20: Sep 16, Oct 5 → next block Nov–Jan).
+ */
+export function consistencyBlockStart(anchor: string, history: { period: string; passed: boolean }[], months: number): string {
+  const index = (p: string) => Number(p.slice(0, 4)) * 12 + Number(p.slice(4, 6));
+  let start = anchor;
+  for (const m of history) {
+    if (m.period < start) continue;
+    if (!m.passed || index(m.period) - index(start) + 1 >= months) start = shiftYm(m.period, 1);
+  }
+  return start;
+}
+
+const shiftYm = (p: string, n: number) => {
+  const i = Number(p.slice(0, 4)) * 12 + Number(p.slice(4, 6)) - 1 + n;
+  return `${Math.floor(i / 12)}${String((i % 12) + 1).padStart(2, "0")}`;
+};
+
+/**
  * Whether `period` is the last month of a Bonus Konsistensi block. Blocks of
  * `months` months run back to back from `anchor` (YYYYMM), whatever their
  * outcome: with 3 months from 202609 they are Sep–Nov, Dec–Feb, Mar–May…
