@@ -170,11 +170,11 @@ export function afterClosingDate(
  * Services NIS created for a customer who already had one (decided per case,
  * not by rule): their first invoice is an existing customer's, so it's
  * commissioned like a renewal (recurring, no New Achievement) — KOMISI.md 1.3.
- * Example: 0200556398 rizkijlt (102371) replaced rizkijld when a Fiberstar
- * relocation failed (Nov 2026). The same-looking 0200317989 huskamaza14ky2p
- * stays New.
+ * Both replaced a service closed when a Fiberstar relocation failed (Nov 2026):
+ * 0200556398 rizkijlt (102371) for rizkijld, and 0200317989 huskamaza14ky2p
+ * (102367) for huskamazaitujlm48.
  */
-export const EXISTING_CUSTOMER_SERVICES = new Set<number>([102371]);
+export const EXISTING_CUSTOMER_SERVICES = new Set<number>([102371, 102367]);
 
 export class NewCustomerService implements INewCustomerService {
   // `type` values this domain writes — used to scope replaceForPeriod so a

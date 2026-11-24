@@ -42,7 +42,9 @@ Billing kadang mencatat sebagian nilai invoice **perpanjangan** sebagai `new_sub
   - **Tidak** ikut ke dasar **Overriding Recurring** manager (Bagian 6.D), baik milik anggota tim maupun Customer Relation Officer.
   - Untuk produk NusaSelecta, sama seperti recurring NusaSelecta lainnya: **tidak dapat komisi** (Bagian 2.A).
 - Sisa nilai invoice yang sama (`dpp − new_subscription`) tetap diambil job customer lama sebagai recurring biasa.
-- **Layanan pengganti untuk customer lama** (diputuskan per kasus, daftar `EXISTING_CUSTOMER_SERVICES` di `new-customer.service.ts`): invoice pertamanya juga ditandai `is_renewal` sehingga dihitung recurring, bukan New. Contoh: 0200556398 `rizkijlt` (CSID 102371) menggantikan `rizkijld` karena relokasi Fiberstar gagal (Nov 2026; churn `rizkijld` dibebaskan). Kasus serupa 0200317989 `huskamaza14ky2p` tetap dihitung New.
+- **Layanan pengganti untuk customer lama** (diputuskan per kasus, daftar `EXISTING_CUSTOMER_SERVICES` di `new-customer.service.ts`): invoice pertamanya juga ditandai `is_renewal` sehingga dihitung recurring, bukan New. Contoh dari relokasi Fiberstar yang gagal (Nov 2026):
+  - 0200556398 `rizkijlt` (CSID 102371) menggantikan `rizkijld`, dan churn `rizkijld` dibebaskan.
+  - 0200317989 `huskamaza14ky2p` (CSID 102367) menggantikan `huskamazaitujlm48`.
 
 #### 1.4 Upgrade Terjadwal (selisih paket)
 
