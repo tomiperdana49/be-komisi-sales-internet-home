@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { BadRequestException, ForbiddenException, NotFoundException } from "../exception/http.exception";
 import { inAdminBranch } from "../helper/access.helper";
+import { isSdr } from "../helper/commission.helper";
 import { successResponse } from "../helper/api-response.helper";
 import { resolvePeriodFromQuery } from "../helper/period-query.helper";
 import { commissionPeriodOf, getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
@@ -16,7 +17,7 @@ import type {
 /**
  * Customer testimonials. Their Sales Manager (or anyone above them) checks a
  * testimonial and enters it on the Account Manager's dashboard; the Account
- * Manager only sees their own. Admins list every one dated in a period.
+ * Manager only sees their own. An SDR enters their own. Admins list every one dated in a period.
  * Once the period a testimonial is dated in is closed, only a Super Admin can
  * add, change or delete it.
  */
@@ -88,12 +89,18 @@ export class TestimonialController {
   /**
    * Testimonials are entered by whoever reviewed them: someone above the
    * employee (hierarchyMiddleware already checked the caller sees them), never
-   * the employee for themselves — unless a Super Admin.
+   * the employee for themselves — unless a Super Admin, or a Sales Development
+   * Representative entering their own.
    */
   private async assertReviewer(c: Context, employeeId: string): Promise<void> {
-    if (c.get("user").sub === employeeId && !(await this.isSuperAdmin(c))) {
+    if (c.get("user").sub === employeeId && !(await this.isSuperAdmin(c)) && !(await this.isSelfSdr(c))) {
       throw new ForbiddenException("Testimoni diinput oleh Sales Manager setelah direview.");
     }
+  }
+
+  private async isSelfSdr(c: Context): Promise<boolean> {
+    const caller = await this.employeeService.findByEmployeeId(c.get("user").sub);
+    return isSdr(caller?.job_position);
   }
 
   private async isSuperAdmin(c: Context): Promise<boolean> {
