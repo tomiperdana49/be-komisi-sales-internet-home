@@ -20,9 +20,9 @@ const SQL_INVOICE_RECEIPT = `
     cit.AkhirPeriode \`Period End\`,
     IFNULL(itm.Month, 1) \`Bulan\`,
     nciic.new_subscription \`DPP\`,
-    IF(ncib.batchNo IS NULL, 0, 1) \`Paid\`,
-    MAX(DATE(nci2.InsertDate)) \`Tanggal Input Pembayaran\`,
-    MAX(IFNULL(nciic.trx_date, nci2.TransDate)) \`Tanggal Transaksi Pembayaran\`,
+    IF(ncib.batchNo IS NULL AND ur.CustId IS NULL, 0, 1) \`Paid\`,
+    MAX(IFNULL(DATE(nci2.InsertDate), ur.input_date)) \`Tanggal Input Pembayaran\`,
+    MAX(COALESCE(nciic.trx_date, nci2.TransDate, ur.trx_date)) \`Tanggal Transaksi Pembayaran\`,
     nciic.new_subscription \`New Subscription\`,
     nciic.counter \`Counter\`,
     nciic.is_prorata \`Invoice Prorata\`,
@@ -31,7 +31,7 @@ const SQL_INVOICE_RECEIPT = `
     nciic.is_upgrade \`Is Upgrade\`,
     nciic.line_rental \`Line Rental\`,
     nci.AI \`AI Invoice\`,
-    MAX(nci2.AI) \`AI Receipt\`,
+    MAX(IFNULL(nci2.AI, ur.ai)) \`AI Receipt\`,
     MAX(nci.InsertDate) \`Tanggal Input Invoice\`,
     IFNULL(rs.Name, "") \`Reseller Name\`
 FROM
@@ -50,6 +50,46 @@ FROM
     LEFT JOIN Reseller rs ON c.ResellerId = rs.Id
     LEFT JOIN FiberVendorServices fvs ON fvs.type = 'CustomerServices' AND cs.CustServId = fvs.typeId
     LEFT JOIN NewCustomerInvoiceInternetCounter nciic ON nciic.AI = nci.AI
+    LEFT JOIN Services sinv ON sinv.ServiceId = cit.ServiceId
+    -- NusaSelecta New/Upgrade paid but not batched by NIS yet (NIS only batches an
+    -- exact amount): unbatched receipts that name this invoice's code and service
+    -- ("Receipt Invoice NFSP100 #MD2/26/11/SV/6160/SH ..."), within 2% over or under
+    -- its net amount (less reverses), and the service is already activated. A bare
+    -- "Receipt deposit" names no service, so it waits for the batch.
+    LEFT JOIN (
+        SELECT
+            r.CustId,
+            SUBSTRING_INDEX(SUBSTRING_INDEX(r.Description, '#', -1), ' ', 1) code,
+            SUBSTRING_INDEX(TRIM(SUBSTRING_INDEX(r.Description, '#', 1)), ' ', -1) service_id,
+            SUM(r.Debet) amount,
+            MAX(r.TransDate) trx_date,
+            MAX(DATE(r.InsertDate)) input_date,
+            MAX(r.AI) ai
+        FROM NewCustomerInvoice r
+        LEFT JOIN NewCustomerInvoiceBatch rb ON rb.AI = r.AI
+        WHERE r.Type = 'RA02' AND rb.AI IS NULL
+          AND r.Description LIKE 'Receipt%#%'
+          AND r.InsertDate >= DATE_SUB(?, INTERVAL 6 MONTH)
+        GROUP BY r.CustId, code, service_id
+    ) ur ON ncib.batchNo IS NULL
+        AND sinv.ServiceType LIKE 'NusaSelecta%'
+        AND ur.CustId = nci.CustId
+        AND ur.code = SUBSTRING_INDEX(SUBSTRING_INDEX(nci.Description, '#', -1), ' ', 1)
+        AND ur.service_id = cit.ServiceId
+        AND ABS(ur.amount - (
+          SELECT SUM(x.Credit - x.Debet) FROM NewCustomerInvoice x
+          WHERE x.CustId = nci.CustId AND x.Type = 'internet'
+            AND LOCATE(CONCAT('#', ur.code, ' '), x.Description) > 0
+        )) <= 0.02 * (
+          SELECT SUM(x.Credit - x.Debet) FROM NewCustomerInvoice x
+          WHERE x.CustId = nci.CustId AND x.Type = 'internet'
+            AND LOCATE(CONCAT('#', ur.code, ' '), x.Description) > 0
+        )
+        AND EXISTS (
+          SELECT 1 FROM CustomerServicesHistoryNew ha
+          WHERE ha.cust_serv_id = cit.CustServId
+            AND (ha.description LIKE 'Free\n%' OR ha.description LIKE 'Activation\n%')
+        )
 WHERE cit.RInvoiceNum = 0
     AND (ncib.batchNo IS NULL OR nci2.Type = 'RA02')
     AND (
@@ -73,6 +113,7 @@ WHERE cit.RInvoiceNum = 0
     AND (
       (DATE(nci.InsertDate) BETWEEN ? AND ?)
       OR (nci2.TransDate IS NOT NULL AND IFNULL(nciic.trx_date, nci2.TransDate) BETWEEN ? AND ?)
+      OR (ur.trx_date BETWEEN ? AND ?)
       -- Paid earlier but activated in the period: counts here (activationCommissionDate).
       OR EXISTS (
         SELECT 1 FROM CustomerServicesHistoryNew h

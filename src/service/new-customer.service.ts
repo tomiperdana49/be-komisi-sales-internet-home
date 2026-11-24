@@ -190,7 +190,8 @@ export class NewCustomerService implements INewCustomerService {
     // and running them concurrently on the pool has been observed to trip a
     // "Connection lost" error against this server.
     const invoiceRows = await this.newCustomerRepository.findInvoices([
-      startStr, endStr, startStr, endStr, startStr, endStr,
+      startStr, // unbatched NusaSelecta receipts lookback
+      startStr, endStr, startStr, endStr, startStr, endStr, startStr, endStr,
       startStr, endStr, startStr, endStr,
       startStr, endStr, startStr, endStr,
     ]);
