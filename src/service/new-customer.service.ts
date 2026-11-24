@@ -166,6 +166,16 @@ export function afterClosingDate(
   return inserted > closedAt ? invoiceInsertDate : commissionDate;
 }
 
+/**
+ * Services NIS created for a customer who already had one (decided per case,
+ * not by rule): their first invoice is an existing customer's, so it's
+ * commissioned like a renewal (recurring, no New Achievement) — KOMISI.md 1.3.
+ * Example: 0200556398 rizkijlt (102371) replaced rizkijld when a Fiberstar
+ * relocation failed (Nov 2026). The same-looking 0200317989 huskamaza14ky2p
+ * stays New.
+ */
+export const EXISTING_CUSTOMER_SERVICES = new Set<number>([102371]);
+
 export class NewCustomerService implements INewCustomerService {
   // `type` values this domain writes — used to scope replaceForPeriod so a
   // re-run never touches the old-customer (recurring) rows for the same period.
@@ -314,7 +324,8 @@ export class NewCustomerService implements INewCustomerService {
       // earlier invoice exists. Kept as a "new" row (this job owns those) and
       // commissioned as recurring instead (KOMISI.md 1.3).
       const isRenewal =
-        inv.SG !== "Alat" && inv.SG !== "ST" && upgrade === null && prorate === null && (toNumber(inv.Counter) ?? 0) > 1;
+        inv.SG !== "Alat" && inv.SG !== "ST" && upgrade === null && prorate === null &&
+        ((toNumber(inv.Counter) ?? 0) > 1 || EXISTING_CUSTOMER_SERVICES.has(Number(inv.CSID)));
 
       const categorySourceName = account?.["Nama Service"] ?? "";
       const category = mapCategory(sg, categorySourceName);

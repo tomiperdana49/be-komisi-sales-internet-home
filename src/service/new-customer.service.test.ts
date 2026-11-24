@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { activationCommissionDate, afterClosingDate, isPaidInPeriod } from "./new-customer.service";
+import { NewCustomerService, activationCommissionDate, afterClosingDate, isPaidInPeriod } from "./new-customer.service";
 import { getDateRangeForPeriod } from "../helper/period.helper";
 
 describe("isPaidInPeriod", () => {
@@ -66,5 +66,35 @@ describe("afterClosingDate", () => {
   test("open period, or no commission date: unchanged", () => {
     expect(afterClosingDate("2026-11-05", new Date("2026-11-06T10:00:00"), closed)).toBe("2026-11-05");
     expect(afterClosingDate(null, new Date("2026-11-06T10:00:00"), closed)).toBeNull();
+  });
+});
+
+describe("replacement services of an existing customer (EXISTING_CUSTOMER_SERVICES)", () => {
+  const invoice = (csid: number, ai: number) => ({
+    CID: "0200556398", CSID: String(csid), SG: "FBP", "Tanggal Invoice": "2026-11-20", "Tanggal Jatuh Tempo": "2026-11-27",
+    "Period Start": "202612", "Period End": "202612", Bulan: 1, DPP: 297500, Paid: 1,
+    "Tanggal Input Pembayaran": "2026-11-24", "Tanggal Transaksi Pembayaran": "2026-11-24",
+    "New Subscription": 297500, Counter: 1, "Invoice Prorata": 0, Code: "", "Tagihan FO": 0, "Is Upgrade": 0,
+    "Line Rental": 0, "AI Invoice": ai, "AI Receipt": ai + 1, "Tanggal Input Invoice": "2026-11-20", "Reseller Name": "",
+  });
+  const account = (csid: number) => ({
+    CID: "0200556398", CSID: csid, "Nama Customer": "X", Company: "X", Account: `acc${csid}`, "Nama Service": "Broadband FO Home Premium Prepaid 100 Mbps",
+    "Service Id": "PREMIUM100", Category: "FBP", "Awal Aktif": "2026-11-17", "Aktivasi Tercatat": "2026-11-17", "Bandwidth (Mbps)": 100,
+    Vendor: null, "Line Rental": null, Cabang: "Medan", Sales: "Freddy", "Manager Sales": "M", CustStatus: "AC", "Branch ID": "020",
+  });
+  const service = new NewCustomerService(
+    {
+      findInvoices: async () => [invoice(102371, 1), invoice(999999, 3)],
+      findAccounts: async () => [account(102371), account(999999)],
+      findServices: async () => [],
+      findSheetRows: async () => [],
+    } as any,
+    {} as any, {} as any, {} as any,
+  );
+
+  test("rizkijlt's first invoice is an existing customer's (renewal), another first invoice stays New", async () => {
+    const rows = await service.fetchSnapshotInputs("202611");
+    expect(rows.find((r) => r.aiInvoice === 1)?.isRenewal).toBe(true);
+    expect(rows.find((r) => r.aiInvoice === 3)?.isRenewal).toBe(false);
   });
 });
