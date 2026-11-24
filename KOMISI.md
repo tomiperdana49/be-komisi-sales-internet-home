@@ -44,6 +44,16 @@ Billing kadang mencatat sebagian nilai invoice **perpanjangan** sebagai `new_sub
 - Sisa nilai invoice yang sama (`dpp − new_subscription`) tetap diambil job customer lama sebagai recurring biasa.
 - **Layanan pengganti untuk customer lama** (diputuskan per kasus, daftar `EXISTING_CUSTOMER_SERVICES` di `new-customer.service.ts`): invoice pertamanya juga ditandai `is_renewal` sehingga dihitung recurring, bukan New. Contoh: 0200556398 `rizkijlt` (CSID 102371) menggantikan `rizkijld` karena relokasi Fiberstar gagal (Nov 2026; churn `rizkijld` dibebaskan). Kasus serupa 0200317989 `huskamaza14ky2p` tetap dihitung New.
 
+#### 1.4 Upgrade Terjadwal (selisih paket)
+
+Upgrade dihitung dari **selisih** harga paket. NIS biasanya sudah mencatat selisih ini di `new_subscription`. Contohnya leslie52 700.000 → 888.000 tercatat 188.000, dan sisa invoice (harga lama) diambil job customer lama sebagai recurring.
+
+Untuk upgrade yang **dijadwalkan ke awal bulan tagihan**, NIS menagih bulan penuh dengan harga baru, tetapi mencatat harga penuh itu sebagai `new_subscription`. Aplikasi mengoreksinya otomatis (`effectiveNewSubscription` di `src/repository/upgrade-subscription.sql.ts`, dipakai job customer baru dan lama). Koreksi berlaku untuk invoice upgrade bulanan yang `new_subscription`-nya sama dengan seluruh `dpp`, dan yang riwayat layanannya punya baris *Upgrade : <lama> [ p ] → <baru> [ q ]* dengan q = dpp. Untuk invoice seperti itu:
+- **Upgrade** = q − p.
+- **Recurring** = p.
+
+Contoh: fakhrurjla (Famujji), nusafiber 50 Mbps [229.000] → Lite 200 [250.000], dijadwalkan 1 Nov 2026. Hasilnya Upgrade **Rp21.000** dan Recurring **Rp229.000**, bukan Upgrade Rp250.000. Invoice lain tetap memakai angka NIS.
+
 ### 2. Aturan Komisi Sales
 
 > Bagian ini berlaku untuk **Sales**. Komisi Manager Area dihitung dengan skema terpisah — lihat Bagian 6.

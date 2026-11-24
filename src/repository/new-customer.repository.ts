@@ -2,6 +2,7 @@ import type { GoogleSpreadsheetRow } from "google-spreadsheet";
 import type { BillingDatabase } from "../lib/billing-database";
 import type { GoogleSheetsClient } from "../lib/google-sheets-client";
 import { googleConfig } from "../config/google.config";
+import { effectiveNewSubscription } from "./upgrade-subscription.sql";
 import type {
   INewCustomerRepository,
   NewCustomerAccountRow,
@@ -19,11 +20,11 @@ const SQL_INVOICE_RECEIPT = `
     cit.AwalPeriode \`Period Start\`,
     cit.AkhirPeriode \`Period End\`,
     IFNULL(itm.Month, 1) \`Bulan\`,
-    nciic.new_subscription \`DPP\`,
+    ${effectiveNewSubscription("nciic", "cit", "itm")} \`DPP\`,
     IF(ncib.batchNo IS NULL AND ur.CustId IS NULL, 0, 1) \`Paid\`,
     MAX(IFNULL(DATE(nci2.InsertDate), ur.input_date)) \`Tanggal Input Pembayaran\`,
     MAX(COALESCE(nciic.trx_date, nci2.TransDate, ur.trx_date)) \`Tanggal Transaksi Pembayaran\`,
-    nciic.new_subscription \`New Subscription\`,
+    ${effectiveNewSubscription("nciic", "cit", "itm")} \`New Subscription\`,
     nciic.counter \`Counter\`,
     nciic.is_prorata \`Invoice Prorata\`,
     '' \`Code\`,

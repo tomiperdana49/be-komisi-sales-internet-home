@@ -3,6 +3,7 @@ import type { BillingDatabase } from "../lib/billing-database";
 import type { GoogleSheetsClient } from "../lib/google-sheets-client";
 import { googleConfig } from "../config/google.config";
 import { oldCustomerConfig } from "../config/old-customer.config";
+import { effectiveNewSubscription } from "./upgrade-subscription.sql";
 import type {
   IOldCustomerRepository,
   OldCustomerAccountRow,
@@ -25,6 +26,9 @@ export const EVENT_INVOICE_CONDITION = `(
 // old-customer Google Sheet), so the DB job and the sheet see the same rows.
 // `{{INVOICE_TYPE_8_FILTER}}` is filled by findInvoices: InvoiceType 8 only
 // counts for the customers in OLD_CUSTOMER_INCLUDE_CUSTOMER_IDS.
+// NIS's new_subscription, corrected for scheduled upgrades (upgrade-subscription.sql.ts).
+const NEW_SUBSCRIPTION = effectiveNewSubscription("ncic", "cit", "itm");
+
 const SQL_INVOICE_RECEIPT = `
 SELECT
     cit.CustId \`CID\`,
@@ -35,7 +39,7 @@ SELECT
     cit.AwalPeriode \`Period Start\`,
     cit.AkhirPeriode \`Period End\`,
     itm.Month \`Bulan\`,
-    IFNULL(ncic.dpp, cit.CustTotSubsFee - IFNULL(cid.Amount, 0)) - IFNULL(ncic.new_subscription, 0) \`DPP\`,
+    IFNULL(ncic.dpp, cit.CustTotSubsFee - IFNULL(cid.Amount, 0)) - IFNULL(${NEW_SUBSCRIPTION}, 0) \`DPP\`,
     IF(ncib.batchNo IS NULL, 0, 1) \`Paid\`,
     MAX(DATE(nci2.InsertDate)) \`Tanggal Input Pembayaran\`,
     MAX(IFNULL(ncic.trx_date, nci2.TransDate)) \`Tanggal Transaksi Pembayaran\`,
@@ -66,8 +70,8 @@ FROM
 WHERE cit.RInvoiceNum = 0
     AND (ncib.batchNo IS NULL OR nci2.Type = 'RA02')
     AND IFNULL(c.DisplayBranchId, c.BranchId) IN ('020', '062', '025', '027', '029')
-    AND (cit.PeriodDescription NOT LIKE '%Upgrade%' OR ncic.dpp > ncic.new_subscription)
-    AND (ncic.counter > 1 OR (ncic.counter = 1 AND ncic.dpp > ncic.new_subscription))
+    AND (cit.PeriodDescription NOT LIKE '%Upgrade%' OR ncic.dpp > ${NEW_SUBSCRIPTION})
+    AND (ncic.counter > 1 OR (ncic.counter = 1 AND ncic.dpp > ${NEW_SUBSCRIPTION}))
     AND (
       cit.AwalPeriode >= ? OR
       (nci2.TransDate IS NOT NULL AND nci2.TransDate BETWEEN ? AND ?) OR
