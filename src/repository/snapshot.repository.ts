@@ -1,5 +1,5 @@
 import type { AppDatabase } from "../lib/app-database";
-import { MANAGER_OWN_SALES_OUT_OF_POOL_SINCE, SDR_JOB_POSITION } from "../helper/commission.helper";
+import { MANAGER_OWN_SALES_OUT_OF_POOL_SINCE, MANAGER_RENEWAL_IN_POOL_SINCE, SDR_JOB_POSITION } from "../helper/commission.helper";
 import type { ISnapshotRepository } from "../interface/snapshot.interface";
 import type {
   CommissionSnapshotRow,
@@ -64,7 +64,8 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
    * salesperson — that's what lets Customer Relation Officer invoices
    * still count toward the manager's recurring pool (KOMISI.md 6.D).
    * Renewal price increases (is_renewal, stored as type 'new') stay out of
-   * the pool (KOMISI.md 1.3). SDR sales stay out too: SDRs sit outside
+   * the pool before MANAGER_RENEWAL_IN_POOL_SINCE and count from it, as the
+   * SM team sheets (KOMISI.md 1.3). SDR sales stay out too: SDRs sit outside
    * the Manager Area (KOMISI.md 7). The manager's own sales stay out as well:
    * billing sometimes names the manager as their own customer's manager, and
    * those rows already earn commission as Penjualan Pribadi (KOMISI.md 6.F).
@@ -73,12 +74,13 @@ export class SnapshotRepository implements ISnapshotRepository, ISnapshotReadRep
   findRecurringByManager(managerId: string, period: string): Promise<CommissionSnapshotRow[]> {
     return this.db.query<CommissionSnapshotRow[]>(
       `SELECT * FROM snapshots s
-       WHERE s.manager = ? AND s.period = ? AND s.type = 'recurring'
+       WHERE s.manager = ? AND s.period = ?
+         AND (s.type = 'recurring' OR (s.type = 'new' AND s.is_renewal = 1 AND ? >= ?))
          AND (? < ? OR s.sales IS NULL OR s.sales <> ?)
          AND NOT EXISTS (
            SELECT 1 FROM employee e WHERE e.employee_id = s.sales AND e.job_position = ?
          )`,
-      [managerId, period, period, MANAGER_OWN_SALES_OUT_OF_POOL_SINCE, managerId, SDR_JOB_POSITION],
+      [managerId, period, period, MANAGER_RENEWAL_IN_POOL_SINCE, period, MANAGER_OWN_SALES_OUT_OF_POOL_SINCE, managerId, SDR_JOB_POSITION],
     );
   }
 

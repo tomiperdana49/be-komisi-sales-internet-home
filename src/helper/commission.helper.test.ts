@@ -196,6 +196,20 @@ describe("manager Overriding New basis", () => {
     };
     expect(getManagerNewCommissionBasis(breakdown, "202610")).toBe(51110);
   });
+
+  test("adds Setup back from November 2026, as the SM sheets", () => {
+    const stats = (commission: number) => ({ count: 1, commission, subscription: 0, mrc: 0 });
+    const breakdown = {
+      new: stats(1000),
+      prorate: stats(100),
+      alat: stats(10),
+      upgrade: stats(50000),
+      setup: stats(60000),
+      recurring: stats(70000),
+      event: stats(80000),
+    };
+    expect(getManagerNewCommissionBasis(breakdown, "202611")).toBe(111110);
+  });
 });
 
 describe("contract-length tiers", () => {

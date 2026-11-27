@@ -15,6 +15,8 @@ import {
   calculateNusaSelectaActivity,
   getManagerNewCommissionBasis,
   MANAGER_NEW_SETUP_UNTIL,
+  MANAGER_NEW_SETUP_SINCE,
+  MANAGER_RENEWAL_IN_POOL_SINCE,
   getManagerNewCommissionRate,
   getManagerRecurringRate,
   getRecurringServiceGroupLabel,
@@ -559,7 +561,7 @@ export class CommissionService {
     );
     const recurringRenewalItems = coveredTeam.flatMap((e, i) =>
       memberResults[i]!.items
-        .filter((item) => item.type === "recurring" && item.isRenewal)
+        .filter((item) => item.type === "recurring" && item.isRenewal && period < MANAGER_RENEWAL_IN_POOL_SINCE)
         .map((item): ManagerRecurringBasisItem => ({
           aiInvoice: item.aiInvoice,
           customerId: item.customerId,
@@ -599,9 +601,10 @@ export class CommissionService {
         motivation: r.motivation,
         newSubscription: r.breakdown.new.subscription + r.breakdown.prorate.subscription + r.breakdown.upgrade.subscription,
         newMrc: r.breakdown.new.mrc + r.breakdown.upgrade.mrc,
-        // Komisi New = New + Prorate + Upgrade + Alat, as the team sheet; only Alat's
-        // subscription sits in Alat & Setup. Overriding New basis: teamTotals.newCommission.
-        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission + r.breakdown.alat.commission,
+        // Komisi New = New + Prorate + Upgrade + Alat (+ Setup from November 2026), as the
+        // team sheet; only Alat's subscription sits in Alat & Setup. Overriding New basis: teamTotals.newCommission.
+        newCommission: r.breakdown.new.commission + r.breakdown.prorate.commission + r.breakdown.upgrade.commission + r.breakdown.alat.commission
+          + (period >= MANAGER_NEW_SETUP_SINCE ? r.breakdown.setup.commission : 0),
         // Dasar Komisi Recurring, as on the AM page: after the referral and late-payment cuts.
         recurringSubscription: recurringCommissionBasis(r),
         recurringCommission: r.breakdown.recurring.commission,

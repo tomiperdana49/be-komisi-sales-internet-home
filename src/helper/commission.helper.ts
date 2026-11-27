@@ -693,14 +693,25 @@ export const MANAGER_NEW_UPGRADE_SINCE = "202608";
 /** Before this period the SM team sheets (Aug–Sep 2026) put the AM's Setup commission in the Overriding New basis too. */
 export const MANAGER_NEW_SETUP_UNTIL = "202610";
 
+/** From this period the AM's Setup commission is back in the Overriding New basis (decided 2026-11-27, as the SM team sheets). */
+export const MANAGER_NEW_SETUP_SINCE = "202611";
+
+/** From this period renewal rows (is_renewal) feed the SM's Overriding Recurring pool too, as the SM team sheets. */
+export const MANAGER_RENEWAL_IN_POOL_SINCE = "202611";
+
+/** Whether a team member's Setup commission feeds the manager's Overriding New in `period` (only October 2026 leaves it out). */
+export function managerNewIncludesSetup(period: string): boolean {
+  return period < MANAGER_NEW_SETUP_UNTIL || period >= MANAGER_NEW_SETUP_SINCE;
+}
+
 /**
  * KOMISI.md 6.C: the part of a team member's commission the manager's
  * Overriding New is taken from — New, Prorate and Alat, plus Upgrade from
- * MANAGER_NEW_UPGRADE_SINCE. Setup is left out.
+ * MANAGER_NEW_UPGRADE_SINCE, plus Setup except in October 2026.
  */
 export function getManagerNewCommissionBasis(breakdown: CommissionBreakdown, period: string): number {
   const upgrade = period >= MANAGER_NEW_UPGRADE_SINCE ? breakdown.upgrade.commission : 0;
-  const setup = period < MANAGER_NEW_SETUP_UNTIL ? breakdown.setup.commission : 0;
+  const setup = managerNewIncludesSetup(period) ? breakdown.setup.commission : 0;
   return breakdown.new.commission + breakdown.prorate.commission + upgrade + breakdown.alat.commission + setup;
 }
 

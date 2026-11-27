@@ -39,7 +39,7 @@ Billing kadang mencatat sebagian nilai invoice **perpanjangan** sebagai `new_sub
 - Invoice customer baru dengan **`counter > 1`** di `NewCustomerInvoiceInternetCounter` (bukan upgrade, bukan prorata, bukan alat/setup) ditandai **`is_renewal = TRUE`** oleh job `new-customer-db`. Baris tetap bertipe `new` di tabel `snapshots` (milik job customer baru), tetapi:
   - **Dihitung sebagai Recurring**: memakai rate recurring (Bagian 2.A), tampil di tab Recurring dengan label *Perpanjangan*.
   - **Tidak menambah New Achievement** dan **tidak kena penalti performa 70%**.
-  - **Tidak** ikut ke dasar **Overriding Recurring** manager (Bagian 6.D), baik milik anggota tim maupun Customer Relation Officer.
+  - **Tidak** ikut ke dasar **Overriding Recurring** manager (Bagian 6.D), baik milik anggota tim maupun Customer Relation Officer — sampai periode Oktober 2026. **Mulai periode November 2026 ikut** dasar Overriding Recurring (keputusan 27 Nov 2026, mengikuti sheet SM; contoh: yusufl1 Rp1.000.000 dan rizkijlt Rp297.500 di tim Rizki → +Rp11.678). Lihat `MANAGER_RENEWAL_IN_POOL_SINCE`.
   - Untuk produk NusaSelecta, sama seperti recurring NusaSelecta lainnya: **tidak dapat komisi** (Bagian 2.A).
 - Sisa nilai invoice yang sama (`dpp − new_subscription`) tetap diambil job customer lama sebagai recurring biasa.
 - **Layanan pengganti untuk customer lama** (diputuskan per kasus, daftar `EXISTING_CUSTOMER_SERVICES` di `new-customer.service.ts`): invoice pertamanya juga ditandai `is_renewal` sehingga dihitung recurring, bukan New. Contoh dari relokasi Fiberstar yang gagal (Nov 2026):
@@ -344,7 +344,9 @@ Manager mengambil komisi overriding yang diproses dari total kue komisi produk N
 > `Dasar Overriding New Manager = Total Komisi New Tim + Total Komisi Prorate Tim + Total Komisi Alat Tim`.
 > Pada tampilan laporan summary, komisi Prorate dan Alat juga digabungkan ke kolom New Commission.
 
-> **⚠️ Mulai periode Oktober 2026 komisi Upgrade tim juga ikut** (mengikuti sheet tim): `Dasar Overriding New Manager = Komisi New + Prorate + Upgrade + Alat Tim`, dan kolom Komisi New di tabel Anggota Tim & Summary memakai rumus yang sama. Alat hanya dikeluarkan dari angka **Subscription** New (pindah ke Subscription Alat & Setup), komisinya tetap dihitung. Setup tetap tidak ikut. Lihat `MANAGER_NEW_UPGRADE_SINCE`.
+> **⚠️ Mulai periode Oktober 2026 komisi Upgrade tim juga ikut** (mengikuti sheet tim): `Dasar Overriding New Manager = Komisi New + Prorate + Upgrade + Alat Tim`, dan kolom Komisi New di tabel Anggota Tim & Summary memakai rumus yang sama. Alat hanya dikeluarkan dari angka **Subscription** New (pindah ke Subscription Alat & Setup), komisinya tetap dihitung. Setup tidak ikut di periode Oktober 2026. Lihat `MANAGER_NEW_UPGRADE_SINCE`.
+
+> **⚠️ Mulai periode November 2026 komisi Setup tim ikut lagi** (keputusan 27 Nov 2026, mengikuti sheet SM): `Dasar Overriding New Manager = Komisi New + Prorate + Upgrade + Alat + Setup Tim`, dan kolom Komisi New di tabel Anggota Tim halaman SM juga memasukkan Setup. Komisi AM sendiri tidak berubah (Setup tetap dibayar ke AM). Contoh November 2026: Setup Freddy Rp25.000 → overriding Rizki +Rp15.000; Setup Josua Rp50.000 + Tengku Rp25.000 → overriding Fauzan +Rp45.000. Lihat `MANAGER_NEW_SETUP_SINCE` / `managerNewIncludesSetup`.
 
 - Jika Capaian `>= 150%` = Manager dikalikan **60%** dari kue New, Prorate & Alat Commission.
 - Jika Capaian `>= 125%` = Manager dikalikan **50%**.
