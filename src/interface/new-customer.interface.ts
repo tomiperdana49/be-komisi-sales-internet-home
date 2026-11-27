@@ -14,6 +14,8 @@ export type NewCustomerInvoiceRow = {
   "Tanggal Input Pembayaran": unknown;
   "Tanggal Transaksi Pembayaran": unknown;
   "New Subscription": unknown;
+  /** 1 when NIS batched the invoice with a receipt (or a matching unbatched NusaSelecta receipt), else 0. */
+  Paid?: unknown;
   "Invoice Prorata": unknown;
   /** Billing's per-service invoice counter: 1 = the first invoice, > 1 = a later (renewal) invoice. */
   Counter: unknown;

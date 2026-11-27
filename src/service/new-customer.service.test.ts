@@ -98,3 +98,33 @@ describe("replacement services of an existing customer (EXISTING_CUSTOMER_SERVIC
     expect(rows.find((r) => r.aiInvoice === 3)?.isRenewal).toBe(false);
   });
 });
+
+describe("unpaid invoice with a payment date (Paid = 0)", () => {
+  const invoice = (ai: number, paid: number) => ({
+    CID: "0200682229", CSID: "102258", SG: "FBP", "Tanggal Invoice": "2026-11-12", "Tanggal Jatuh Tempo": "2026-11-19",
+    "Period Start": "202611", "Period End": "202611", Bulan: 1, DPP: 82500, Paid: paid,
+    "Tanggal Input Pembayaran": null, "Tanggal Transaksi Pembayaran": "2026-11-13",
+    "New Subscription": 82500, Counter: 0, "Invoice Prorata": 1, Code: "", "Tagihan FO": 0, "Is Upgrade": 0,
+    "Line Rental": 0, "AI Invoice": ai, "AI Receipt": null, "Tanggal Input Invoice": "2026-11-12", "Reseller Name": "",
+  });
+  const account = {
+    CID: "0200682229", CSID: 102258, "Nama Customer": "X", Company: "X", Account: "arifjlb", "Nama Service": "Broadband FO Home Lite 100 Mbps",
+    "Service Id": "LITE100", Category: "FBP", "Awal Aktif": "2026-11-14", "Aktivasi Tercatat": "2026-11-14", "Bandwidth (Mbps)": 100,
+    Vendor: null, "Line Rental": null, Cabang: "Medan", Sales: "Zailani", "Manager Sales": "M", CustStatus: "AC", "Branch ID": "020",
+  };
+  const service = new NewCustomerService(
+    {
+      findInvoices: async () => [invoice(2050367, 0), invoice(2050999, 1)],
+      findAccounts: async () => [account],
+      findServices: async () => [],
+      findSheetRows: async () => [],
+    } as any,
+    {} as any, {} as any, {} as any,
+  );
+
+  test("isn't counted as paid; the batched one is", async () => {
+    const rows = await service.fetchSnapshotInputs("202611");
+    expect(rows.find((r) => r.aiInvoice === 2050367)?.paid).toBe(0);
+    expect(rows.find((r) => r.aiInvoice === 2050999)?.paid).toBe(1);
+  });
+});

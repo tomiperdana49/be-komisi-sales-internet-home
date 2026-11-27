@@ -255,7 +255,11 @@ export class NewCustomerService implements INewCustomerService {
         inv["Tanggal Input Invoice"],
         closedAtByPeriod,
       );
-      if (isPaidInPeriod(commissionDate, start, end)) {
+      // A payment date alone isn't a payment: NIS can stamp one on the invoice
+      // counter and clear it again with no receipt ever batched (0200682229
+      // arifjlb prorata, trx_date 13 Nov 2026, never paid). Only an invoice NIS
+      // marks paid (batched, or a matching NusaSelecta receipt) counts.
+      if (Number(inv.Paid) === 1 && isPaidInPeriod(commissionDate, start, end)) {
         isPaid = 1;
         inputPaymentDate = inv["Tanggal Input Pembayaran"];
         transactionDate = inv["Tanggal Transaksi Pembayaran"];
