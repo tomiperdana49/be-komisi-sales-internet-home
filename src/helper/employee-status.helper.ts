@@ -17,3 +17,14 @@ export function statusForPeriod(status: string, signDate: string | null | undefi
   }
   return status;
 }
+
+/**
+ * Whether someone who joined on `joinDate` (YYYY-MM-DD) belongs in the period
+ * ending `periodEnd`: not when they joined after it ended. Example: Rahmad
+ * Syafrizal joined 26 Nov 2026, the first day of the December period, so he
+ * gets no November status row (and doesn't join a team's November count).
+ */
+export function joinedByPeriodEnd(joinDate: string | null | undefined, periodEnd: string): boolean {
+  if (!joinDate) return true;
+  return joinDate.slice(0, 10) <= periodEnd.slice(0, 10);
+}

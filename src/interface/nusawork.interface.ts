@@ -13,6 +13,8 @@ export type NusaworkEmployeeRaw = {
   status_join: string;
   /** When the current status was signed (e.g. made Permanent); null if never. */
   sign_date?: string | null;
+  /** First working day (YYYY-MM-DD). */
+  join_date?: string | null;
   id_report_to_value: string | null;
 };
 
@@ -31,6 +33,8 @@ export type CrawledEmployee = {
   status: string;
   /** Nusawork sign_date of the current status (YYYY-MM-DD), if any. */
   signDate?: string | null;
+  /** Nusawork join_date (YYYY-MM-DD): no status row for a period that ends before it. */
+  joinDate?: string | null;
   hasDashboard?: boolean;
   isAdmin: boolean;
 };

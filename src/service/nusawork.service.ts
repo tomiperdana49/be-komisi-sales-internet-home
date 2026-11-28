@@ -21,6 +21,7 @@ function toCrawled(emp: NusaworkEmployeeRaw, managerId: string | null, hasDashbo
     managerId,
     status: emp.status_join,
     signDate: emp.sign_date ?? null,
+    joinDate: emp.join_date ?? null,
     hasDashboard,
     isAdmin: false,
   };

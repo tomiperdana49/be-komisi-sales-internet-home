@@ -2,7 +2,7 @@ import { container } from "../container";
 import { getDateRangeForPeriod, toSqlDate } from "../helper/period.helper";
 import { isSdr } from "../helper/commission.helper";
 import { resolveJobPeriods } from "./job-periods";
-import { statusForPeriod } from "../helper/employee-status.helper";
+import { joinedByPeriodEnd, statusForPeriod } from "../helper/employee-status.helper";
 import { assertSafeDeactivation, FORCE_DEACTIVATE_ARG } from "../helper/employee-crawl-guard.helper";
 
 async function run() {
@@ -30,6 +30,8 @@ async function run() {
   for (const employee of sales) {
     await container.employeeService.upsertEmployee({ ...employee, isAdmin: adminIds.has(employee.employeeId) });
     for (const { startDate, endDate, targets: amTargets, sdrTargets } of periods) {
+      // Joined after this period ended: not part of it (no status, no team count).
+      if (!joinedByPeriodEnd(employee.joinDate, endDate)) continue;
       const targets = isSdr(employee.jobPosition) ? sdrTargets : amTargets;
       const status = statusForPeriod(employee.status, employee.signDate, startDate);
       await container.employeeService.upsertStatusPeriod(
